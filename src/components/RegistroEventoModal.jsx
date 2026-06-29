@@ -1,5 +1,8 @@
 import { useState } from 'react';
 
+import TimeSelect from './TimeSelect.jsx';
+import { isValidTimeValue } from './timeUtils.js';
+
 const numeralOptions = [
   'Numeral 1',
   'Numeral 2',
@@ -55,6 +58,10 @@ function eventResponsible(tipo, form) {
   return form.get('responsable');
 }
 
+function isMaintenanceType(tipo) {
+  return ['preventivo', 'correctivo'].includes(tipo);
+}
+
 export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose, onSave }) {
   const [tipo, setTipo] = useState('');
   const [preventivoCodigo, setPreventivoCodigo] = useState('E');
@@ -68,15 +75,24 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const currentType = form.get('tipo');
+    const fecha = form.get('fecha');
+    const hora = String(form.get('hora') || '').slice(0, 5);
+    const estadoMantenimiento = isMaintenanceType(currentType) ? form.get('estadoMantenimiento') : null;
     const adjuntos = form.getAll('adjuntos').filter((file) => file && file.name);
     setErrorMessage('');
+
+    if (!isValidTimeValue(hora)) {
+      setErrorMessage('La hora debe tener formato HH:mm.');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
       await onSave({
         locomotoraCodigo: form.get('locomotoraCodigo'),
-        fecha: form.get('fecha'),
-        hora: form.get('hora'),
+        fecha,
+        hora,
         tipo: currentType,
         preventivoCodigo: currentType === 'preventivo' ? form.get('preventivoCodigo') : null,
         especialidad: eventSpecialty(currentType, form),
@@ -87,6 +103,9 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
         automatico: false,
         tags: currentType === 'alistamiento' ? ['alistamiento-con-novedad'] : [],
         criticidad: form.get('criticidad'),
+        estadoMantenimiento,
+        fechaCierre: estadoMantenimiento === 'finalizado' ? fecha : null,
+        horaCierre: estadoMantenimiento === 'finalizado' ? hora : null,
       }, adjuntos);
     } catch (error) {
       setErrorMessage(error.message || 'No fue posible guardar el evento.');
@@ -118,10 +137,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
           <input name="fecha" type="date" defaultValue={todayInputValue()} required />
         </label>
 
-        <label>
-          Hora
-          <input name="hora" type="time" defaultValue={currentTimeValue()} required />
-        </label>
+        <TimeSelect defaultValue={currentTimeValue()} />
 
         <label>
           Tipo de evento
@@ -153,6 +169,13 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
               <input name="responsableVista" readOnly value={preventiveResponsible} />
             </label>
             <label>
+              Estado del mantenimiento
+              <select name="estadoMantenimiento" defaultValue="en_curso" required>
+                <option value="en_curso">En curso</option>
+                <option value="finalizado">Finalizado</option>
+              </select>
+            </label>
+            <label>
               Descripcion / novedad
               <textarea
                 name="descripcion"
@@ -179,6 +202,13 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
                 <option value="" disabled>Seleccionar turno</option>
                 <option>Turno fijo</option>
                 <option>Turno rotativo</option>
+              </select>
+            </label>
+            <label>
+              Estado del mantenimiento
+              <select name="estadoMantenimiento" defaultValue="en_curso" required>
+                <option value="en_curso">En curso</option>
+                <option value="finalizado">Finalizado</option>
               </select>
             </label>
             <label>
@@ -251,7 +281,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
         </div>
 
         <div className="history-modal-note">
-          El libro de novedades se sincroniza automaticamente desde Sistema Ferrovias y no se carga manualmente.
+          El libro de novedades puede importarse desde Archivo Historico mientras no exista sincronizacion automatica real.
         </div>
 
         <div className="modal-actions">

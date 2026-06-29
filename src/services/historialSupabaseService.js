@@ -4,6 +4,10 @@ import {
   mapAttachmentRows,
   uploadEventAttachments,
 } from './adjuntosSupabaseService.js';
+import {
+  obtenerActualizaciones,
+  sincronizarEstadoMantenimientoEvento,
+} from './actualizacionesEventoSupabaseService.js';
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
@@ -33,10 +37,16 @@ function mapEventRow(row) {
     claveImportacion: row.clave_importacion,
     archivoOrigen: row.archivo_origen,
     importacionId: row.importacion_id,
+    estadoMantenimiento: row.estado_mantenimiento || (['preventivo', 'correctivo'].includes(row.tipo) ? 'abierto' : null),
+    estadoUnidadResultante: row.estado_unidad_resultante,
+    fechaCierre: row.fecha_cierre,
+    horaCierre: row.hora_cierre ? String(row.hora_cierre).slice(0, 5) : '',
+    ultimaActividadAt: row.ultima_actividad_at,
     anulado: Boolean(row.anulado),
     motivoAnulacion: row.motivo_anulacion,
     createdAt: row.created_at,
     adjuntos: [],
+    actualizaciones: [],
   };
 }
 
@@ -63,6 +73,10 @@ function toEventPayload(event) {
     clave_importacion: event.claveImportacion || event.clave_importacion || null,
     archivo_origen: event.archivoOrigen || event.archivo_origen || null,
     importacion_id: event.importacionId || event.importacion_id || null,
+    estado_mantenimiento: event.estadoMantenimiento || event.estado_mantenimiento || null,
+    estado_unidad_resultante: event.estadoUnidadResultante || event.estado_unidad_resultante || null,
+    fecha_cierre: event.fechaCierre || event.fecha_cierre || null,
+    hora_cierre: event.horaCierre || event.hora_cierre || null,
     anulado: Boolean(event.anulado),
     motivo_anulacion: event.motivoAnulacion || event.motivo_anulacion || null,
   };
@@ -74,6 +88,10 @@ async function attachFilesToEvents(rows) {
   for (const row of rows || []) {
     const event = mapEventRow(row);
     event.adjuntos = await mapAttachmentRows(row.adjuntos_evento || []);
+    if (['preventivo', 'correctivo'].includes(event.tipo)) {
+      event.actualizaciones = await obtenerActualizaciones(event.id);
+      Object.assign(event, await sincronizarEstadoMantenimientoEvento(event, event.actualizaciones));
+    }
     events.push(event);
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import CalendarioMantenimiento from './components/CalendarioMantenimiento.jsx';
 import Home from './components/Home.jsx';
@@ -9,7 +9,9 @@ import Sidebar from './components/Sidebar.jsx';
 import locoAzul from './assets/loco_azul.webp';
 import locoRoja from './assets/loco_roja.webp';
 import locomotoras from './data/locomotoras.js';
+import { crearActualizacion } from './services/actualizacionesEventoSupabaseService.js';
 import { createHistorialEvent, fetchHistorialByLocomotora } from './services/historialSupabaseService.js';
+import { importarLibroNovedades } from './services/importacionLibroSupabaseService.js';
 import { localStorageKeys } from './services/localStorageKeys.js';
 
 // Historial local usado por el panel de intervenciones recientes del Patio.
@@ -151,7 +153,7 @@ export default function App() {
   const historyLoco = historyTarget || selected;
   const defaultHistoryLoco = historyLoco || locomotoras.find((loco) => loco.codigo === '7774') || locomotoras[0];
 
-  const loadHistoryEvents = async (loco = defaultHistoryLoco) => {
+  const loadHistoryEvents = useCallback(async (loco = defaultHistoryLoco) => {
     if (!loco?.codigo) return;
     setHistoryStatus('loading');
     setHistoryError('');
@@ -165,13 +167,13 @@ export default function App() {
       setHistoryError(error.message || 'No fue posible conectarse con Supabase.');
       setHistoryStatus('error');
     }
-  };
+  }, [defaultHistoryLoco]);
 
   useEffect(() => {
-    if (tab === 'historial') {
-      loadHistoryEvents(defaultHistoryLoco);
-    }
-  }, [tab, defaultHistoryLoco.codigo]);
+    if (tab !== 'historial') return undefined;
+    const timeoutId = window.setTimeout(() => loadHistoryEvents(defaultHistoryLoco), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [tab, defaultHistoryLoco, loadHistoryEvents]);
 
   const resumen = locomotoras.reduce(
     (totales, loco) => ({
@@ -249,6 +251,23 @@ export default function App() {
     }
 
     setIsEventModalOpen(false);
+  };
+
+  const importLibroNovedades = async (file) => {
+    const csvText = await file.text();
+    const result = await importarLibroNovedades({
+      csvText,
+      archivoOrigen: file.name,
+      locomotoras,
+    });
+
+    await loadHistoryEvents(defaultHistoryLoco);
+    return result;
+  };
+
+  const saveActualizacionEvento = async (event, actualizacion, files = []) => {
+    await crearActualizacion(actualizacion, files, event);
+    await loadHistoryEvents(defaultHistoryLoco);
   };
 
   const openInterventionModal = () => {
@@ -387,6 +406,8 @@ export default function App() {
           loco={defaultHistoryLoco}
           locomotoras={locomotoras}
           locomotiveImage={imagenLocomotora}
+          onCreateActualizacion={saveActualizacionEvento}
+          onImportLibro={importLibroNovedades}
           onRegisterEvent={(loco) => openEventModal(loco, 'archivo')}
           onRetry={() => loadHistoryEvents(defaultHistoryLoco)}
           onLocomotiveChange={(codigo) => {
