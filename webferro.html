@@ -1,0 +1,2701 @@
+﻿<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Webferro</title>
+    <link rel="stylesheet" href="src/index.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script>
+      const assets = {
+        locoRoja: 'src/assets/loco_roja.webp',
+        locoAzul: 'src/assets/loco_azul.webp',
+        patioBg: 'src/assets/patio/patio-retiro-bg.webp',
+        patioRoja: 'src/assets/patio/loco-ferrovias-roja.png',
+        patioAzul: 'src/assets/patio/loco-ferrovias-azul-7774.png',
+        homeHero: 'src/assets/home/home-hero-loc.jpeg',
+        homeFront: 'src/assets/home/locdetrompa.png',
+        homeMotion: 'src/assets/home/home-motion-loc.jpeg',
+      };
+
+      const locomotoras = [
+        { id: 1, codigo: 'E701', estado: 'servicio' },
+        { id: 2, codigo: 'E702', estado: 'servicio' },
+        { id: 3, codigo: 'E703', estado: 'servicio' },
+        { id: 4, codigo: 'E704', estado: 'servicio', observacion: 'Uso condicional. Revision soporte de antena Grupo 2/5 anulado' },
+        { id: 5, codigo: 'E705', estado: 'preventivo', tipoPreventivo: 'E', observacion: 'Mantenimiento preventivo E' },
+        { id: 6, codigo: 'E706', estado: 'servicio', observacion: 'Sale acompanada con personal electrico' },
+        { id: 7, codigo: 'E707', estado: 'preventivo', tipoPreventivo: 'Numeral 6' },
+        { id: 8, codigo: 'E708', estado: 'preventivo', tipoPreventivo: 'Numeral', modalidad: 'Externo', observacion: 'Numeral en EMEPA' },
+        { id: 9, codigo: 'E709', estado: 'servicio' },
+        { id: 10, codigo: 'E710', estado: 'preventivo', tipoPreventivo: 'Numeral 8' },
+        { id: 11, codigo: 'E711', estado: 'correctivo', observacion: 'Espera ingreso grasa Metrolube' },
+        { id: 12, codigo: 'E712', estado: 'correctivo', observacion: 'Control RPM' },
+        { id: 13, codigo: 'E713', estado: 'servicio' },
+        { id: 14, codigo: 'E714', estado: 'servicio', observacion: 'Grupo 1/6 anulado' },
+        { id: 15, codigo: 'E715', estado: 'servicio', observacion: 'Grupo 3/4 anulado' },
+        { id: 16, codigo: 'E716', estado: 'servicio' },
+        { id: 17, codigo: 'E717', estado: 'servicio', observacion: 'Uso excepcional' },
+        { id: 18, codigo: 'E718', estado: 'servicio' },
+        { id: 19, codigo: 'E719', estado: 'servicio', observacion: 'Uso excepcional' },
+        { id: 20, codigo: 'E720', estado: 'servicio', lavadoProgramado: true, observacion: 'Programada para lavado' },
+        { id: 21, codigo: 'E721', estado: 'correctivo', observacion: 'Revision equipo video Grupo 1/6 anulado' },
+        { id: 22, codigo: '7746', estado: 'servicio' },
+        { id: 23, codigo: '7754', estado: 'servicio' },
+        { id: 24, codigo: '7763', estado: 'servicio' },
+        { id: 25, codigo: '7774', estado: 'correctivo', colorEspecial: 'azul', observacion: 'Revision 26C' },
+        { id: 26, codigo: 'EM01', estado: 'correctivo', observacion: 'Revision inyeccion' },
+        { id: 27, codigo: 'EM02', estado: 'servicio' },
+      ].map((event) => ({ ...event, isMock: true }));
+
+      const storageKeys = {
+        histories: 'webferro-intervention-history',
+        historyEvents: 'webferro-history-custom-events',
+        mockEventsDisabled: 'webferro-history-mock-events-disabled',
+        calendarTasks: 'webferro-calendar-tasks',
+        calendarTasksDisabled: 'webferro-calendar-tasks-disabled',
+      };
+      const historyStorageKey = storageKeys.histories;
+      const historyEventsStorageKey = storageKeys.historyEvents;
+      const backupVersion = 1;
+      const interventionLabels = {
+        correctivo: 'Correctivo',
+        preventivo: 'Preventivo',
+        lavado: 'Lavado',
+        inspeccion: 'Inspeccion',
+        prueba: 'Prueba',
+      };
+      const lightPreventiveOptions = ['E', 'A', 'AB', 'ABC'];
+      const numeralOptions = [
+        'Numeral 1',
+        'Numeral 2',
+        'Numeral 3',
+        'Numeral 4',
+        'Numeral 5',
+        'Numeral 6',
+        'Numeral 7',
+        'Numeral 8',
+        'Numeral 9',
+        'Numeral 10',
+        'Numeral 11',
+        'Numeral 12',
+      ];
+      const preventiveOptions = [...numeralOptions, ...lightPreventiveOptions];
+      const historyFilterTabs = [
+        ['todo', 'Todo'],
+        ['preventivo', 'Preventivos'],
+        ['correctivo', 'Correctivos'],
+        ['libro', 'Libro de novedades'],
+        ['alistamiento', 'Alistamientos'],
+        ['campana', 'Campanas'],
+        ['lavado', 'Lavados'],
+        ['adjuntos', 'Adjuntos'],
+      ];
+      const historySidebarItems = [
+        ['inicio', 'Inicio'],
+        ['locomotoras', 'Locomotoras'],
+        ['coches', 'Coches'],
+        ['calendario', 'Calendario'],
+        ['configuracion', 'Configuracion'],
+      ];
+      const locomotiveSidebarItems = [
+        ['patio', 'Patio', 'patio'],
+        ['inventario', 'Inventario', 'locos'],
+        ['archivo', 'Archivo historico', 'historial'],
+      ];
+      const sampleEvents7774 = [
+        {
+          id: 'evt-7774-01',
+          date: '2026-06-22',
+          dateLabel: '22 JUN 2026',
+          time: '07:40',
+          kind: 'libro',
+          origin: 'Sistema Ferrovias',
+          description: 'Libro de novedades sincronizado. Sin novedades criticas nuevas para la locomotora 7774.',
+          responsible: 'Sistema Ferrovias',
+          automatic: true,
+          attachments: { pdf: true },
+        },
+        {
+          id: 'evt-7774-02',
+          date: '2026-06-22',
+          dateLabel: '22 JUN 2026',
+          time: '02:15',
+          kind: 'alistamiento',
+          origin: 'Alistamiento nocturno',
+          description: 'Luz frontal izquierda fuera de servicio. Falta reposicion de arena.',
+          responsible: 'Turno noche',
+          attachments: { photo: true },
+        },
+        {
+          id: 'evt-7774-03',
+          date: '2026-06-21',
+          dateLabel: '21 JUN 2026',
+          time: '18:10',
+          kind: 'correctivo',
+          origin: 'Mecanica',
+          description: 'Cambio de inyector. Analisis de aceite MD contaminado; se cambiaron 200 litros de aceite.',
+          responsible: 'Turno fijo',
+          attachments: { pdf: true, ot: true },
+        },
+        {
+          id: 'evt-7774-04',
+          date: '2026-06-21',
+          dateLabel: '21 JUN 2026',
+          time: '11:30',
+          kind: 'campana',
+          origin: 'Campana MT',
+          description: 'Verificacion de campana MT y control de parametros de traccion.',
+          responsible: 'Ingenieria MR',
+          attachments: { ot: true },
+        },
+        {
+          id: 'evt-7774-05',
+          date: '2026-06-18',
+          dateLabel: '18 JUN 2026',
+          time: '09:05',
+          kind: 'preventivo',
+          origin: 'Preventivo E',
+          description: 'Cambio mancho caja incrementadora lado MD.',
+          responsible: 'Turno rotativo',
+          attachments: { pdf: true, photo: true },
+        },
+        {
+          id: 'evt-7774-06',
+          date: '2026-06-18',
+          dateLabel: '18 JUN 2026',
+          time: '06:20',
+          kind: 'lavado',
+          origin: 'Lavadero Retiro',
+          description: 'Lavado exterior y control visual posterior sin observaciones.',
+          responsible: 'Base Retiro',
+        },
+      ];
+      const defaultCalendarTasks = [
+        { id: 'camp-puentes-paso', tipo: 'campana', nivelPlanificacion: 'anual', activo: 'Coches / formaciones', unidad: 'Toda la flota de coches', fechaProgramada: '2026-06-24', frecuencia: 'bimestral', responsable: 'MR Coches', especialidad: 'Mecanica', descripcion: 'Lubricacion de puentes de paso de coches.', observaciones: 'Campana periodica de coches.', estado: 'pendiente' },
+        { id: 'camp-mandibulas', tipo: 'campana', nivelPlanificacion: 'anual', activo: 'Locomotoras', unidad: 'Todas las locomotoras', fechaProgramada: '2026-06-25', frecuencia: 'quincenal', responsable: 'Turno rotativo', especialidad: 'Mecanica', descripcion: 'Lubricacion de tracciones y elementos moviles de mandibulas de todas las locomotoras.', observaciones: '', estado: 'pendiente' },
+        { id: 'camp-rodamientos', tipo: 'campana', nivelPlanificacion: 'anual', activo: 'Locomotoras', unidad: 'Todas las locomotoras', fechaProgramada: '2026-06-23', frecuencia: 'semanal', responsable: 'Turno fijo', especialidad: 'Mecanica', descripcion: 'Revision semanal de temperatura de rodamientos en todas las locomotoras.', observaciones: '', estado: 'pendiente' },
+        { id: 'prev-e703-a', tipo: 'preventivo-locomotora', nivelPlanificacion: 'semanal', activo: 'Locomotora', unidad: 'E703', fechaProgramada: '2026-06-22', turno: 'manana', preventivoCodigo: 'A', duracionTurnos: 2, frecuencia: 'unica', responsable: 'Turno rotativo', especialidad: 'Mecanica', descripcion: 'Preventivo A E703.', observaciones: '', estado: 'pendiente' },
+        { id: 'prev-e710-ab', tipo: 'preventivo-locomotora', nivelPlanificacion: 'semanal', activo: 'Locomotora', unidad: 'E710', fechaProgramada: '2026-06-26', turno: 'tarde', preventivoCodigo: 'AB', duracionTurnos: 3, frecuencia: 'unica', responsable: 'Turno fijo', especialidad: 'General', descripcion: 'Preventivo AB E710.', observaciones: '', estado: 'pendiente' },
+        { id: 'prev-e719-e', tipo: 'preventivo-locomotora', nivelPlanificacion: 'semanal', activo: 'Locomotora', unidad: 'E719', fechaProgramada: '2026-06-28', turno: 'manana', preventivoCodigo: 'E', duracionTurnos: 1, frecuencia: 'unica', responsable: 'Turno rotativo', especialidad: 'Mecanica', descripcion: 'Preventivo E E719.', observaciones: '', estado: 'pendiente' },
+        { id: 'num-e701-e715', tipo: 'numeral', nivelPlanificacion: 'anual', activo: 'Grupo seleccionado', unidad: 'E701-E715', fechaProgramada: '2026-06-27', fechaFin: '2026-08-30', frecuencia: 'unica', responsable: 'Planificacion MR', especialidad: 'General', descripcion: 'Numeral 8 E701-E715.', observaciones: '', estado: 'pendiente' },
+        { id: 'formacion-um-3', tipo: 'preventivo-coche', nivelPlanificacion: 'semanal', activo: 'Formacion', unidad: 'Formacion UM 3', fechaProgramada: '2026-06-20', frecuencia: 'unica', responsable: 'MR Coches', especialidad: 'Neumatica', descripcion: 'Preventivo de coches/formacion UM 3.', observaciones: '', estado: 'vencida' },
+        { id: 'num-externo-7774', tipo: 'numeral', nivelPlanificacion: 'anual', activo: 'Locomotora', unidad: '7774', fechaProgramada: '2026-09-15', fechaFin: '2026-11-15', frecuencia: 'unica', responsable: 'Planificacion MR', especialidad: 'General', descripcion: 'Numeral externo 7774.', observaciones: 'Plan anual.', estado: 'pendiente' },
+      ];
+      const state = {
+        tab: 'inicio',
+        selectedId: null,
+        historyTargetId: null,
+        historyFilters: {
+          locoId: 'all',
+          area: 'all',
+          from: '',
+          to: '',
+          text: '',
+        },
+        historyEventFilter: 'todo',
+        historySearch: '',
+        historyLocoCode: '7774',
+        historyEventModalOpen: false,
+        historyCustomEvents: loadCustomHistoryEvents(),
+        mockEventsDisabled: loadMockEventsDisabled(),
+        calendarView: 'anual',
+        calendarMonth: '2026-06',
+        calendarTaskModalOpen: false,
+        calendarRealizationOpen: false,
+        calendarTasks: loadCalendarTasks(),
+        sidebarCollapsed: false,
+        locomotivesMenuOpen: true,
+        filter: 'all',
+        histories: loadHistories(),
+        interventionOpen: false,
+        interventionFormType: '',
+        preventiveFormCode: '',
+        yardViewportPrimed: false,
+      };
+      const root = document.querySelector('#root');
+      let selectTimer = null;
+      let pendingYardScroll = null;
+
+      function loadHistories() {
+        try {
+          return JSON.parse(localStorage.getItem(historyStorageKey)) || {};
+        } catch {
+          return {};
+        }
+      }
+
+      function saveHistories() {
+        localStorage.setItem(historyStorageKey, JSON.stringify(state.histories));
+      }
+
+      function loadCustomHistoryEvents() {
+        try {
+          return JSON.parse(localStorage.getItem(historyEventsStorageKey)) || [];
+        } catch {
+          return [];
+        }
+      }
+
+      function saveCustomHistoryEvents() {
+        localStorage.setItem(historyEventsStorageKey, JSON.stringify(state.historyCustomEvents));
+      }
+
+      function loadMockEventsDisabled() {
+        return localStorage.getItem(storageKeys.mockEventsDisabled) === 'true';
+      }
+
+      function saveMockEventsDisabled(value) {
+        localStorage.setItem(storageKeys.mockEventsDisabled, value ? 'true' : 'false');
+      }
+
+      function loadCalendarTasks() {
+        try {
+          const stored = localStorage.getItem(storageKeys.calendarTasks);
+          if (stored) return JSON.parse(stored) || [];
+        } catch {
+          return [];
+        }
+        return localStorage.getItem(storageKeys.calendarTasksDisabled) === 'true' ? [] : defaultCalendarTasks;
+      }
+
+      function saveCalendarTasks() {
+        localStorage.setItem(storageKeys.calendarTasks, JSON.stringify(state.calendarTasks));
+      }
+
+      function flattenHistories(histories) {
+        return Object.values(histories).flatMap((items) => Array.isArray(items) ? items : []);
+      }
+
+      function uniqueAffectedLocomotives(events, histories = {}) {
+        return new Set([
+          ...events.map((event) => event.locomotoraCodigo).filter(Boolean),
+          ...flattenHistories(histories).map((item) => item.locomotoraCodigo).filter(Boolean),
+        ]).size;
+      }
+
+      function cleanupResult(removedEvents, affectedLocomotives) {
+        return {
+          removedEvents,
+          affectedLocomotives,
+          cleanedAt: new Date().toLocaleString('es-AR'),
+        };
+      }
+
+      function clearAllHistoricalEvents() {
+        const removedEvents = state.historyCustomEvents.length + flattenHistories(state.histories).length + (state.mockEventsDisabled ? 0 : sampleEvents7774.length);
+        const affectedLocomotives = uniqueAffectedLocomotives(state.historyCustomEvents, state.histories) + (state.mockEventsDisabled ? 0 : 1);
+        state.historyCustomEvents = [];
+        state.histories = {};
+        state.mockEventsDisabled = true;
+        saveCustomHistoryEvents();
+        saveHistories();
+        saveMockEventsDisabled(true);
+        return cleanupResult(removedEvents, affectedLocomotives);
+      }
+
+      function clearImportedBookEvents() {
+        const beforeEvents = state.historyCustomEvents.length;
+        const beforeHistories = flattenHistories(state.histories);
+        const affectedCodes = new Set([
+          ...state.historyCustomEvents.filter(isBookImportedEvent).map((event) => event.locomotoraCodigo).filter(Boolean),
+          ...beforeHistories.filter(isBookImportedEvent).map((item) => item.locomotoraCodigo).filter(Boolean),
+        ]);
+        removeImportedBookEvents();
+        saveCustomHistoryEvents();
+        saveHistories();
+        return cleanupResult(
+          (beforeEvents - state.historyCustomEvents.length) + (beforeHistories.length - flattenHistories(state.histories).length),
+          affectedCodes.size,
+        );
+      }
+
+      function clearMockEvents() {
+        const wasMockDisabled = state.mockEventsDisabled;
+        const beforeEvents = state.historyCustomEvents.length;
+        const beforeHistories = flattenHistories(state.histories);
+        const affectedCodes = new Set([
+          ...state.historyCustomEvents.filter((event) => event.isMock).map((event) => event.locomotoraCodigo || '7774').filter(Boolean),
+          ...beforeHistories.filter((item) => item.isMock).map((item) => item.locomotoraCodigo || '7774').filter(Boolean),
+          ...(state.mockEventsDisabled ? [] : ['7774']),
+        ]);
+        state.historyCustomEvents = state.historyCustomEvents.filter((event) => !event.isMock);
+        Object.entries(state.histories).forEach(([locoId, items]) => {
+          state.histories[locoId] = Array.isArray(items) ? items.filter((item) => !item.isMock) : [];
+        });
+        state.mockEventsDisabled = true;
+        saveCustomHistoryEvents();
+        saveHistories();
+        saveMockEventsDisabled(true);
+        return cleanupResult(
+          (beforeEvents - state.historyCustomEvents.length) + (beforeHistories.length - flattenHistories(state.histories).length) + (wasMockDisabled ? 0 : sampleEvents7774.length),
+          affectedCodes.size,
+        );
+      }
+
+      function clearCalendarData() {
+        const removedEvents = state.calendarTasks.length;
+        state.calendarTasks = [];
+        localStorage.setItem(storageKeys.calendarTasksDisabled, 'true');
+        saveCalendarTasks();
+        return cleanupResult(removedEvents, 0);
+      }
+
+      function migrateStoredMockHistoryEvents() {
+        const migrationKey = 'webferro-history-mock-migration-v1';
+        if (localStorage.getItem(migrationKey)) return;
+        state.historyCustomEvents = state.historyCustomEvents.filter((event) => !event.isMock && !String(event.id || '').startsWith('evt-7774-'));
+        Object.entries(state.histories).forEach(([locoId, items]) => {
+          state.histories[locoId] = Array.isArray(items)
+            ? items.filter((item) => !item.isMock && !String(item.id || '').startsWith('evt-7774-'))
+            : [];
+        });
+        saveCustomHistoryEvents();
+        saveHistories();
+        localStorage.setItem(migrationKey, 'done');
+      }
+
+      migrateStoredMockHistoryEvents();
+
+      function todayInputValue() {
+        return new Date().toISOString().slice(0, 10);
+      }
+
+      function formatDateDisplay(value) {
+        if (!value) return '';
+        const [year, month, day] = String(value).slice(0, 10).split('-');
+        if (!year || !month || !day) return value;
+        return `${day}-${month}-${year}`;
+      }
+
+      function parseDisplayDate(value) {
+        const text = String(value || '').trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+        const match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+        if (!match) return text;
+
+        const [, day, month, year] = match;
+        return `${year}-${month}-${day}`;
+      }
+
+      function todayDisplayValue() {
+        return formatDateDisplay(todayInputValue());
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      function estadoEtiqueta(loco) {
+        if (loco.lavadoProgramado) return 'Programada para Lavado';
+        if (loco.estado === 'servicio') return 'En Servicio';
+        if (loco.estado === 'preventivo') {
+          if (loco.tipoPreventivo && loco.modalidad) return `Preventivo ${loco.tipoPreventivo} - ${loco.modalidad}`;
+          if (loco.tipoPreventivo) return `Preventivo ${loco.tipoPreventivo}`;
+          return 'Mantenimiento Preventivo';
+        }
+        return 'Mantenimiento Correctivo';
+      }
+
+      function estadoClase(estado) {
+        if (estado === 'lavado') return 'is-wash';
+        if (estado === 'servicio') return 'is-service';
+        if (estado === 'preventivo') return 'is-preventive';
+        return 'is-corrective';
+      }
+
+      function estadoOperativo(loco) {
+        if (!loco) return '';
+        return loco.estado === 'servicio' || loco.lavadoProgramado ? 'Operativa' : 'Mantenimiento';
+      }
+
+      function estadoOperativoClase(loco) {
+        return estadoOperativo(loco) === 'Operativa' ? 'is-service' : 'is-preventive';
+      }
+
+      function areaClase(area) {
+        if (area === 'Electrica') return 'electrical';
+        if (area === 'Mecanica') return 'mechanical';
+        return 'general';
+      }
+
+      function dotClase(area) {
+        if (area === 'Electrica') return 'electric';
+        if (area === 'Mecanica') return 'mechanic';
+        return 'service';
+      }
+
+      function normalizeHistoryItem(item, loco) {
+        const interventionClass = item.interventionClass || interventionClassFromType(item.type);
+        const preventiveCode = interventionClass === 'preventivo' ? item.preventiveCode || item.preventiveType || '' : '';
+        const preventiveFamily = interventionClass === 'preventivo'
+          ? item.preventiveFamily || (String(preventiveCode || item.type || '').toLowerCase().includes('numeral') ? 'numeral' : 'liviana')
+          : '';
+        const modality = interventionClass === 'preventivo'
+          ? preventiveFamily === 'numeral'
+            ? item.modality || item.modalidad || 'Interno'
+            : 'Interno'
+          : '';
+
+        return {
+          ...item,
+          interventionClass,
+          preventiveFamily,
+          preventiveCode,
+          modality,
+          type: item.type || interventionLabels[interventionClass] || 'Intervencion',
+          locomotoraId: item.locomotoraId || loco.id,
+          locomotoraCodigo: item.locomotoraCodigo || loco.codigo,
+          area: item.area || 'General',
+        };
+      }
+
+      function interventionClassFromType(type) {
+        const normalized = String(type || '').trim().toLowerCase();
+        if (normalized.includes('prevent')) return 'preventivo';
+        if (normalized.includes('lavado')) return 'lavado';
+        if (normalized.includes('inspe')) return 'inspeccion';
+        if (normalized.includes('prueba')) return 'prueba';
+        return 'correctivo';
+      }
+
+      function interventionTitle(item) {
+        if (item.interventionClass !== 'preventivo') {
+          return interventionLabels[item.interventionClass] || item.type || 'Intervencion';
+        }
+
+        const code = item.preventiveCode || 'sin codigo';
+        const modality = item.modality === 'Externo' ? ' - Externo' : '';
+        return `Preventivo ${code}${modality}`;
+      }
+
+      function shouldMergeCorrective(existing, incoming) {
+        const existingClass = existing.interventionClass || interventionClassFromType(existing.type);
+
+        return (
+          incoming.interventionClass === 'correctivo'
+          && existingClass === 'correctivo'
+          && incoming.technician === existing.technician
+          && incoming.date === existing.date
+          && incoming.area === existing.area
+          && ['Mecanica', 'Electrica'].includes(incoming.area)
+        );
+      }
+
+      function mergeInterventionDetails(existing, incoming) {
+        const currentDetail = String(existing.detail || '').trim();
+        const nextDetail = String(incoming.detail || '').trim();
+
+        return {
+          ...existing,
+          detail: [currentDetail, nextDetail].filter(Boolean).join('\n'),
+          mergedCount: (existing.mergedCount || 1) + 1,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      function sortHistoryDescending(items) {
+        return [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.id || 0) - (a.id || 0));
+      }
+
+      function statusText(loco) {
+        if (loco.lavadoProgramado) return 'Lavado';
+        if (loco.estado === 'servicio') return 'Operativa';
+        if (loco.estado === 'preventivo') return 'Preventivo';
+        return 'Correctivo';
+      }
+
+      function previewImage(loco) {
+        return loco.codigo === '7774' || loco.colorEspecial === 'azul' ? assets.locoAzul : assets.locoRoja;
+      }
+
+      function patioImage(loco) {
+        return loco.codigo === '7774' || loco.colorEspecial === 'azul' ? assets.patioAzul : assets.patioRoja;
+      }
+
+      function totals() {
+        return locomotoras.reduce((acc, loco) => {
+          acc[loco.estado] += 1;
+          acc.lavado += loco.lavadoProgramado ? 1 : 0;
+          return acc;
+        }, { servicio: 0, preventivo: 0, correctivo: 0, lavado: 0 });
+      }
+
+      function setTab(tab) {
+        state.tab = tab;
+        render();
+      }
+
+      function selectLoco(id, shouldCenter = false) {
+        state.selectedId = Number(id);
+
+        if (state.tab === 'patio') {
+          updatePatioSelection(id, shouldCenter);
+          pendingYardScroll = null;
+          return;
+        }
+
+        render();
+      }
+
+      function updatePatioSelection(id, shouldCenter = false) {
+        document.querySelectorAll('.locomotive-unit, .fleet-card').forEach((node) => {
+          node.classList.toggle('is-selected', node.dataset.select === String(id) || node.dataset.locoId === String(id));
+        });
+
+        const sidePanel = document.querySelector('.side-panel');
+        if (sidePanel) {
+          sidePanel.outerHTML = sidePanelHtml(selectedLoco(), totals());
+          bindPanelControls();
+        }
+
+        const node = document.querySelector(`[data-loco-id="${id}"]`);
+        const viewport = document.querySelector('.yard-viewport');
+        if (shouldCenter && node && viewport) {
+          viewport.scrollTo({
+            left: Math.max(node.offsetLeft - viewport.clientWidth / 2, 0),
+            top: Math.max(node.offsetTop - 180, 0),
+            behavior: 'smooth',
+          });
+        }
+      }
+
+      function selectedLoco() {
+        return locomotoras.find((loco) => loco.id === state.selectedId);
+      }
+
+      function historyLoco() {
+        return locomotoras.find((loco) => loco.id === state.historyTargetId) || selectedLoco();
+      }
+
+      function selectedHistory() {
+        return state.selectedId ? state.histories[state.selectedId] || [] : [];
+      }
+
+      function openIntervention() {
+        if (!state.selectedId) {
+          const defaultLoco = locomotoras.find((loco) => loco.codigo === state.historyLocoCode) || locomotoras.find((loco) => loco.codigo === '7774');
+          if (defaultLoco) state.selectedId = defaultLoco.id;
+        }
+        if (!state.selectedId) return;
+        state.interventionFormType = '';
+        state.preventiveFormCode = '';
+        state.interventionOpen = true;
+        render();
+      }
+
+      function openHistory(id) {
+        window.clearTimeout(selectTimer);
+        state.selectedId = Number(id);
+        state.historyTargetId = Number(id);
+        state.historyFilters = { ...state.historyFilters, locoId: String(id) };
+        state.interventionOpen = false;
+        state.tab = 'historial';
+        render();
+      }
+
+      function closeIntervention() {
+        state.interventionOpen = false;
+        render();
+      }
+
+      function showCleanupResult(result) {
+        alert([
+          `Eventos eliminados: ${result.removedEvents}`,
+          `Locomotoras afectadas: ${result.affectedLocomotives}`,
+          `Fecha y hora de limpieza: ${result.cleanedAt}`,
+        ].join('\n'));
+        render();
+      }
+
+      function handleHistoryCleanup(action) {
+        if (action === 'all') {
+          const typed = prompt('Esta accion elimina todo el Archivo Historico local. Para confirmar escriba: ELIMINAR HISTORIAL');
+          if (typed !== 'ELIMINAR HISTORIAL') return;
+          showCleanupResult(clearAllHistoricalEvents());
+          return;
+        }
+
+        if (action === 'book') {
+          if (!confirm('Eliminar solamente eventos importados cuyo origen sea Libro de novedades Ferrovias?')) return;
+          showCleanupResult(clearImportedBookEvents());
+          return;
+        }
+
+        if (action === 'mock') {
+          if (!confirm('Eliminar solamente eventos marcados como datos mock?')) return;
+          showCleanupResult(clearMockEvents());
+          return;
+        }
+
+        if (action === 'calendar') {
+          if (!confirm('Eliminar todos los datos cargados en Calendario, incluyendo campanas y tareas programadas?')) return;
+          showCleanupResult(clearCalendarData());
+        }
+      }
+
+      function findHistoryEventById(id) {
+        return [
+          ...sampleEvents7774,
+          ...state.historyCustomEvents,
+        ].find((event) => String(event.id) === String(id));
+      }
+
+      function openStoredPdf(eventId) {
+        const event = findHistoryEventById(eventId);
+        const url = event?.attachments?.pdfUrl;
+        if (!url) {
+          alert('Este PDF no esta guardado localmente. Vuelva a adjuntar la planilla para poder abrirla desde el historial.');
+          return;
+        }
+        const byteCharacters = atob(url.split(',')[1] || '');
+        const byteNumbers = Array.from(byteCharacters, (char) => char.charCodeAt(0));
+        const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        const viewer = window.open(blobUrl, '_blank');
+        if (!viewer) {
+          URL.revokeObjectURL(blobUrl);
+          alert('El navegador bloqueo la apertura del PDF.');
+          return;
+        }
+        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      }
+
+      function registerIntervention(event) {
+        event.preventDefault();
+        if (!state.selectedId) return;
+
+        const form = new FormData(event.currentTarget);
+        const interventionClass = form.get('interventionClass');
+        const preventiveCode = interventionClass === 'preventivo' ? form.get('preventiveCode') : '';
+        const preventiveFamily = interventionClass === 'preventivo' && String(preventiveCode).startsWith('Numeral') ? 'numeral' : interventionClass === 'preventivo' ? 'liviana' : '';
+        const technician = interventionClass === 'preventivo'
+          ? preventiveFamily === 'numeral'
+            ? 'Turno fijo'
+            : 'Turno rotativo'
+          : form.get('technician');
+        const intervention = {
+          id: Date.now(),
+          date: parseDisplayDate(form.get('date')),
+          type: interventionLabels[interventionClass],
+          interventionClass,
+          preventiveFamily,
+          preventiveCode,
+          modality: interventionClass === 'preventivo' ? 'Interno' : '',
+          area: interventionClass === 'preventivo' ? 'General' : form.get('area'),
+          locomotoraId: state.selectedId,
+          locomotoraCodigo: selectedLoco()?.codigo,
+          technician: technician || 'Sin tecnico asignado',
+          detail: form.get('detail'),
+        };
+        const currentItems = state.histories[state.selectedId] || [];
+        const mergeIndex = currentItems.findIndex((item) => shouldMergeCorrective(item, intervention));
+
+        const nextItems = mergeIndex >= 0
+          ? currentItems.map((item, index) => (index === mergeIndex ? mergeInterventionDetails(item, intervention) : item))
+          : [intervention, ...currentItems];
+
+        state.histories = {
+          ...state.histories,
+          [state.selectedId]: sortHistoryDescending(nextItems),
+        };
+        saveHistories();
+        state.interventionOpen = false;
+        render();
+      }
+
+      function allHistoryItems() {
+        return locomotoras
+          .flatMap((loco) => (state.histories[loco.id] || []).map((item) => normalizeHistoryItem(item, loco)))
+          .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
+      }
+
+      function filteredHistoryItems() {
+        const filters = state.historyFilters;
+        const query = filters.text.trim().toLowerCase();
+        return allHistoryItems().filter((item) => {
+          const matchesText = !query || [
+            item.locomotoraCodigo,
+            item.area,
+            item.type,
+            item.technician,
+            item.detail,
+            item.date,
+            item.interventionClass,
+            item.preventiveFamily,
+            item.preventiveCode,
+            item.modality,
+            formatDateDisplay(item.date),
+          ].join(' ').toLowerCase().includes(query);
+          const fromDate = parseDisplayDate(filters.from);
+          const toDate = parseDisplayDate(filters.to);
+
+          return (
+            (filters.locoId === 'all' || String(item.locomotoraId) === filters.locoId)
+            && (filters.area === 'all' || item.area === filters.area)
+            && (!fromDate || item.date >= fromDate)
+            && (!toDate || item.date <= toDate)
+            && matchesText
+          );
+        });
+      }
+
+      function updateHistoryFilter(name, value) {
+        if (name === 'locoId' && value === 'all') {
+          state.historyTargetId = null;
+        }
+        if (name === 'locoId' && value !== 'all') {
+          state.historyTargetId = Number(value);
+          state.selectedId = Number(value);
+        }
+        state.historyFilters = { ...state.historyFilters, [name]: value };
+        render();
+      }
+
+      function exportHistoryBackup() {
+        const payload = {
+          app: 'webferro',
+          version: backupVersion,
+          exportedAt: new Date().toISOString(),
+          locomotoras: locomotoras.map(({ id, codigo }) => ({ id, codigo })),
+          histories: state.histories,
+          historyCustomEvents: state.historyCustomEvents,
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `webferro-historial-${todayDisplayValue()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function parseSemicolonCsvLine(line) {
+        const cells = [];
+        let value = '';
+        let quoted = false;
+        for (let index = 0; index < line.length; index += 1) {
+          const char = line[index];
+          const next = line[index + 1];
+          if (char === '"' && quoted && next === '"') {
+            value += '"';
+            index += 1;
+          } else if (char === '"') {
+            quoted = !quoted;
+          } else if (char === ';' && !quoted) {
+            cells.push(value.trim());
+            value = '';
+          } else {
+            value += char;
+          }
+        }
+        cells.push(value.trim());
+        return cells.map((cell) => cell.replace(/^"|"$/g, '').trim());
+      }
+
+      function normalizeBookDate(value) {
+        const raw = String(value || '').trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+        const match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+        if (!match) return '';
+        const day = match[1].padStart(2, '0');
+        const month = match[2].padStart(2, '0');
+        const year = match[3].length === 2 ? `20${match[3]}` : match[3];
+        return `${year}-${month}-${day}`;
+      }
+
+      function normalizeBookTime(value) {
+        const raw = String(value || '').trim();
+        const match = raw.match(/^(\d{1,2}):(\d{2})/);
+        if (!match) return '';
+        return `${match[1].padStart(2, '0')}:${match[2]}`;
+      }
+
+      function bookImportKey(nro, fecha, hora, unidad) {
+        return `libro-novedades-${nro}-${fecha}-${hora}-${unidad}`;
+      }
+
+      function normalizeImportValue(value) {
+        return String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+      }
+
+      function escapeRegex(value) {
+        return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }
+
+      function cleanBookDetail(value, unidad) {
+        const prefixPattern = new RegExp(`^\\s*LOCOMOTORA\\s*:\\s*${escapeRegex(unidad)}\\s*:\\s*`, 'i');
+        const cleaned = String(value || '')
+          .replace(prefixPattern, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : '';
+      }
+
+      function formatBookDescription(details) {
+        return details.map((detail) => `• ${detail}`).join('\n');
+      }
+
+      function readFileAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function buildLocalAttachments(files) {
+        const pdfFiles = files.filter((file) => file.type === 'application/pdf' || String(file.name).toLowerCase().endsWith('.pdf'));
+        const photoFiles = files.filter((file) => file.type?.startsWith('image/'));
+        const otFiles = files.filter((file) => String(file.name).toLowerCase().includes('ot'));
+        const firstPdf = pdfFiles[0];
+
+        return {
+          pdf: pdfFiles.length > 0,
+          pdfName: pdfFiles.map((file) => file.name).join(', '),
+          pdfUrl: firstPdf ? await readFileAsDataUrl(firstPdf) : '',
+          photo: photoFiles.length > 0,
+          photoName: photoFiles.map((file) => file.name).join(', '),
+          ot: otFiles.length > 0,
+          otName: otFiles.map((file) => file.name).join(', '),
+        };
+      }
+
+      function extractBookDetails(event) {
+        if (Array.isArray(event.detalles)) return event.detalles.map((detail) => String(detail).trim()).filter(Boolean);
+        return String(event.description || event.detail || '')
+          .split(/\r?\n/)
+          .map((line) => line.replace(/^•\s*/, '').trim())
+          .filter(Boolean);
+      }
+
+      function bookImportKeyFromEvent(event) {
+        if (event.libroKey) return event.libroKey;
+        const nro = event.nroLibro;
+        const fecha = event.date || event.fecha;
+        const hora = event.time || event.hora;
+        const unidad = event.locomotoraCodigo;
+        return nro && fecha && hora && unidad ? bookImportKey(nro, fecha, hora, unidad) : event.id;
+      }
+
+      function importHistoryJson(text) {
+        const payload = JSON.parse(text);
+        const importedHistories = payload.histories || payload;
+        const merged = { ...state.histories };
+        Object.entries(importedHistories).forEach(([locoId, items]) => {
+          const currentItems = merged[locoId] || [];
+          const knownIds = new Set(currentItems.map((item) => item.id));
+          const newItems = Array.isArray(items) ? items.filter((item) => !knownIds.has(item.id)) : [];
+          merged[locoId] = [...newItems, ...currentItems].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
+        });
+        state.histories = merged;
+        if (Array.isArray(payload.historyCustomEvents)) {
+          const knownEventIds = new Set(state.historyCustomEvents.map((item) => item.id));
+          state.historyCustomEvents = [
+            ...payload.historyCustomEvents.filter((item) => !knownEventIds.has(item.id)),
+            ...state.historyCustomEvents,
+          ];
+          saveCustomHistoryEvents();
+        }
+        saveHistories();
+        render();
+      }
+
+      function isBookImportedEvent(item) {
+        const origin = normalizeImportValue(item.origin || item.area || '');
+        return origin === 'LIBRO DE NOVEDADES FERROVIAS' || origin === 'LIBRO DE NOVEDADES FERROVÍAS';
+      }
+
+      function removeImportedBookEvents() {
+        state.historyCustomEvents = state.historyCustomEvents.filter((event) => !isBookImportedEvent(event));
+        Object.entries(state.histories).forEach(([locoId, items]) => {
+          state.histories[locoId] = Array.isArray(items) ? items.filter((item) => !isBookImportedEvent(item)) : [];
+        });
+      }
+
+      function importBookCsv(text, options = {}) {
+        const batchId = `libro-${Date.now()}`;
+        const importedAt = new Date().toISOString();
+        if (options.reprocess) {
+          removeImportedBookEvents();
+        }
+        const validUnits = new Set(locomotoras.map((loco) => normalizeImportValue(loco.codigo)));
+        const locoByCode = new Map(locomotoras.map((loco) => [normalizeImportValue(loco.codigo), loco]));
+        const existingEvents = new Map();
+        state.historyCustomEvents.forEach((event) => {
+          const key = bookImportKeyFromEvent(event);
+          if (key) existingEvents.set(key, event);
+        });
+
+        const summary = {
+          filasLeidas: 0,
+          novedadesAgrupadas: 0,
+          eventosNuevos: 0,
+          eventosActualizados: 0,
+          duplicadosIgnorados: 0,
+          unidadesNoReconocidas: 0,
+          novedadesSinTipoUnidad: 0,
+          novedadesSinUnidad: 0,
+          novedadesNoLocomotora: 0,
+          filasIgnoradas: 0,
+        };
+        const groups = new Map();
+        const importedHistories = {};
+        const context = {
+          nro: '',
+          estado: '',
+          fecha: '',
+          hora: '',
+        };
+
+        text.split(/\r?\n/).forEach((line, index) => {
+          if (!line.trim()) return;
+          summary.filasLeidas += 1;
+          const cells = parseSemicolonCsvLine(line);
+          while (cells.length < 7) cells.push('');
+
+          const explicitNro = cells[0]?.trim() || '';
+          if (explicitNro) {
+            if (!/^\d+$/.test(explicitNro)) {
+              context.nro = '';
+              context.estado = '';
+              context.fecha = '';
+              context.hora = '';
+              summary.filasIgnoradas += 1;
+              return;
+            }
+            context.nro = explicitNro;
+            context.estado = cells[1]?.trim() || context.estado;
+            context.fecha = cells[2]?.trim() || context.fecha;
+            context.hora = cells[3]?.trim() || context.hora;
+          } else if (!context.nro) {
+            summary.filasIgnoradas += 1;
+            return;
+          }
+
+          if (cells[1]?.trim()) context.estado = cells[1].trim();
+          if (cells[2]?.trim()) context.fecha = cells[2].trim();
+          if (cells[3]?.trim()) context.hora = cells[3].trim();
+
+          const fecha = normalizeBookDate(context.fecha);
+          const hora = normalizeBookTime(context.hora);
+          const detalle = cells.slice(6).join(' ').trim();
+
+          if (!fecha || !hora || !detalle) {
+            summary.filasIgnoradas += 1;
+            return;
+          }
+
+          const baseKey = `${context.nro}-${fecha}`;
+          const group = groups.get(baseKey) || {
+            baseKey,
+            nro: context.nro,
+            estado: context.estado,
+            fecha,
+            hora,
+            tipoUnidad: '',
+            unidad: '',
+            detalles: [],
+            filasOrigen: [],
+          };
+          if (context.estado) group.estado = context.estado;
+          if (cells[4]?.trim()) group.tipoUnidad = cells[4].trim();
+          if (cells[5]?.trim()) group.unidad = cells[5].trim();
+          if (cells[3]?.trim()) group.hora = normalizeBookTime(cells[3].trim()) || group.hora;
+          group.filasOrigen.push(index + 1);
+
+          const cleanedDetail = cleanBookDetail(detalle, group.unidad || cells[5]?.trim() || '');
+          if (!cleanedDetail) {
+            summary.filasIgnoradas += 1;
+            groups.set(baseKey, group);
+            return;
+          }
+          if (group.detalles.includes(cleanedDetail)) {
+            summary.duplicadosIgnorados += 1;
+          } else {
+            group.detalles.push(cleanedDetail);
+          }
+          groups.set(baseKey, group);
+        });
+
+        summary.novedadesAgrupadas = groups.size;
+        const newEvents = [];
+
+        groups.forEach((group) => {
+          const tipoUnidad = normalizeImportValue(group.tipoUnidad);
+          const unidad = normalizeImportValue(group.unidad);
+          if (!tipoUnidad) {
+            summary.novedadesSinTipoUnidad += 1;
+            return;
+          }
+          if (tipoUnidad !== 'LOCOMOTORA') {
+            summary.novedadesNoLocomotora += 1;
+            return;
+          }
+          if (!unidad) {
+            summary.novedadesSinUnidad += 1;
+            return;
+          }
+          if (!validUnits.has(unidad)) {
+            summary.unidadesNoReconocidas += 1;
+            return;
+          }
+          if (group.detalles.length === 0) {
+            summary.filasIgnoradas += 1;
+            return;
+          }
+
+          const key = bookImportKey(group.nro, group.fecha, group.hora, unidad);
+          const existing = existingEvents.get(group.key);
+          const existingByNewKey = existingEvents.get(key);
+          const existingItem = existingByNewKey || existing;
+          const existingDetails = existingItem ? extractBookDetails(existingItem) : [];
+          const missingDetails = group.detalles.filter((detail) => !existingDetails.includes(detail));
+
+          if (existingItem && missingDetails.length === 0) {
+            summary.duplicadosIgnorados += 1;
+            return;
+          }
+
+          const details = existingItem ? [...existingDetails, ...missingDetails] : group.detalles;
+          const description = formatBookDescription(details);
+
+          const eventItem = {
+            ...(existingItem || {}),
+            id: key,
+            libroKey: key,
+            locomotoraCodigo: unidad,
+            date: group.fecha,
+            dateLabel: formatHistoryDateLabel(group.fecha),
+            time: group.hora,
+            kind: 'libro',
+            origin: 'Libro de novedades Ferrovias',
+            description,
+            detalles: details,
+            responsible: 'Sistema Ferrovias',
+            automatic: true,
+            attachments: {},
+            nroLibro: group.nro,
+            estadoLibro: group.estado,
+            criticidad: 'baja',
+            importBatchId: batchId,
+            nombreArchivoOrigen: options.fileName || '',
+            fechaImportacion: importedAt,
+            filasOrigen: group.filasOrigen,
+          };
+
+          if (existingItem) {
+            state.historyCustomEvents = state.historyCustomEvents.map((event) => bookImportKeyFromEvent(event) === key ? eventItem : event);
+            summary.eventosActualizados += 1;
+          } else {
+            newEvents.push(eventItem);
+            summary.eventosNuevos += 1;
+          }
+
+          const loco = locoByCode.get(unidad);
+          if (loco) {
+            importedHistories[loco.id] = importedHistories[loco.id] || [];
+            importedHistories[loco.id].push({
+              id: key,
+              libroKey: key,
+              date: group.fecha,
+              type: 'Libro de novedades',
+              interventionClass: 'libro',
+              preventiveCode: '',
+              area: 'Libro de novedades Ferrovias',
+              locomotoraId: loco.id,
+              locomotoraCodigo: unidad,
+              technician: 'Sistema Ferrovias',
+              detail: description,
+              automatic: true,
+              nroLibro: group.nro,
+              estadoLibro: group.estado,
+              criticidad: 'baja',
+              importBatchId: batchId,
+              nombreArchivoOrigen: options.fileName || '',
+              fechaImportacion: importedAt,
+              filasOrigen: group.filasOrigen,
+            });
+          }
+        });
+
+        if (newEvents.length > 0 || summary.eventosActualizados > 0) {
+          state.historyCustomEvents = [...newEvents, ...state.historyCustomEvents].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.time).localeCompare(String(a.time)));
+          Object.entries(importedHistories).forEach(([locoId, items]) => {
+            const byId = new Map((state.histories[locoId] || []).map((item) => [item.id, item]));
+            items.forEach((item) => byId.set(item.id, item));
+            state.histories = {
+              ...state.histories,
+              [locoId]: sortHistoryDescending([...byId.values()]),
+            };
+          });
+          saveCustomHistoryEvents();
+          saveHistories();
+        }
+        render();
+        alert([
+          'Importacion Libro de Novedades',
+          `Filas leidas: ${summary.filasLeidas}`,
+          `Novedades agrupadas: ${summary.novedadesAgrupadas}`,
+          `Eventos validos importados: ${summary.eventosNuevos}`,
+          `Eventos actualizados con detalles adicionales: ${summary.eventosActualizados}`,
+          `Duplicados exactos ignorados: ${summary.duplicadosIgnorados}`,
+          `Novedades descartadas por no tener Tipo Unidad: ${summary.novedadesSinTipoUnidad}`,
+          `Novedades descartadas por no tener Unidad: ${summary.novedadesSinUnidad}`,
+          `Unidades no reconocidas: ${summary.unidadesNoReconocidas}`,
+          `Novedades descartadas por no ser locomotoras: ${summary.novedadesNoLocomotora}`,
+          `Filas ignoradas: ${summary.filasIgnoradas}`,
+        ].join('\n'));
+      }
+
+      function importHistoryBackup(event, options = {}) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const text = String(reader.result || '');
+            if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+              importHistoryJson(text);
+            } else {
+              importBookCsv(text, { ...options, fileName: file.name });
+            }
+          } catch {
+            alert('No se pudo importar el archivo de historial.');
+          } finally {
+            event.target.value = '';
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      function headerHtml() {
+        const isLocomotives = ['patio', 'locos', 'historial'].includes(state.tab);
+
+        return `
+          <header class="app-header">
+            <div class="brand-mark">
+              <span class="brand-symbol"></span>
+              <h1>Material Rodante</h1>
+            </div>
+            <nav class="main-nav" aria-label="Navegacion principal">
+              <button class="${state.tab === 'inicio' ? 'active' : ''}" data-tab="inicio" type="button">Inicio</button>
+              <button class="${isLocomotives ? 'active' : ''}" data-tab="patio" type="button">Locomotoras</button>
+              <button class="${state.tab === 'coches' ? 'active' : ''}" data-tab="coches" type="button">Coches</button>
+            </nav>
+          </header>
+        `;
+      }
+
+      function sidebarActiveId() {
+        if (state.tab === 'inicio') return 'inicio';
+        if (state.tab === 'patio') return 'patio';
+        if (state.tab === 'coches') return 'coches';
+        if (state.tab === 'locos') return 'inventario';
+        if (state.tab === 'calendario') return 'calendario';
+        if (state.tab === 'configuracion') return 'configuracion';
+        return 'archivo';
+      }
+
+      function sidebarTabFor(id) {
+        return {
+          inicio: 'inicio',
+          locomotoras: 'historial',
+          coches: 'coches',
+          calendario: 'calendario',
+          configuracion: 'configuracion',
+        }[id] || 'historial';
+      }
+
+      function appSidebarHtml() {
+        const active = sidebarActiveId();
+        const locomotivesActive = ['patio', 'inventario', 'archivo'].includes(active);
+
+        return `
+          <aside class="history-sidebar app-sidebar ${state.sidebarCollapsed ? 'is-collapsed' : ''}" aria-label="Navegacion principal">
+            <div class="history-sidebar-brand">
+              <img class="history-sidebar-logo" src="ferrovias-f.png" alt="" />
+              <div>
+                <strong>Material Rodante</strong>
+                <small>Ferrovias</small>
+              </div>
+              <button class="sidebar-toggle" data-sidebar-toggle type="button" aria-label="${state.sidebarCollapsed ? 'Abrir menu lateral' : 'Cerrar menu lateral'}">${state.sidebarCollapsed ? '>' : '<'}</button>
+            </div>
+            <nav class="history-sidebar-nav">
+              ${historySidebarItems.map(([id, label]) => `
+                ${id === 'locomotoras' ? `
+                  <div class="sidebar-group">
+                    <button class="${locomotivesActive ? 'active' : ''}" data-locomotives-menu type="button">
+                      <span class="history-nav-dot"></span><span class="sidebar-label">${label}</span><span class="sidebar-chevron">${state.locomotivesMenuOpen ? 'v' : '>'}</span>
+                    </button>
+                    ${state.locomotivesMenuOpen && !state.sidebarCollapsed ? `
+                      <div class="sidebar-subnav">
+                        ${locomotiveSidebarItems.map(([childId, childLabel, childTab]) => `
+                          <button class="${active === childId ? 'active' : ''}" data-sidebar-tab="${childTab}" type="button">
+                            <span class="history-nav-dot"></span><span class="sidebar-label">${childLabel}</span>
+                          </button>
+                        `).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                ` : `
+                  <button class="${active === id ? 'active' : ''}" data-sidebar-tab="${sidebarTabFor(id)}" type="button">
+                    <span class="history-nav-dot"></span><span class="sidebar-label">${label}</span>
+                  </button>
+                `}
+              `).join('')}
+            </nav>
+            <div class="history-sidebar-footer">
+              <strong>Ferrovias</strong>
+              <span>Sistema de Gestion Material Rodante</span>
+              <small>v2.3.0</small>
+            </div>
+          </aside>
+        `;
+      }
+
+      function moduleTabsHtml() {
+        return '';
+      }
+
+      function homeHtml() {
+        return `
+          <main class="home-dashboard">
+            <section class="home-hero" aria-labelledby="home-title">
+              <img class="home-hero-photo" src="${assets.homeMotion}" alt="" />
+
+              <div class="home-hero-copy">
+                <h2 id="home-title">Material Rodante</h2>
+                <p class="home-lead">Impulsando el mantenimiento y la operacion ferroviaria</p>
+                <p>Aseguramos un transporte eficiente y seguro a traves de la gestion optima de locomotoras y coches.</p>
+              </div>
+            </section>
+
+            <section class="home-command-bar" aria-label="Accesos principales">
+              <div class="home-quick-tabs">
+                ${['Locomotoras', 'Coches', 'Areas', 'Reportes'].map((item, index) => `
+                  <button class="${index === 0 ? 'active' : ''}" type="button"><span class="tab-mark"></span>${item}</button>
+                `).join('')}
+              </div>
+              <div class="home-action-row">
+                <div class="home-search" aria-hidden="true"></div>
+                <button class="home-register-button" type="button">+ Registrar Intervencion</button>
+              </div>
+            </section>
+
+            <section class="home-modules" aria-label="Modulos de material rodante">
+              <div class="home-module-tabs">
+                ${['Locomotoras', 'Coches', 'Areas', 'Reportes'].map((item, index) => `
+                  <button class="${index === 0 ? 'active' : ''}" type="button"><span class="module-icon"></span>${item}</button>
+                `).join('')}
+              </div>
+              <div class="home-info-grid">
+                <article class="home-info-card">
+                  <span class="home-card-icon target"></span>
+                  <h3>Mision</h3>
+                  <strong>Maximizar la fiabilidad y disponibilidad del material rodante</strong>
+                  <p>Garantizamos el optimo estado y funcionamiento de nuestros trenes, asegurando la seguridad y eficiencia en el transporte ferroviario.</p>
+                </article>
+                <article class="home-info-card">
+                  <span class="home-card-icon trophy"></span>
+                  <h3>Objetivos</h3>
+                  <p>Nuestras metas para el exito</p>
+                  <ul>
+                    <li>Reducir el tiempo fuera de servicio</li>
+                    <li>Optimizar el mantenimiento preventivo</li>
+                    <li>Prolongar la vida util de los equipos</li>
+                  </ul>
+                </article>
+                <article class="home-info-card home-scope-card">
+                  <span class="home-card-icon gear"></span>
+                  <h3>Alcance</h3>
+                  <strong>Gestion integral del material rodante</strong>
+                  <ul>
+                    <li>Mantenimiento de locomotoras y coches</li>
+                    <li>Gestion de repuestos y recursos</li>
+                    <li>Monitorizacion del estado y rendimiento</li>
+                    <li>Coordinacion con Infraestructura y Transporte</li>
+                  </ul>
+                </article>
+                <article class="home-metric-card"><span class="metric-flame"></span><strong>+85%</strong><p>Locomotoras operativas</p></article>
+                <article class="home-metric-card"><span class="metric-team"></span><strong>+40</strong><p>Tecnicos especializados</p></article>
+              </div>
+            </section>
+
+            <section class="home-route">
+              <div>
+                <h2>Eficiencia y Seguridad en Cada Ruta</h2>
+                <p>Comprometidos con el servicio y la mejora tecnologica.</p>
+              </div>
+              <div class="home-locomotive-showcase">
+                <figure class="home-motion-frame"><img src="${assets.homeHero}" alt="Locomotora E721 en taller ferroviario" /></figure>
+                <figure class="home-motion-frame portrait"><img src="${assets.homeFront}" alt="Detalle lateral de locomotora G22 CU" /></figure>
+                <article class="home-model-card">
+                  <span>Locomotora diesel-electrica</span>
+                  <h3>Locomotora G22 - CU</h3>
+                  <dl><div><dt>Modelo</dt><dd>G22 CU</dd></div><div><dt>Trocha</dt><dd>1000 mm</dd></div></dl>
+                  <p>La familia G22-CU forma parte de las locomotoras diesel-electricas que se incorporaron a redes de trocha metrica por su equilibrio entre potencia, simplicidad mecanica y confiabilidad diaria. En servicio suburbano y regional, su valor estuvo en sostener ciclos intensivos de trabajo con mantenimiento accesible para taller.</p>
+                </article>
+              </div>
+            </section>
+          </main>
+        `;
+      }
+
+      const statusClassNames = {
+        servicio: 'is-service',
+        preventivo: 'is-preventive',
+        correctivo: 'is-corrective',
+        lavado: 'is-wash',
+      };
+      const locomotiveScaleBoost = 1.04;
+      const defaultRotation = -8;
+      const mapZoom = 1.12;
+      const baseYardHeight = 1024;
+      const baseYardWidth = 1536;
+      const serviceSlots = [
+        { x: 376, y: 573, scale: 0.135, rotate: -8, labelX: -9, labelY: -18 },
+        { x: 492, y: 535, scale: 0.132, rotate: -8, labelX: 9, labelY: 13 },
+        { x: 610, y: 498, scale: 0.129, rotate: -8, labelX: -9, labelY: -17 },
+        { x: 730, y: 461, scale: 0.126, rotate: -8, labelX: 9, labelY: 12 },
+        { x: 852, y: 424, scale: 0.123, rotate: -8, labelX: -9, labelY: -16 },
+        { x: 974, y: 390, scale: 0.12, rotate: -7.8, labelX: 9, labelY: 12 },
+        { x: 1098, y: 357, scale: 0.117, rotate: -7.6, labelX: -9, labelY: -15 },
+        { x: 1224, y: 326, scale: 0.114, rotate: -7.5, labelX: 9, labelY: 11 },
+        { x: 1346, y: 301, scale: 0.111, rotate: -7.5, labelX: -9, labelY: -14 },
+        { x: 480, y: 667, scale: 0.152, rotate: -8, labelX: 9, labelY: 14 },
+        { x: 604, y: 628, scale: 0.148, rotate: -8, labelX: -9, labelY: -17 },
+        { x: 730, y: 590, scale: 0.144, rotate: -8, labelX: 9, labelY: 13 },
+        { x: 858, y: 552, scale: 0.14, rotate: -8, labelX: -9, labelY: -16 },
+        { x: 988, y: 514, scale: 0.136, rotate: -8, labelX: 9, labelY: 12 },
+        { x: 1118, y: 477, scale: 0.132, rotate: -8, labelX: -9, labelY: -15 },
+        { x: 1248, y: 441, scale: 0.128, rotate: -7.8, labelX: 9, labelY: 11 },
+        { x: 1376, y: 408, scale: 0.124, rotate: -7.8, labelX: -9, labelY: -14 },
+        { x: 610, y: 737, scale: 0.166, rotate: -8, labelX: -9, labelY: -17 },
+      ];
+      const maintenanceSlots = [
+        { x: 965, y: 225, scale: 0.096, rotate: -7.3, labelX: -10, labelY: -23 },
+        { x: 1052, y: 244, scale: 0.098, rotate: -7.3, labelX: 10, labelY: 13 },
+        { x: 1139, y: 264, scale: 0.1, rotate: -7.3, labelX: -10, labelY: -21 },
+        { x: 1228, y: 284, scale: 0.103, rotate: -7.3, labelX: 10, labelY: 12 },
+        { x: 1318, y: 305, scale: 0.106, rotate: -7.4, labelX: -10, labelY: -20 },
+        { x: 1406, y: 329, scale: 0.109, rotate: -7.4, labelX: 10, labelY: 12 },
+        { x: 1470, y: 358, scale: 0.112, rotate: -7.5, labelX: -10, labelY: -18 },
+      ];
+      const correctiveSlots = [
+        { x: 692, y: 816, scale: 0.182, rotate: -8, labelX: -10, labelY: -18 },
+        { x: 838, y: 773, scale: 0.176, rotate: -8, labelX: 10, labelY: 13 },
+        { x: 988, y: 730, scale: 0.17, rotate: -8, labelX: -10, labelY: -17 },
+        { x: 1138, y: 688, scale: 0.164, rotate: -8, labelX: 10, labelY: 12 },
+        { x: 1288, y: 646, scale: 0.158, rotate: -8, labelX: -10, labelY: -16 },
+        { x: 1408, y: 604, scale: 0.152, rotate: -8, labelX: 10, labelY: 12 },
+      ];
+      const washSlots = [
+        { x: 1360, y: 340, scale: 0.112, rotate: -7.5, labelX: 0, labelY: -22 },
+        { x: 1450, y: 366, scale: 0.116, rotate: -7.5, labelX: 0, labelY: 16 },
+      ];
+
+      function getStatusClass(loco) {
+        if (loco.lavadoProgramado) return statusClassNames.lavado;
+        return statusClassNames[loco.estado] || statusClassNames.correctivo;
+      }
+
+      function positionedLocomotoras(list) {
+        const counters = { servicio: 0, preventive: 0, corrective: 0, lavado: 0 };
+
+        return list.map((loco) => {
+          const isWash = loco.lavadoProgramado;
+          const isPreventive = loco.estado === 'preventivo';
+          const isCorrective = loco.estado === 'correctivo';
+          const slots = isWash ? washSlots : isPreventive ? maintenanceSlots : isCorrective ? correctiveSlots : serviceSlots;
+          const counterKey = isWash ? 'lavado' : isPreventive ? 'preventive' : isCorrective ? 'corrective' : 'servicio';
+          const index = counters[counterKey];
+          const slot = slots[index % slots.length];
+          const page = Math.floor(index / slots.length);
+          counters[counterKey] += 1;
+
+          return {
+            loco,
+            left: (slot.x + page * 36) * mapZoom,
+            top: (slot.y + page * 22) * mapZoom,
+            rotate: slot.rotate ?? defaultRotation,
+            scale: slot.scale * locomotiveScaleBoost * mapZoom,
+            labelX: slot.labelX || 0,
+            labelY: slot.labelY || 0,
+            zIndex: Math.round((slot.y + page * 22) * mapZoom),
+          };
+        });
+      }
+
+      function filteredLocos() {
+        if (state.filter === 'service') return locomotoras.filter((loco) => loco.estado === 'servicio');
+        if (state.filter === 'maintenance') return locomotoras.filter((loco) => loco.estado !== 'servicio');
+        if (state.filter === 'wash') return locomotoras.filter((loco) => loco.lavadoProgramado);
+        return locomotoras;
+      }
+
+      function patioHtml() {
+        const t = totals();
+        const visible = filteredLocos();
+        const selected = selectedLoco();
+        const yardHeight = baseYardHeight * mapZoom;
+        const yardWidth = baseYardWidth * mapZoom;
+        return `
+          <main class="operations-layout">
+            <section class="yard-shell">
+              <div class="yard-toolbar">
+                <div>
+                  <p class="eyebrow">Tablero operativo</p>
+                  <h2>Patio Ferroviario</h2>
+                </div>
+                <div class="yard-toolbar-actions">
+                  <div class="yard-filter" aria-label="Filtro rapido de locomotoras">
+                    ${[
+                      ['all', 'Todas', locomotoras.length, 'all'],
+                      ['service', 'Operativas', t.servicio, 'service'],
+                      ['maintenance', 'Mantenimiento', t.preventivo + t.correctivo, 'maintenance'],
+                      ['wash', 'Lavado', t.lavado, 'wash'],
+                    ].map(([id, label, count, className]) => `<button class="filter-${className} ${state.filter === id ? 'active' : ''}" data-filter="${id}" type="button"><strong>${count}</strong><span>${label}</span></button>`).join('')}
+                  </div>
+                </div>
+              </div>
+              <div class="yard-viewport">
+                <div class="yard-world" style="height: ${yardHeight}px; width: ${yardWidth}px;">
+                  <img class="yard-background" src="${assets.patioBg}" alt="" draggable="false" />
+                  ${positionedLocomotoras(visible).map(({ loco, left, top, rotate, scale, labelX, labelY, zIndex }) => `
+                    <button
+                      class="locomotive-unit ${getStatusClass(loco)} ${selected?.id === loco.id ? 'is-selected' : ''}"
+                      data-select="${loco.id}"
+                      data-open-history="${loco.id}"
+                      data-loco-id="${loco.id}"
+                      style="--code-x: ${labelX * -0.55}px; --code-y: ${labelY * -0.45}px; --label-x: ${labelX}px; --label-y: ${labelY}px; --loco-rotate: ${rotate}deg; left: ${left}px; top: ${top}px; z-index: ${zIndex}; transform: translate(-50%, -50%) scale(${scale});"
+                      type="button"
+                      title="${loco.codigo} - ${statusText(loco)}"
+                    >
+                      <span class="locomotive-shadow"></span>
+                      <img alt="Locomotora ${loco.codigo}" src="${patioImage(loco)}" />
+                      <span class="locomotive-code">${loco.codigo}</span>
+                      <span class="locomotive-status">${statusText(loco)}</span>
+                    </button>
+                  `).join('')}
+                  ${visible.length === 0 ? '<div class="yard-empty"><strong>Sin resultados</strong><span>No hay locomotoras para este filtro.</span></div>' : ''}
+                </div>
+              </div>
+            </section>
+            ${sidePanelHtml(selected, t)}
+          </main>
+        `;
+      }
+
+      function sidePanelHtml(selected, t) {
+        if (!selected) {
+          return `
+            <aside class="side-panel">
+              <div class="empty-panel">
+                <h2>Panel locomotora</h2>
+                <p>Seleccione una locomotora del patio para ver su ficha tecnica.</p>
+                <div class="panel-summary">
+                  <span><strong>${t.servicio}</strong> Servicio</span>
+                  <span><strong>${t.preventivo}</strong> Preventivo</span>
+                  <span><strong>${t.correctivo}</strong> Correctivo</span>
+                  <span><strong>${t.lavado}</strong> Lavado</span>
+                </div>
+              </div>
+            </aside>
+          `;
+        }
+
+        const history = sortHistoryDescending(selectedHistory().map((item) => normalizeHistoryItem(item, selected)));
+        const latestPreventiveIntervention = history.find((item) => item.interventionClass === 'preventivo');
+        const latestCorrectiveIntervention = history.find((item) => item.interventionClass === 'correctivo');
+        const currentPreventiveType = selected.tipoPreventivo || latestPreventiveIntervention?.preventiveCode || '';
+        const currentCorrectiveType = latestCorrectiveIntervention?.area || 'General';
+
+        return `
+          <aside class="side-panel">
+            <div class="panel-heading">
+              <div>
+              <span class="panel-kicker">Locomotora seleccionada</span>
+                <h2>${selected.codigo}</h2>
+              </div>
+              <span class="status-pill ${estadoOperativoClase(selected)}">${estadoOperativo(selected)}</span>
+            </div>
+            <div class="panel-loco-preview ${selected.codigo === '7774' ? 'blue' : 'red'}">
+              <img alt="Locomotora ${selected.codigo}" src="${previewImage(selected)}" />
+            </div>
+            <div class="panel-section">
+              <h3>Estado actual</h3>
+              ${selected.estado === 'correctivo' ? `
+                <p><strong>Estado:</strong><br />Mantenimiento correctivo</p>
+                <p><strong>Tipo correctivo:</strong><br />${escapeHtml(currentCorrectiveType)}</p>
+              ` : ''}
+              ${selected.estado === 'preventivo' ? `
+                <p><strong>Estado:</strong><br />Mantenimiento preventivo</p>
+                <p><strong>Tipo preventivo:</strong><br />${escapeHtml(currentPreventiveType || 'Pendiente de carga')}</p>
+              ` : ''}
+              ${(selected.estado === 'servicio' || selected.lavadoProgramado) ? `
+                <p><strong>Estado:</strong><br />Operativa</p>
+                <p><strong>Ultima intervencion preventiva:</strong><br />${latestPreventiveIntervention ? `${formatDateDisplay(latestPreventiveIntervention.date)} - ${escapeHtml(interventionTitle(latestPreventiveIntervention))}` : 'Pendiente de carga'}</p>
+              ` : ''}
+              <p><strong>Observaciones:</strong><br />${escapeHtml(selected.observacion || 'Sin observaciones')}</p>
+            </div>
+            <div class="panel-section timeline">
+              <h3>Historial reciente</h3>
+              ${history.length > 0 ? history.slice(0, 5).map((item) => `
+                <article>
+                  <b class="dot ${dotClase(item.area)}"></b>
+                  <span>${escapeHtml(interventionTitle(item))} <em class="area-tag ${areaClase(item.area)}">${escapeHtml(item.area || 'General')}</em></span>
+                  <small>${formatDateDisplay(item.date)} - ${escapeHtml(item.technician)}</small>
+                  <p>${escapeHtml(item.detail)}</p>
+                </article>
+              `).join('') : `
+                <article><b class="dot service"></b><span>Estado actualizado</span><small>Registro inicial</small></article>
+                <article><b class="dot preventive"></b><span>Datos cargados desde planilla</span><small>Estado actual</small></article>
+              `}
+            </div>
+            <button class="primary-action" data-open-history-event type="button">Registrar evento</button>
+            <button class="secondary-action panel-history-action" data-open-history="${selected.id}" type="button">Ver historial completo</button>
+          </aside>
+        `;
+      }
+
+      function locosHtml() {
+        return `
+          <main class="locomotive-list">
+            <div class="yard-toolbar">
+              <div>
+                <p class="eyebrow">Inventario</p>
+                <h2>Locomotoras</h2>
+              </div>
+            </div>
+            <div class="list-grid">
+              ${locomotoras.map((loco) => `
+                <article class="inventory-card ${loco.lavadoProgramado ? 'is-wash' : estadoClase(loco.estado)}">
+                  <img alt="Locomotora ${loco.codigo}" src="${previewImage(loco)}" />
+                  <div>
+                    <h3>${loco.codigo}</h3>
+                    <p>${estadoEtiqueta(loco)}</p>
+                  </div>
+                </article>
+              `).join('')}
+            </div>
+          </main>
+        `;
+      }
+
+      function cochesHtml() {
+        return `
+          <main class="module-placeholder">
+            <section>
+              <p class="eyebrow">Modulo pendiente</p>
+              <h2>Coches</h2>
+              <p>Este apartado queda reservado para inventario, patio, intervenciones e historial de coches cuando terminemos el modulo de locomotoras.</p>
+            </section>
+          </main>
+        `;
+      }
+
+      function localHistoryCounts() {
+        const customEvents = state.historyCustomEvents.length;
+        const panelEvents = flattenHistories(state.histories).length;
+        const mockEvents = state.mockEventsDisabled ? 0 : sampleEvents7774.length;
+        const bookEvents = state.historyCustomEvents.filter(isBookImportedEvent).length + flattenHistories(state.histories).filter(isBookImportedEvent).length;
+        return { customEvents, panelEvents, mockEvents, bookEvents };
+      }
+
+      function configurationHtml() {
+        const counts = localHistoryCounts();
+        return `
+          <main class="module-placeholder configuration-workspace">
+            <section>
+              <p class="eyebrow">Configuracion</p>
+              <h2>Configuracion</h2>
+              <p>Herramientas locales para administrar datos guardados en este navegador.</p>
+            </section>
+
+            <section class="local-data-panel">
+              <div>
+                <p class="eyebrow">Datos locales de prueba</p>
+                <h3>Datos locales de prueba</h3>
+                <p>Estas acciones solo afectan el Archivo Historico guardado en localStorage. No modifican la flota, Patio, inventario ni configuracion visual.</p>
+              </div>
+              <div class="local-data-stats">
+                <span><strong>${counts.customEvents}</strong> eventos historicos locales</span>
+                <span><strong>${counts.panelEvents}</strong> referencias en paneles</span>
+                <span><strong>${counts.bookEvents}</strong> eventos Libro de Novedades</span>
+                <span><strong>${counts.mockEvents}</strong> eventos mock activos</span>
+                <span><strong>${state.calendarTasks.length}</strong> tareas de calendario</span>
+              </div>
+              <div class="local-data-actions">
+                <button class="danger-action" data-clear-history="all" type="button">Eliminar todo el Archivo Historico</button>
+                <button class="secondary-action" data-clear-history="book" type="button">Eliminar solo Libro de Novedades</button>
+                <button class="secondary-action" data-clear-history="mock" type="button">Eliminar solo datos mock</button>
+                <button class="secondary-action" data-clear-history="calendar" type="button">Eliminar datos del Calendario</button>
+              </div>
+            </section>
+          </main>
+        `;
+      }
+
+      function calendarTaskTone(task) {
+        if (task.estado === 'vencida' || task.date < '2026-06-22') return 'vencida';
+        if (task.tipo === 'campana') return 'campana';
+        if (task.tipo === 'numeral') return 'numeral';
+        if (task.tipo.startsWith('preventivo')) return 'preventivo';
+        return 'otro';
+      }
+
+      function calendarTaskLabel(task) {
+        if (task.tipo === 'campana') return `Campana: ${task.descripcion.replace(/\.$/, '')}`;
+        if (task.tipo === 'numeral') return task.descripcion;
+        if (task.tipo === 'preventivo-locomotora') return `${task.unidad} Preventivo ${task.preventivoCodigo || task.descripcion.replace(`${task.unidad}.`, '').trim()}`;
+        if (task.tipo === 'preventivo-coche') return `${task.unidad} preventivo`;
+        return task.descripcion;
+      }
+
+      function nextCalendarDate(value, frequency) {
+        const date = new Date(`${value}T00:00:00`);
+        if (frequency === 'semanal') date.setDate(date.getDate() + 7);
+        else if (frequency === 'quincenal') date.setDate(date.getDate() + 14);
+        else if (frequency === 'mensual') date.setMonth(date.getMonth() + 1);
+        else if (frequency === 'bimestral') date.setMonth(date.getMonth() + 2);
+        else if (frequency === 'trimestral') date.setMonth(date.getMonth() + 3);
+        else if (frequency === 'semestral') date.setMonth(date.getMonth() + 6);
+        else if (frequency === 'anual') date.setMonth(date.getMonth() + 12);
+        return date.toISOString().slice(0, 10);
+      }
+
+      function buildCalendarOccurrences(month) {
+        const monthStart = new Date(`${month}-01T00:00:00`);
+        const monthEnd = new Date(monthStart);
+        monthEnd.setMonth(monthEnd.getMonth() + 1);
+        return state.calendarTasks.flatMap((task) => {
+          if (task.fechaFin) {
+            const start = new Date(`${task.fechaProgramada}T00:00:00`);
+            const end = new Date(`${task.fechaFin}T00:00:00`);
+            if (start < monthEnd && end >= monthStart) {
+              const visibleDate = start > monthStart ? task.fechaProgramada : `${month}-01`;
+              return [{ ...task, date: visibleDate, occurrenceId: `${task.id}-${month}` }];
+            }
+            return [];
+          }
+          const events = [];
+          let date = task.fechaProgramada;
+          let guard = 0;
+          while (date && guard < 30) {
+            const current = new Date(`${date}T00:00:00`);
+            if (current >= monthStart && current < monthEnd) events.push({ ...task, date, occurrenceId: `${task.id}-${date}` });
+            if (task.frecuencia === 'unica' || current >= monthEnd) break;
+            date = nextCalendarDate(date, task.frecuencia);
+            guard += 1;
+          }
+          return events;
+        });
+      }
+
+      function calendarOccurrences() {
+        return buildCalendarOccurrences(state.calendarMonth)
+          .sort((a, b) => a.date.localeCompare(b.date));
+      }
+
+      function calendarDays() {
+        const [year, month] = state.calendarMonth.split('-').map(Number);
+        const first = new Date(year, month - 1, 1);
+        const leading = (first.getDay() + 6) % 7;
+        const total = new Date(year, month, 0).getDate();
+        return [...Array(leading).fill(null), ...Array.from({ length: total }, (_, index) => `${year}-${String(month).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`)];
+      }
+
+            function calendarHtml() {
+        const occurrences = calendarOccurrences();
+        const annualTasks = Array.from({ length: 12 }, (_, index) => `2026-${String(index + 1).padStart(2, '0')}`)
+          .flatMap((month) => buildCalendarOccurrences(month))
+          .filter((task) => task.tipo === 'campana' || task.tipo === 'numeral' || (task.nivelPlanificacion === 'anual' && !task.tipo.startsWith('preventivo')));
+        const byDay = occurrences.reduce((groups, task) => ({ ...groups, [task.date]: [...(groups[task.date] || []), task] }), {});
+        const weekly = occurrences.filter((task) => task.date >= '2026-06-22' && task.date <= '2026-06-28');
+        const weeklyByDay = weekly.reduce((groups, task) => ({ ...groups, [task.date]: [...(groups[task.date] || []), task] }), {});
+        const expired = occurrences.filter((task) => calendarTaskTone(task) === 'vencida' && task.estado !== 'completada');
+        const pending = occurrences.filter((task) => calendarTaskTone(task) !== 'vencida' && task.estado !== 'completada');
+        const completed = occurrences.filter((task) => task.estado === 'completada');
+        const viewButtons = [['anual', 'Vista anual'], ['mensual', 'Vista mensual'], ['semanal', 'Vista semanal']];
+        const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const selectedAnnualMonth = state.calendarMonth;
+        const annualDetail = annualTasks.filter((task) => task.date.startsWith(selectedAnnualMonth));
+        const operational = totals();
+        return `
+          <main class="calendar-workspace">
+            <section class="calendar-main-panel">
+              <header class="calendar-header">
+                <div><p class="eyebrow">Planificacion Material Rodante</p><h2>Calendario de Mantenimiento</h2><p>Planificacion y seguimiento de preventivos, numerales y campanas tecnicas.</p></div>
+                <div class="calendar-header-actions"><input data-calendar-month aria-label="Mes seleccionado" type="month" value="${state.calendarMonth}" /><button class="history-register-button" data-calendar-new-task type="button">Nueva tarea</button></div>
+              </header>
+              <section class="calendar-view-selector">${viewButtons.map(([id, label]) => `<button class="${state.calendarView === id ? 'active' : ''}" data-calendar-view="${id}" type="button">${label}</button>`).join('')}</section>
+              <section class="calendar-kpis"><article><span>Tareas programadas este mes</span><strong>${occurrences.length}</strong></article><article><span>Pendientes</span><strong>${pending.length}</strong></article><article><span>Completadas</span><strong>${completed.length}</strong></article><article><span>Vencidas</span><strong>${expired.length}</strong></article><article><span>Tareas realizadas este ano</span><strong>${state.calendarTasks.filter((task) => task.estado === 'completada').length}</strong></article></section>
+              ${state.calendarView === 'anual' ? `<section class="annual-planning"><div class="calendar-section-heading"><h3>Planificacion anual 2026</h3><span>Campanas, numerales y largo plazo</span></div><div class="annual-month-grid">${months.map((name, index) => { const month = `2026-${String(index + 1).padStart(2, '0')}`; const monthTasks = annualTasks.filter((task) => task.date.startsWith(month)); const campanas = monthTasks.filter((task) => task.tipo === 'campana').length; const numerales = monthTasks.filter((task) => task.tipo === 'numeral').length; const vencidas = monthTasks.filter((task) => calendarTaskTone(task) === 'vencida').length; return `<button class="annual-month-card ${state.calendarMonth === month ? 'active' : ''} ${vencidas ? 'has-expired' : ''}" data-calendar-month-card="${month}" type="button"><strong>${name}</strong><span>${campanas} campanas</span><span>${numerales} numerales</span><em>${vencidas ? `${vencidas} vencidas` : 'En plan'}</em></button>`; }).join('')}</div><div class="annual-month-detail"><div><h3>${months[Number(selectedAnnualMonth.slice(5)) - 1]} 2026</h3><span>${annualDetail.length} tareas de plan anual</span></div><div class="calendar-list">${annualDetail.map((task) => `<article class="${calendarTaskTone(task)}"><time>${formatDateDisplay(task.date)}</time><strong>${escapeHtml(calendarTaskLabel(task))}</strong><span>${escapeHtml(task.responsable)}</span></article>`).join('')}</div></div></section>` : ''}
+              ${state.calendarView === 'mensual' ? `<section class="maintenance-month"><div class="calendar-section-heading"><h3>Junio 2026</h3><div class="calendar-filter-row"><label><input type="checkbox" checked />Campanas</label><label><input type="checkbox" checked />Numerales</label><label><input type="checkbox" checked />Preventivos</label><label><input type="checkbox" checked />Coches</label><label><input type="checkbox" checked />Locomotoras</label></div></div><div class="month-grid weekdays">${['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'].map((day) => `<span>${day}</span>`).join('')}</div><div class="month-grid">${calendarDays().map((day) => `<div class="month-day ${day ? '' : 'is-empty'} ${day === '2026-06-22' ? 'is-today' : ''}">${day ? `<strong>${Number(day.slice(-2))}</strong><div class="month-day-tasks">${(byDay[day] || []).slice(0, 3).map((task) => `<span class="${calendarTaskTone(task)}">${escapeHtml(calendarTaskLabel(task))}</span>`).join('')}</div>` : ''}</div>`).join('')}</div></section>` : ''}
+              ${state.calendarView === 'semanal' ? `<section class="weekly-agenda"><div class="calendar-section-heading"><h3>Vista semanal operativa</h3><span>22-06-2026 al 28-06-2026</span></div><div class="week-column-grid">${['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'].map((day, index) => { const date = `2026-06-${String(22 + index).padStart(2, '0')}`; const tasks = weeklyByDay[date] || []; return `<section class="week-column"><header><strong>${day}</strong><span>${formatDateDisplay(date)}</span></header>${tasks.map((task) => `<article class="${calendarTaskTone(task)}"><strong>${escapeHtml(calendarTaskLabel(task))}</strong><span>${escapeHtml(task.activo)}</span></article>`).join('')}${tasks.length ? '' : '<p>Sin programacion</p>'}</section>`; }).join('')}</div></section>` : ''}
+            </section>
+            <aside class="calendar-side-panel"><div><span class="panel-kicker">Resumen del mes</span><h3>Junio 2026</h3><p>${occurrences.length} tareas planificadas, ${expired.length} vencidas y ${pending.length} pendientes.</p></div><section><h4>Estado actual del dia</h4><div class="calendar-status-grid"><article><b class="servicio"></b><span>Servicio</span><small>${operational.servicio}</small></article><article><b class="preventivo"></b><span>Preventivo</span><small>${operational.preventivo}</small></article><article><b class="correctivo"></b><span>Correctivo</span><small>${operational.correctivo}</small></article><article><b class="lavado"></b><span>Lavado</span><small>${operational.lavado}</small></article></div></section><section><h4>Proximas tareas</h4>${occurrences.filter((task) => task.date >= '2026-06-22').slice(0, 5).map((task) => `<article><b class="${calendarTaskTone(task)}"></b><span>${escapeHtml(calendarTaskLabel(task))}</span><small>${formatDateDisplay(task.date)}</small></article>`).join('')}</section><section><h4>Proximas vencidas</h4>${expired.length ? expired.map((task) => `<article><b class="vencida"></b><span>${escapeHtml(calendarTaskLabel(task))}</span><small>${formatDateDisplay(task.date)}</small></article>`).join('') : '<p>Sin vencidas abiertas.</p>'}</section><section class="calendar-quick-actions"><h4>Acciones rapidas</h4><button data-calendar-new-task type="button">Nueva tarea</button><button data-calendar-realization type="button">Registrar realizacion</button><button type="button">Importar planificacion</button></section></aside>
+            ${calendarTaskModalHtml()}${calendarRealizationModalHtml()}
+          </main>`;
+      }
+      function calendarTaskModalHtml() {
+        if (!state.calendarTaskModalOpen) return '';
+        return `<div class="modal-backdrop" role="presentation"><form class="intervention-modal calendar-modal" data-calendar-task-form>
+          <div class="modal-heading"><div><span class="panel-kicker">Planificacion</span><h2>Nueva tarea</h2></div><button class="modal-close" data-calendar-close type="button">x</button></div>
+          <label>Tipo de tarea<select name="taskKind" data-calendar-task-kind><option value="preventivo">Preventivo</option><option value="campana">Campana</option><option value="otro">Otro</option></select></label>
+          <div data-task-branch="preventivo">
+            <label>Preventivo de<select name="preventivoActivo" data-calendar-preventive-asset><option value="locomotora">Locomotora</option><option value="coche">Coche</option></select></label>
+            <label data-preventive-locomotive>Tipo de preventivo locomotora<select name="preventivoLocomotoraCodigo" data-calendar-loco-preventive><option value="E">E - 1 turno</option><option value="A">A - 2 turnos</option><option value="AB">AB - 3 turnos</option><option value="ABC">ABC - 6 turnos</option>${Array.from({ length: 12 }, (_, index) => `<option value="Numeral ${index + 1}">Numeral ${index + 1}</option>`).join('')}</select></label>
+            <label data-preventive-coach style="display:none">Tipo de preventivo coche<select name="preventivoCocheCodigo"><option value="ABC">ABC</option><option value="RP">RP</option><option value="RG">RG</option></select></label>
+            <label data-preventive-turn>Turno<select name="turno"><option value="manana">Turno manana 06 a 14</option><option value="tarde">Turno tarde 14 a 22</option></select></label>
+          </div>
+          <div data-task-branch="campana" style="display:none">
+            <label>Campana para<select name="campanaActivo"><option>Locomotoras</option><option>Coches / formaciones</option></select></label>
+            <label>Nombre de la campana<input name="nombreCampana" placeholder="Ej: Lubricacion de puentes de paso" /></label>
+            <label>Duracion de la tarea<select name="duracionTarea"><option value="3-dias">3 dias</option><option value="5-dias">5 dias</option><option value="1-semana">1 semana</option></select></label>
+            <label>Frecuencia<select name="frecuencia"><option value="unica">Unica vez</option><option value="semanal">Semanal</option><option value="quincenal">Cada 2 semanas</option><option value="mensual">Mensual</option><option value="trimestral">Trimestral</option><option value="semestral">Cada 6 meses</option><option value="anual">Anual</option></select></label>
+          </div>
+          <div data-task-branch="otro" style="display:none">
+            <label>Activo / alcance<input name="otroActivo" placeholder="Locomotora, coche, grupo o flota" /></label>
+          </div>
+          <label data-task-not-campaign>Unidad o rango<input name="unidad" placeholder="E701, E701-E715, Toda la flota..." /></label>
+          <label>Fecha de inicio / programada<input name="fechaProgramada" type="date" value="2026-06-22" required /></label>
+          <label data-task-not-campaign>Fecha de fin<input name="fechaFin" type="date" /></label>
+          <label data-task-other-only style="display:none">Responsable<input name="responsable" /></label>
+          <label data-task-not-campaign>Especialidad<select name="especialidad"><option>Mecanica</option><option>Electrica</option><option>Neumatica</option><option>General</option></select></label>
+          <label>Descripcion<textarea name="descripcion" rows="4" placeholder="Descripcion de la campana o detalle opcional"></textarea></label>
+          <label data-task-other-only style="display:none">Observaciones<textarea name="observaciones" rows="3"></textarea></label>
+          <div class="modal-actions"><button class="secondary-action" data-calendar-close type="button">Cancelar</button><button class="primary-action" type="submit">Guardar tarea</button></div>
+        </form></div>`;
+      }
+
+      function calendarRealizationModalHtml() {
+        if (!state.calendarRealizationOpen) return '';
+        return `<div class="modal-backdrop" role="presentation"><form class="intervention-modal calendar-modal" data-calendar-realization-form>
+          <div class="modal-heading"><div><span class="panel-kicker">Ejecucion</span><h2>Registrar realizacion</h2></div><button class="modal-close" data-calendar-close type="button">x</button></div>
+          <label>Tarea / campana<select name="taskId">${state.calendarTasks.map((task) => `<option value="${task.id}">${escapeHtml(calendarTaskLabel({ ...task, date: task.fechaProgramada }))}</option>`).join('')}</select></label>
+          <label>Fecha realizada<input name="fechaRealizada" type="date" value="2026-06-22" required /></label>
+          <label>Unidad o unidades realizadas<input name="unidadesRealizadas" placeholder="E701 o E701, E702" required /></label>
+          <label>Responsable<input name="responsable" required /></label>
+          <label>Observaciones<textarea name="observaciones" rows="4"></textarea></label>
+          <div class="history-modal-note">Este formulario no carga adjuntos. Los PDF, fotos u OT se agregan desde Registrar evento en Archivo Historico.</div>
+          <div class="modal-actions"><button class="secondary-action" data-calendar-close type="button">Cancelar</button><button class="primary-action" type="submit">Registrar realizacion</button></div>
+        </form></div>`;
+      }
+
+      function eventTypeLabel(kind) {
+        return {
+          preventivo: 'Preventivo',
+          correctivo: 'Correctivo',
+          libro: 'Libro de novedades',
+          alistamiento: 'Novedad de alistamiento',
+          numeral: 'Numeral',
+          lavado: 'Lavado',
+        }[kind] || kind;
+      }
+
+      function historyEventMatchesFilter(event) {
+        if (state.historyEventFilter === 'todo') return true;
+        if (state.historyEventFilter === 'adjuntos') {
+          return Boolean(event.attachments?.pdf || event.attachments?.photo || event.attachments?.ot);
+        }
+        return event.kind === state.historyEventFilter;
+      }
+
+      function historyEventMatchesSearch(event) {
+        const query = state.historySearch.trim().toLowerCase();
+        if (!query) return true;
+
+        return [
+          event.dateLabel,
+          event.time,
+          event.origin,
+          event.description,
+          event.responsible,
+          event.kind,
+        ].join(' ').toLowerCase().includes(query);
+      }
+
+      function groupHistoryEvents(events) {
+        return events.reduce((groups, event) => {
+          const existing = groups.find((group) => group.date === event.date);
+          if (existing) {
+            existing.events.push(event);
+            return groups;
+          }
+
+          return [...groups, { date: event.date, label: event.dateLabel, events: [event] }];
+        }, []);
+      }
+
+      function formatHistoryDateLabel(value) {
+        const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+        const [year, month, day] = String(value).split('-');
+        return `${day} ${months[Number(month) - 1] || ''} ${year}`;
+      }
+
+      function timelineEventHtml(event) {
+        return `
+          <article class="timeline-event-card ${event.kind} ${event.criticidad === 'alta' ? 'is-critical' : ''}">
+            <time>${event.time}</time>
+            <div class="timeline-event-marker"></div>
+            <div class="timeline-event-body">
+              <div class="timeline-event-topline">
+                <strong>${eventTypeLabel(event.kind)}</strong>
+                <span>${escapeHtml(event.origin)}</span>
+                ${event.automatic ? '<em>Automatico</em>' : ''}
+              </div>
+              <p>${escapeHtml(event.description)}</p>
+              <div class="timeline-event-meta">
+                ${event.responsible ? `<span>Responsable: ${escapeHtml(event.responsible)}</span>` : ''}
+                ${event.attachments?.pdf ? `<button data-open-attachment="pdf" data-event-id="${escapeHtml(event.id)}" title="Doble click para abrir PDF" type="button">PDF</button>` : ''}
+                ${event.attachments?.photo ? '<button type="button">Foto</button>' : ''}
+                ${event.attachments?.ot ? '<button type="button">OT</button>' : ''}
+              </div>
+            </div>
+          </article>
+        `;
+      }
+
+      function historyPageHtml() {
+        const loco = locomotoras.find((item) => item.codigo === state.historyLocoCode) || historyLoco() || locomotoras.find((item) => item.codigo === '7774') || locomotoras[0];
+        const stateLabel = loco.estado === 'servicio' ? 'En servicio' : loco.estado === 'preventivo' ? 'Preventivo' : 'Correctivo';
+        const realEventsForLoco = state.historyCustomEvents.filter((event) => event.locomotoraCodigo === loco.codigo);
+        const mockEventsForLoco = state.mockEventsDisabled || realEventsForLoco.length > 0 ? [] : sampleEvents7774.filter((event) => (event.locomotoraCodigo || '7774') === loco.codigo);
+        const sourceEvents = mockEventsForLoco
+          .concat(realEventsForLoco)
+          .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.time).localeCompare(String(a.time)));
+        const filteredEvents = sourceEvents.filter((event) => historyEventMatchesFilter(event) && historyEventMatchesSearch(event));
+        const groupedEvents = groupHistoryEvents(filteredEvents);
+        const stats = {
+          preventivo: sourceEvents.filter((event) => event.kind === 'preventivo').length,
+          correctivo: sourceEvents.filter((event) => event.kind === 'correctivo').length,
+          libro: sourceEvents.filter((event) => event.kind === 'libro').length,
+          alistamiento: sourceEvents.filter((event) => event.kind === 'alistamiento').length,
+          campana: sourceEvents.filter((event) => event.kind === 'campana').length,
+          lavado: sourceEvents.filter((event) => event.kind === 'lavado').length,
+          pdf: sourceEvents.filter((event) => event.attachments?.pdf).length,
+          fotos: sourceEvents.filter((event) => event.attachments?.photo).length,
+        };
+
+        return `
+          <main class="history-workspace">
+            <section class="history-main-panel">
+              <header class="history-file-header">
+                <div>
+                  <p class="eyebrow">Archivo historico ferroviario</p>
+                  <h2>Archivo Historico de Locomotora</h2>
+                  <div class="history-title-row">
+                    <strong>${escapeHtml(loco.codigo)}</strong>
+                    <span class="history-state-badge ${loco.estado}">${stateLabel}</span>
+                    <span class="history-sync-badge">Sincronizado</span>
+                  </div>
+                  <div class="history-loco-selector">
+                    <label>
+                      Maquina
+                      <select data-history-loco-select>
+                        ${locomotoras.map((item) => `<option value="${item.codigo}" ${item.codigo === loco.codigo ? 'selected' : ''}>${item.codigo}</option>`).join('')}
+                      </select>
+                    </label>
+                    <span>Libro de novedades sincronizado: 22-06-2026 07:40</span>
+                  </div>
+                </div>
+                <div class="history-header-actions">
+                  <label class="history-import-button">
+                    Importar libro CSV
+                    <input data-import-history accept=".csv,text/csv,text/plain" type="file" />
+                  </label>
+                  <label class="history-import-button">
+                    Reprocesar libro
+                    <input data-reprocess-history accept=".csv,text/csv,text/plain" type="file" />
+                  </label>
+                  <button class="history-register-button" data-open-history-event type="button">Registrar evento</button>
+                </div>
+              </header>
+
+              <section class="history-kpi-grid">
+                <article class="history-kpi-card preventivo"><span>Ultimo preventivo</span><strong>18 JUN 2026</strong></article>
+                <article class="history-kpi-card correctivo"><span>Ultimo correctivo</span><strong>21 JUN 2026</strong></article>
+                <article class="history-kpi-card libro"><span>Dias sin novedades</span><strong>0</strong></article>
+                <article class="history-kpi-card campana"><span>Eventos historicos</span><strong>${sourceEvents.length}</strong></article>
+                <article class="history-kpi-card lavado"><span>Archivos asociados</span><strong>${stats.pdf + stats.fotos}</strong></article>
+              </section>
+
+              <section class="history-event-filters" aria-label="Filtros del archivo historico">
+                <div class="history-filter-tabs">
+                  ${historyFilterTabs.map(([id, label]) => `
+                    <button class="${state.historyEventFilter === id ? 'active' : ''}" data-event-filter="${id}" type="button">${label}</button>
+                  `).join('')}
+                </div>
+                <div class="history-search-row">
+                  <input aria-label="Buscar en el historial" data-history-event-search placeholder="Buscar en el historial..." type="search" value="${escapeHtml(state.historySearch)}" />
+                  <button type="button">Filtros</button>
+                </div>
+              </section>
+
+              <section class="history-timeline" aria-label="Linea de tiempo historica">
+                ${groupedEvents.length > 0 ? groupedEvents.map((group) => `
+                  <div class="timeline-day">
+                    <h3>${group.label}</h3>
+                    <div class="timeline-day-events">
+                      ${group.events.map((event) => timelineEventHtml(event)).join('')}
+                    </div>
+                  </div>
+                `).join('') : '<p class="history-empty large">No hay eventos para esos filtros.</p>'}
+              </section>
+            </section>
+
+            <aside class="history-detail-panel">
+              <div class="history-loco-portrait ${loco.codigo === '7774' ? 'blue' : 'red'}">
+                <img alt="Locomotora ${escapeHtml(loco.codigo)}" src="${previewImage(loco)}" />
+              </div>
+              <div class="history-detail-heading">
+                <span>Locomotora</span>
+                <strong>${escapeHtml(loco.codigo)}</strong>
+              </div>
+              <dl class="history-current-data">
+                <div><dt>Estado actual</dt><dd>${stateLabel}</dd></div>
+                <div><dt>Kilometraje</dt><dd>${loco.codigo === '7774' ? '1.486.200 km' : '1.204.300 km'}</dd></div>
+                <div><dt>Modelo</dt><dd>${loco.codigo.startsWith('77') ? 'ALCo RSD-16' : 'GM GT22CW'}</dd></div>
+                <div><dt>Proximo preventivo</dt><dd>${loco.tipoPreventivo || 'Preventivo A'}</dd></div>
+                <div><dt>Fecha estimada</dt><dd>${loco.estado === 'correctivo' ? 'Pendiente' : '30-06-2026'}</dd></div>
+                <div><dt>Base</dt><dd>${loco.estado === 'preventivo' ? 'Taller Retiro' : 'Retiro'}</dd></div>
+              </dl>
+              <div class="history-side-stats">
+                <span><b>${stats.preventivo}</b> Preventivos</span>
+                <span><b>${stats.correctivo}</b> Correctivos</span>
+                <span><b>${stats.libro}</b> Libro de novedades</span>
+                <span><b>${stats.alistamiento}</b> Alistamientos con novedad</span>
+                <span><b>${stats.campana}</b> Campanas</span>
+                <span><b>${stats.lavado}</b> Lavados</span>
+                <span><b>${stats.pdf}</b> PDF asociados</span>
+                <span><b>${stats.fotos}</b> Fotos</span>
+              </div>
+              <button class="history-annual-button" type="button">Ver resumen anual</button>
+            </aside>
+          </main>
+        `;
+      }
+
+      function historyEventModalHtml(loco) {
+        if (!state.historyEventModalOpen) return '';
+
+        return `
+          <div class="modal-backdrop" role="presentation">
+            <form class="intervention-modal history-event-modal" data-history-event-form>
+              <div class="modal-heading">
+                <div>
+                  <span class="panel-kicker">Carga de datos</span>
+                  <h2>Registrar evento</h2>
+                </div>
+                <button class="modal-close" data-close-history-event type="button" aria-label="Cerrar">x</button>
+              </div>
+              <label>Locomotora
+                <select name="locomotoraCodigo" required>
+                  ${locomotoras.map((item) => `<option value="${item.codigo}" ${item.codigo === loco.codigo ? 'selected' : ''}>${item.codigo}</option>`).join('')}
+                </select>
+              </label>
+              <label>Fecha <input name="fecha" type="date" value="2026-06-22" required /></label>
+              <label>Hora <input name="hora" type="time" value="08:00" required /></label>
+              <label>Tipo de evento
+                <select name="tipo" data-history-event-type required>
+                  <option value="" selected disabled>Seleccionar tipo de evento</option>
+                  <option value="preventivo">Preventivo</option>
+                  <option value="correctivo">Correctivo</option>
+                  <option value="alistamiento">Novedad de alistamiento</option>
+                  <option value="lavado">Lavado</option>
+                </select>
+              </label>
+              <div class="history-modal-note" data-history-branch="empty">Seleccione un tipo de evento para habilitar los campos de carga correspondientes.</div>
+              <div data-history-branch="preventivo" style="display:none">
+                <label>Tipo de preventivo
+                  <select name="preventivoCodigo" data-history-preventive-code>
+                    <option value="E">E</option>
+                    <option value="A">A</option>
+                    <option value="AB">AB</option>
+                    <option value="ABC">ABC</option>
+                    ${Array.from({ length: 12 }, (_, index) => `<option value="Numeral ${index + 1}">Numeral ${index + 1}</option>`).join('')}
+                  </select>
+                </label>
+                <label>Responsable <input name="responsablePreventivoVista" data-history-preventive-responsible readonly value="Turno rotativo" /></label>
+                <label>Descripcion / novedad <textarea name="descripcionPreventivo" rows="4" placeholder="Detalle del preventivo realizado..."></textarea></label>
+              </div>
+              <div data-history-branch="correctivo" style="display:none">
+                <label>Especialidad
+                  <select name="especialidadCorrectivo">
+                    <option value="" selected disabled>Seleccionar especialidad</option>
+                    <option>Mecanica</option>
+                    <option>Electrica</option>
+                    <option>Neumatica</option>
+                    <option>Sistemas de seguridad</option>
+                    <option>Otra</option>
+                  </select>
+                </label>
+                <label>Quien lo ataco
+                  <select name="responsableCorrectivo">
+                    <option value="" selected disabled>Seleccionar turno</option>
+                    <option>Turno fijo</option>
+                    <option>Turno rotativo</option>
+                  </select>
+                </label>
+                <label>Descripcion / novedad <textarea name="descripcionCorrectivo" rows="4" placeholder="Detalle del correctivo realizado..."></textarea></label>
+              </div>
+              <div data-history-branch="alistamiento" style="display:none">
+                <label>Especialidad
+                  <select name="especialidadAlistamiento">
+                    <option value="" selected disabled>Seleccionar especialidad</option>
+                    <option>Mecanica</option>
+                    <option>Electrica</option>
+                    <option>Neumatica</option>
+                    <option>Sistemas de seguridad</option>
+                    <option>Otra</option>
+                  </select>
+                </label>
+                <label>Responsable <input name="responsableAlistamientoVista" readonly value="Turno rotativo" /></label>
+                <label>Descripcion / novedad <textarea name="descripcionAlistamiento" rows="4" placeholder="Detalle de la novedad de alistamiento..."></textarea></label>
+              </div>
+              <div data-history-branch="lavado" style="display:none">
+                <label>Responsable <input name="responsableLavadoVista" readonly value="Sector lavadero" /></label>
+                <label>Descripcion / novedad <textarea name="descripcionLavado" rows="4" placeholder="Detalle del lavado realizado..."></textarea></label>
+              </div>
+              <fieldset class="history-criticality-options" data-history-criticality style="display:none">
+                <legend>Criticidad</legend>
+                <label><input name="criticidad" type="radio" value="baja" checked /> Baja</label>
+                <label><input name="criticidad" type="radio" value="alta" /> Alta</label>
+              </fieldset>
+              <div class="history-file-drop">
+                <strong>Anadir archivo</strong>
+                <span>Arrastre archivos aca o examine su PC para adjuntar PDF, fotos, OT o informes.</span>
+                <input name="adjuntos" type="file" accept="application/pdf,image/*" multiple />
+              </div>
+              <div class="history-modal-note">El libro de novedades se sincroniza automaticamente desde Sistema Ferrovias y no se carga manualmente.</div>
+              <div class="modal-actions">
+                <button class="secondary-action" data-close-history-event type="button">Cancelar</button>
+                <button class="primary-action" type="submit">Guardar evento</button>
+              </div>
+            </form>
+          </div>
+        `;
+      }
+
+      function historyModalLoco() {
+        return selectedLoco()
+          || locomotoras.find((item) => item.codigo === state.historyLocoCode)
+          || locomotoras.find((item) => item.codigo === '7774')
+          || locomotoras[0];
+      }
+
+      function interventionModalHtml() {
+        const selected = selectedLoco();
+        if (!state.interventionOpen || !selected) return '';
+
+        return `
+          <div class="modal-backdrop" role="presentation">
+            <form class="intervention-modal" data-intervention-form>
+              <div class="modal-heading">
+                <div>
+                  <span class="panel-kicker">Nueva intervencion</span>
+                  <h2>${escapeHtml(selected.codigo)}</h2>
+                </div>
+                <button class="modal-close" data-close-intervention type="button" aria-label="Cerrar">x</button>
+              </div>
+
+              <label>
+                Fecha
+                <input inputmode="numeric" name="date" pattern="\\d{2}-\\d{2}-\\d{4}" placeholder="dd-mm-yyyy" type="text" value="${todayDisplayValue()}" required />
+              </label>
+
+              <label>
+                Tipo
+                <select name="interventionClass" data-intervention-type required>
+                  <option value="" ${state.interventionFormType ? '' : 'selected'} disabled>Seleccionar tipo</option>
+                  <option value="correctivo" ${state.interventionFormType === 'correctivo' ? 'selected' : ''}>Correctivo</option>
+                  <option value="preventivo" ${state.interventionFormType === 'preventivo' ? 'selected' : ''}>Preventivo</option>
+                </select>
+              </label>
+
+              ${state.interventionFormType === 'preventivo' ? `
+                <label>
+                  Preventivo
+                  <select name="preventiveCode" data-preventive-code required>
+                    <option value="" ${state.preventiveFormCode ? '' : 'selected'} disabled>Seleccionar preventivo</option>
+                    ${preventiveOptions.map((option) => `<option value="${option}" ${state.preventiveFormCode === option ? 'selected' : ''}>${option}</option>`).join('')}
+                  </select>
+                </label>
+              ` : ''}
+
+              ${state.interventionFormType === 'correctivo' ? `
+                <label>
+                  Especialidad
+                  <select name="area" required>
+                    <option value="" selected disabled>Seleccionar especialidad</option>
+                    <option>Mecanica</option>
+                    <option>Electrica</option>
+                    <option>General</option>
+                  </select>
+                </label>
+              ` : ''}
+
+              <label>
+                Tecnico / responsable
+                ${state.interventionFormType === 'correctivo' ? `
+                  <select name="technician" required>
+                    <option value="" selected disabled>Seleccionar turno</option>
+                    <option>Turno fijo</option>
+                    <option>Turno rotativo</option>
+                  </select>
+                ` : `
+                  <input name="technician" readonly value="${String(state.preventiveFormCode).startsWith('Numeral') ? 'Turno fijo' : 'Turno rotativo'}" />
+                `}
+              </label>
+
+              <label>
+                Detalle
+                <textarea name="detail" rows="5" placeholder="Trabajo realizado, observaciones, repuestos, pendientes..." required></textarea>
+              </label>
+
+              <div class="modal-actions">
+                <button class="secondary-action" data-close-intervention type="button">Cancelar</button>
+                <button class="primary-action" type="submit">Guardar intervencion</button>
+              </div>
+            </form>
+          </div>
+        `;
+      }
+
+      function bindPanelControls() {
+        document.querySelectorAll('[data-open-intervention]').forEach((button) => {
+          button.addEventListener('click', openIntervention);
+        });
+
+        document.querySelectorAll('.panel-history-action[data-open-history]').forEach((button) => {
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            openHistory(button.dataset.openHistory);
+          });
+        });
+      }
+
+      function bindEvents() {
+        document.querySelectorAll('[data-tab]').forEach((button) => {
+          button.addEventListener('click', () => setTab(button.dataset.tab));
+        });
+
+        document.querySelectorAll('[data-sidebar-tab]').forEach((button) => {
+          button.addEventListener('click', () => setTab(button.dataset.sidebarTab));
+        });
+
+        document.querySelectorAll('[data-sidebar-toggle]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.sidebarCollapsed = !state.sidebarCollapsed;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-locomotives-menu]').forEach((button) => {
+          button.addEventListener('click', () => {
+            if (state.sidebarCollapsed) {
+              setTab('historial');
+              return;
+            }
+            state.locomotivesMenuOpen = !state.locomotivesMenuOpen;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-filter]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.filter = button.dataset.filter;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-select]').forEach((button) => {
+          button.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            const viewport = document.querySelector('.yard-viewport');
+            if (!viewport) return;
+            pendingYardScroll = {
+              left: viewport.scrollLeft,
+              top: viewport.scrollTop,
+            };
+          });
+          button.addEventListener('click', () => {
+            window.clearTimeout(selectTimer);
+            selectTimer = window.setTimeout(() => {
+              selectLoco(button.dataset.select, button.dataset.centerSelect === 'true');
+            }, 220);
+          });
+        });
+
+        document.querySelectorAll('[data-open-history]').forEach((button) => {
+          button.addEventListener('dblclick', () => openHistory(button.dataset.openHistory));
+          button.addEventListener('click', (event) => {
+            if (event.detail >= 2) {
+              event.preventDefault();
+              openHistory(button.dataset.openHistory);
+              return;
+            }
+            if (button.classList.contains('panel-history-action')) {
+              event.preventDefault();
+              openHistory(button.dataset.openHistory);
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-open-attachment="pdf"]').forEach((button) => {
+          button.addEventListener('dblclick', () => openStoredPdf(button.dataset.eventId));
+        });
+
+        bindPanelControls();
+
+        document.querySelectorAll('[data-close-intervention]').forEach((button) => {
+          button.addEventListener('click', closeIntervention);
+        });
+
+        document.querySelectorAll('[data-intervention-type]').forEach((select) => {
+          select.addEventListener('change', () => {
+            state.interventionFormType = select.value;
+            state.preventiveFormCode = '';
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-preventive-code]').forEach((select) => {
+          select.addEventListener('change', () => {
+            state.preventiveFormCode = select.value;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-intervention-form]').forEach((form) => {
+          form.addEventListener('submit', registerIntervention);
+        });
+
+        document.querySelectorAll('[data-history-filter]').forEach((input) => {
+          input.addEventListener('input', () => updateHistoryFilter(input.dataset.historyFilter, input.value));
+          input.addEventListener('change', () => updateHistoryFilter(input.dataset.historyFilter, input.value));
+        });
+
+        document.querySelectorAll('[data-event-filter]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.historyEventFilter = button.dataset.eventFilter;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-history-event-search]').forEach((input) => {
+          input.addEventListener('input', () => {
+            state.historySearch = input.value;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-history-loco-select]').forEach((select) => {
+          select.addEventListener('change', () => {
+            state.historyLocoCode = select.value;
+            const target = locomotoras.find((loco) => loco.codigo === select.value);
+            state.historyTargetId = target?.id || null;
+            state.selectedId = target?.id || null;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-calendar-month]').forEach((input) => {
+          input.addEventListener('change', () => {
+            state.calendarMonth = input.value;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-calendar-view]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.calendarView = button.dataset.calendarView;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-calendar-month-card]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.calendarMonth = button.dataset.calendarMonthCard;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-calendar-new-task]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.calendarTaskModalOpen = true;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-calendar-realization]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.calendarRealizationOpen = true;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-clear-history]').forEach((button) => {
+          button.addEventListener('click', () => handleHistoryCleanup(button.dataset.clearHistory));
+        });
+
+        document.querySelectorAll('[data-calendar-close]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.calendarTaskModalOpen = false;
+            state.calendarRealizationOpen = false;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-calendar-task-form]').forEach((form) => {
+          const updateCalendarTaskBranches = () => {
+            const taskKind = form.querySelector('[data-calendar-task-kind]')?.value || 'preventivo';
+            const preventiveAsset = form.querySelector('[data-calendar-preventive-asset]')?.value || 'locomotora';
+            form.querySelectorAll('[data-task-branch]').forEach((branch) => {
+              branch.style.display = branch.dataset.taskBranch === taskKind ? '' : 'none';
+            });
+            form.querySelectorAll('[data-task-not-campaign]').forEach((node) => {
+              node.style.display = taskKind === 'campana' ? 'none' : '';
+            });
+            form.querySelectorAll('[data-task-other-only]').forEach((node) => {
+              node.style.display = taskKind === 'otro' ? '' : 'none';
+            });
+            form.querySelectorAll('[data-preventive-locomotive], [data-preventive-turn]').forEach((node) => {
+              node.style.display = preventiveAsset === 'locomotora' ? '' : 'none';
+            });
+            form.querySelectorAll('[data-preventive-coach]').forEach((node) => {
+              node.style.display = preventiveAsset === 'coche' ? '' : 'none';
+            });
+            const locoPreventive = form.querySelector('[data-calendar-loco-preventive]')?.value || 'E';
+            form.querySelectorAll('[data-preventive-turn]').forEach((node) => {
+              node.style.display = preventiveAsset === 'locomotora' && !String(locoPreventive).startsWith('Numeral') ? '' : 'none';
+            });
+          };
+          form.querySelector('[data-calendar-task-kind]')?.addEventListener('change', updateCalendarTaskBranches);
+          form.querySelector('[data-calendar-preventive-asset]')?.addEventListener('change', updateCalendarTaskBranches);
+          form.querySelector('[data-calendar-loco-preventive]')?.addEventListener('change', updateCalendarTaskBranches);
+          updateCalendarTaskBranches();
+
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const formData = new FormData(form);
+            const taskKind = formData.get('taskKind');
+            const preventivoActivo = formData.get('preventivoActivo');
+            const preventivoCodigo = preventivoActivo === 'coche' ? formData.get('preventivoCocheCodigo') : formData.get('preventivoLocomotoraCodigo');
+            const nombreCampana = String(formData.get('nombreCampana') || '').trim();
+            const isNumeral = taskKind === 'preventivo' && String(preventivoCodigo).startsWith('Numeral');
+            const tipo = taskKind === 'campana'
+              ? 'campana'
+              : taskKind === 'otro'
+                ? 'otro'
+                : isNumeral
+                  ? 'numeral'
+                  : preventivoActivo === 'coche'
+                    ? 'preventivo-coche'
+                    : 'preventivo-locomotora';
+            const descripcion = taskKind === 'campana'
+              ? nombreCampana || 'Campana sin nombre'
+              : taskKind === 'preventivo'
+                ? `${isNumeral ? preventivoCodigo : `Preventivo ${preventivoCodigo}`} ${formData.get('unidad')}.`
+                : formData.get('descripcion');
+            const campanaActivo = formData.get('campanaActivo');
+            const activo = taskKind === 'campana'
+              ? campanaActivo
+              : taskKind === 'preventivo'
+                ? preventivoActivo === 'coche' ? 'Coche' : 'Locomotora'
+                : formData.get('otroActivo');
+            const nivelPlanificacion = taskKind === 'campana' || isNumeral ? 'anual' : taskKind === 'preventivo' ? 'semanal' : 'mensual';
+            const turnDurations = { E: 1, A: 2, AB: 3, ABC: 6 };
+            state.calendarTasks = [{
+              id: `task-${Date.now()}`,
+              tipo,
+              nivelPlanificacion,
+              activo,
+              unidad: taskKind === 'campana' ? campanaActivo : formData.get('unidad'),
+              fechaProgramada: formData.get('fechaProgramada'),
+              fechaFin: taskKind === 'campana' ? '' : formData.get('fechaFin'),
+              preventivoCodigo,
+              turno: formData.get('turno'),
+              duracionTurnos: tipo === 'preventivo-locomotora' ? turnDurations[preventivoCodigo] : '',
+              duracionTarea: taskKind === 'campana' ? formData.get('duracionTarea') : '',
+              frecuencia: taskKind === 'campana' ? formData.get('frecuencia') : 'unica',
+              responsable: taskKind === 'otro' ? formData.get('responsable') : 'Planificacion MR',
+              especialidad: formData.get('especialidad') || 'General',
+              descripcion,
+              observaciones: taskKind === 'otro' ? formData.get('observaciones') : '',
+              estado: formData.get('fechaProgramada') < '2026-06-22' ? 'vencida' : 'pendiente',
+            }, ...state.calendarTasks];
+            localStorage.setItem(storageKeys.calendarTasksDisabled, 'false');
+            saveCalendarTasks();
+            state.calendarTaskModalOpen = false;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-calendar-realization-form]').forEach((form) => {
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const formData = new FormData(form);
+            const task = state.calendarTasks.find((item) => item.id === formData.get('taskId'));
+            if (!task) return;
+            const units = String(formData.get('unidadesRealizadas')).split(',').map((unit) => unit.trim()).filter(Boolean);
+            state.calendarTasks = state.calendarTasks.map((item) => item.id === task.id ? { ...item, estado: 'completada', fechaRealizada: formData.get('fechaRealizada') } : item);
+            saveCalendarTasks();
+            units.filter((unit) => /^E\d{3}$|^77\d{2}$|^EM\d{2}$/.test(unit)).forEach((unit) => {
+              state.historyCustomEvents = [{
+                id: `${unit}-cal-${Date.now()}`,
+                locomotoraCodigo: unit,
+                date: formData.get('fechaRealizada'),
+                dateLabel: formatHistoryDateLabel(formData.get('fechaRealizada')),
+                time: '08:00',
+                kind: task.tipo === 'campana' ? 'campana' : task.tipo === 'numeral' ? 'numeral' : task.tipo.startsWith('preventivo') ? 'preventivo' : 'otro',
+                origin: task.especialidad,
+                description: `${task.descripcion} ${formData.get('observaciones') || ''}`.trim(),
+                responsible: formData.get('responsable'),
+                automatic: false,
+                attachments: {},
+              }, ...state.historyCustomEvents];
+            });
+            saveCustomHistoryEvents();
+            state.calendarRealizationOpen = false;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-open-history-event]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const selected = selectedLoco();
+            if (selected) {
+              state.historyLocoCode = selected.codigo;
+              state.historyTargetId = selected.id;
+            }
+            state.historyEventModalOpen = true;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-close-history-event]').forEach((button) => {
+          button.addEventListener('click', () => {
+            state.historyEventModalOpen = false;
+            render();
+          });
+        });
+
+        document.querySelectorAll('[data-history-event-form]').forEach((form) => {
+          const updateHistoryEventBranches = () => {
+            const tipo = form.querySelector('[data-history-event-type]')?.value || '';
+            form.querySelectorAll('[data-history-branch]').forEach((branch) => {
+              const branchName = branch.dataset.historyBranch;
+              const visible = branchName === tipo || (branchName === 'empty' && !tipo);
+              branch.style.display = visible ? '' : 'none';
+            });
+            const criticality = form.querySelector('[data-history-criticality]');
+            if (criticality) criticality.style.display = tipo ? '' : 'none';
+            const preventiveCode = form.querySelector('[data-history-preventive-code]')?.value || 'E';
+            const preventiveResponsible = form.querySelector('[data-history-preventive-responsible]');
+            if (preventiveResponsible) preventiveResponsible.value = String(preventiveCode).startsWith('Numeral') ? 'Turno fijo' : 'Turno rotativo';
+          };
+          form.querySelector('[data-history-event-type]')?.addEventListener('change', updateHistoryEventBranches);
+          form.querySelector('[data-history-preventive-code]')?.addEventListener('change', updateHistoryEventBranches);
+          updateHistoryEventBranches();
+
+          form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (form.dataset.submitting === 'true') return;
+            form.dataset.submitting = 'true';
+            const submitButton = form.querySelector('button[type="submit"]');
+            if (submitButton) {
+              submitButton.disabled = true;
+              submitButton.textContent = 'Guardando...';
+            }
+
+            try {
+              const formData = new FormData(form);
+              const files = formData.getAll('adjuntos').filter((file) => file && file.name);
+              let attachments;
+              try {
+                attachments = await buildLocalAttachments(files);
+              } catch {
+                const pdfFiles = files.filter((file) => file.type === 'application/pdf' || String(file.name).toLowerCase().endsWith('.pdf'));
+                const photoFiles = files.filter((file) => file.type?.startsWith('image/'));
+                const otFiles = files.filter((file) => String(file.name).toLowerCase().includes('ot'));
+                attachments = {
+                  pdf: pdfFiles.length > 0,
+                  pdfName: pdfFiles.map((file) => file.name).join(', '),
+                  pdfUrl: '',
+                  photo: photoFiles.length > 0,
+                  photoName: photoFiles.map((file) => file.name).join(', '),
+                  ot: otFiles.length > 0,
+                  otName: otFiles.map((file) => file.name).join(', '),
+                };
+              }
+              const tipo = formData.get('tipo');
+              const preventivoCodigo = formData.get('preventivoCodigo');
+              const especialidad = tipo === 'correctivo'
+                ? formData.get('especialidadCorrectivo')
+                : tipo === 'preventivo'
+                  ? 'Todas'
+                  : tipo === 'alistamiento'
+                    ? formData.get('especialidadAlistamiento')
+                    : tipo === 'lavado'
+                      ? 'Lavado'
+                      : 'General';
+              const description = tipo === 'preventivo'
+                ? formData.get('descripcionPreventivo')
+                : tipo === 'correctivo'
+                  ? formData.get('descripcionCorrectivo')
+                  : tipo === 'alistamiento'
+                    ? formData.get('descripcionAlistamiento')
+                    : tipo === 'lavado'
+                      ? formData.get('descripcionLavado')
+                      : '';
+              const responsable = tipo === 'preventivo'
+                ? String(preventivoCodigo).startsWith('Numeral') ? 'Turno fijo' : 'Turno rotativo'
+                : tipo === 'correctivo'
+                  ? formData.get('responsableCorrectivo')
+                : tipo === 'alistamiento'
+                  ? 'Turno rotativo'
+                  : tipo === 'lavado'
+                    ? 'Sector lavadero'
+                    : 'Sin responsable asignado';
+              const eventId = `${formData.get('locomotoraCodigo')}-${Date.now()}`;
+              state.historyCustomEvents = [{
+                id: eventId,
+                locomotoraCodigo: formData.get('locomotoraCodigo'),
+                date: formData.get('fecha'),
+                dateLabel: formatHistoryDateLabel(formData.get('fecha')),
+                time: formData.get('hora'),
+                kind: tipo,
+                origin: tipo === 'preventivo' ? `Preventivo ${preventivoCodigo}` : especialidad,
+                description,
+                responsible: responsable,
+                automatic: false,
+                attachments,
+                criticidad: formData.get('criticidad') || 'baja',
+              }, ...state.historyCustomEvents];
+              try {
+                saveCustomHistoryEvents();
+              } catch (storageError) {
+                console.warn('El evento se cargo, pero el navegador no pudo persistir el adjunto completo.', storageError);
+              }
+              state.historyLocoCode = formData.get('locomotoraCodigo');
+              const targetLoco = locomotoras.find((loco) => loco.codigo === formData.get('locomotoraCodigo'));
+              if (targetLoco) {
+                state.selectedId = targetLoco.id;
+                state.historyTargetId = targetLoco.id;
+                state.histories = {
+                  ...state.histories,
+                  [targetLoco.id]: sortHistoryDescending([
+                    {
+                      id: eventId,
+                      date: formData.get('fecha'),
+                      type: tipo === 'preventivo' ? `Preventivo ${preventivoCodigo}` : eventTypeLabel(tipo),
+                      interventionClass: tipo,
+                      preventiveCode: tipo === 'preventivo' ? preventivoCodigo : '',
+                      area: tipo === 'preventivo' ? 'General' : especialidad,
+                      locomotoraId: targetLoco.id,
+                      locomotoraCodigo: targetLoco.codigo,
+                      technician: responsable,
+                      detail: description,
+                      criticidad: formData.get('criticidad') || 'baja',
+                    },
+                    ...(state.histories[targetLoco.id] || []),
+                  ]),
+                };
+                try {
+                  saveHistories();
+                } catch (storageError) {
+                  console.warn('El panel historico se actualizo, pero no se pudo persistir localmente.', storageError);
+                }
+              }
+              state.historyEventModalOpen = false;
+              render();
+            } catch (error) {
+              console.warn('Error no bloqueante al guardar evento historico.', error);
+              form.dataset.submitting = 'false';
+              state.historyEventModalOpen = false;
+              render();
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-export-history]').forEach((button) => {
+          button.addEventListener('click', exportHistoryBackup);
+        });
+
+        document.querySelectorAll('[data-import-history]').forEach((input) => {
+          input.addEventListener('change', importHistoryBackup);
+        });
+
+        document.querySelectorAll('[data-reprocess-history]').forEach((input) => {
+          input.addEventListener('change', (event) => importHistoryBackup(event, { reprocess: true }));
+        });
+
+        const viewport = document.querySelector('.yard-viewport');
+        if (!viewport) return;
+
+        if (!state.yardViewportPrimed) {
+          viewport.scrollLeft = Math.max((baseYardWidth * mapZoom - viewport.clientWidth) * 0.58, 0);
+          viewport.scrollTop = 48;
+          state.yardViewportPrimed = true;
+        }
+
+        let drag = null;
+        viewport.addEventListener('pointerdown', (event) => {
+          if (event.button !== 0 || event.target.closest('button')) return;
+          drag = {
+            id: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            left: viewport.scrollLeft,
+            top: viewport.scrollTop,
+          };
+          viewport.classList.add('is-dragging');
+          viewport.setPointerCapture(event.pointerId);
+        });
+        viewport.addEventListener('pointermove', (event) => {
+          if (!drag) return;
+          viewport.scrollLeft = drag.left - (event.clientX - drag.x);
+          viewport.scrollTop = drag.top - (event.clientY - drag.y);
+        });
+        const stop = () => {
+          drag = null;
+          viewport.classList.remove('is-dragging');
+        };
+        viewport.addEventListener('pointerup', stop);
+        viewport.addEventListener('pointercancel', stop);
+        viewport.addEventListener('pointerleave', stop);
+      }
+
+      function render() {
+        root.innerHTML = `
+          <div class="app-shell">
+            ${appSidebarHtml()}
+            <div class="app-content">
+              ${moduleTabsHtml()}
+              ${state.tab === 'inicio' ? homeHtml() : state.tab === 'patio' ? patioHtml() : state.tab === 'historial' ? historyPageHtml() : state.tab === 'coches' ? cochesHtml() : state.tab === 'calendario' ? calendarHtml() : state.tab === 'configuracion' ? configurationHtml() : locosHtml()}
+              ${interventionModalHtml()}
+              ${historyEventModalHtml(historyModalLoco())}
+            </div>
+          </div>
+        `;
+        bindEvents();
+      }
+
+      render();
+    </script>
+  </body>
+</html>
