@@ -57,6 +57,7 @@ function displayState(loco) {
 }
 
 export default function HistorialLocomotora({
+  canManage = false,
   events,
   loadError,
   loading,
@@ -65,6 +66,7 @@ export default function HistorialLocomotora({
   locomotoras,
   onLocomotiveChange,
   onCreateActualizacion,
+  onForbidden,
   onImportLibro,
   onRegisterEvent,
   onRetry,
@@ -89,6 +91,13 @@ export default function HistorialLocomotora({
     if (!file) return;
 
     setImportStatus('');
+
+    if (!canManage) {
+      onForbidden?.();
+      inputEvent.target.value = '';
+      return;
+    }
+
     setIsImporting(true);
 
     try {
@@ -110,12 +119,14 @@ export default function HistorialLocomotora({
             <b />
             Sincronizacion externa activa
           </span>
-          <div className="history-header-actions">
-            <label className={`history-import-button ${isImporting ? 'is-loading' : ''}`}>
-              {isImporting ? 'Importando...' : 'Importar libro de novedades'}
-              <input accept=".csv,text/csv" disabled={isImporting} onChange={handleLibroImport} type="file" />
-            </label>
-          </div>
+          {canManage && (
+            <div className="history-header-actions">
+              <label className={`history-import-button ${isImporting ? 'is-loading' : ''}`}>
+                {isImporting ? 'Importando...' : 'Importar libro de novedades'}
+                <input accept=".csv,text/csv" disabled={isImporting} onChange={handleLibroImport} type="file" />
+              </label>
+            </div>
+          )}
         </div>
 
         <header className="history-file-header">
@@ -144,9 +155,11 @@ export default function HistorialLocomotora({
             <img alt={`Locomotora ${targetLoco.codigo}`} src={locomotiveImage(targetLoco)} />
           </div>
 
-          <button className="history-register-button" onClick={() => onRegisterEvent(targetLoco)} type="button">
-            Registrar evento
-          </button>
+          {canManage && (
+            <button className="history-register-button" onClick={() => onRegisterEvent(targetLoco)} type="button">
+              Registrar evento
+            </button>
+          )}
         </header>
 
         {importStatus && (
@@ -177,9 +190,11 @@ export default function HistorialLocomotora({
               <div className="timeline-day-events">
                 {group.events.map((event) => (
                   <TimelineEvent
+                    canManage={canManage}
                     event={event}
                     key={event.id}
                     onCreateActualizacion={onCreateActualizacion}
+                    onForbidden={onForbidden}
                   />
                 ))}
               </div>

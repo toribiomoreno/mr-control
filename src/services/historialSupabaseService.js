@@ -5,6 +5,7 @@ import {
   uploadEventAttachments,
 } from './adjuntosSupabaseService.js';
 import {
+  calcularEstadoMantenimientoEvento,
   obtenerActualizaciones,
   sincronizarEstadoMantenimientoEvento,
 } from './actualizacionesEventoSupabaseService.js';
@@ -82,7 +83,7 @@ function toEventPayload(event) {
   };
 }
 
-async function attachFilesToEvents(rows) {
+async function attachFilesToEvents(rows, { canSyncMantenimiento = true } = {}) {
   const events = [];
 
   for (const row of rows || []) {
@@ -90,7 +91,12 @@ async function attachFilesToEvents(rows) {
     event.adjuntos = await mapAttachmentRows(row.adjuntos_evento || []);
     if (['preventivo', 'correctivo'].includes(event.tipo)) {
       event.actualizaciones = await obtenerActualizaciones(event.id);
-      Object.assign(event, await sincronizarEstadoMantenimientoEvento(event, event.actualizaciones));
+      Object.assign(
+        event,
+        canSyncMantenimiento
+          ? await sincronizarEstadoMantenimientoEvento(event, event.actualizaciones)
+          : calcularEstadoMantenimientoEvento(event, event.actualizaciones),
+      );
     }
     events.push(event);
   }
@@ -98,7 +104,7 @@ async function attachFilesToEvents(rows) {
   return events;
 }
 
-export async function fetchHistorialByLocomotora(locomotoraCodigo) {
+export async function fetchHistorialByLocomotora(locomotoraCodigo, options = {}) {
   assertSupabaseConfig();
   const { data, error } = await supabase
     .from('eventos_historial')
@@ -110,7 +116,7 @@ export async function fetchHistorialByLocomotora(locomotoraCodigo) {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return attachFilesToEvents(data);
+  return attachFilesToEvents(data, options);
 }
 
 export async function createHistorialEvent(event, files, locomotoras) {

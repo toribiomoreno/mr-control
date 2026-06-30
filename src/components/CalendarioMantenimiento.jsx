@@ -128,7 +128,12 @@ function matchesMonthlyFilters(task, filters) {
   return true;
 }
 
-export default function CalendarioMantenimiento({ locomotoras, onTaskRealized }) {
+export default function CalendarioMantenimiento({
+  canManage = false,
+  locomotoras,
+  onForbidden,
+  onTaskRealized,
+}) {
   const [tasks, setTasks] = useState(initialCalendarTasks);
   const [viewMode, setViewMode] = useState('anual');
   const [selectedMonth, setSelectedMonth] = useState('2026-06');
@@ -185,6 +190,11 @@ export default function CalendarioMantenimiento({ locomotoras, onTaskRealized })
 
   const addTask = (event) => {
     event.preventDefault();
+    if (!canManage) {
+      onForbidden?.();
+      return;
+    }
+
     const form = new FormData(event.currentTarget);
     const taskKind = form.get('taskKind');
     const preventivoActivo = form.get('preventivoActivo');
@@ -242,6 +252,11 @@ export default function CalendarioMantenimiento({ locomotoras, onTaskRealized })
 
   const registerRealization = (event) => {
     event.preventDefault();
+    if (!canManage) {
+      onForbidden?.();
+      return;
+    }
+
     const form = new FormData(event.currentTarget);
     const task = tasks.find((item) => item.id === form.get('taskId'));
     if (!task) return;
@@ -300,7 +315,9 @@ export default function CalendarioMantenimiento({ locomotoras, onTaskRealized })
               type="month"
               value={selectedMonth}
             />
-            <button className="history-register-button" onClick={() => setIsTaskModalOpen(true)} type="button">Nueva tarea</button>
+            {canManage && (
+              <button className="history-register-button" onClick={() => setIsTaskModalOpen(true)} type="button">Nueva tarea</button>
+            )}
           </div>
         </header>
 
@@ -441,12 +458,14 @@ export default function CalendarioMantenimiento({ locomotoras, onTaskRealized })
           )) : <p>Sin vencidas abiertas.</p>}
         </section>
 
-        <section className="calendar-quick-actions">
-          <h4>Acciones rapidas</h4>
-          <button onClick={() => setIsTaskModalOpen(true)} type="button">Nueva tarea</button>
-          <button onClick={() => setIsRealizationOpen(true)} type="button">Registrar realizacion</button>
-          <button type="button">Importar planificacion</button>
-        </section>
+        {canManage && (
+          <section className="calendar-quick-actions">
+            <h4>Acciones rapidas</h4>
+            <button onClick={() => setIsTaskModalOpen(true)} type="button">Nueva tarea</button>
+            <button onClick={() => setIsRealizationOpen(true)} type="button">Registrar realizacion</button>
+            <button type="button">Importar planificacion</button>
+          </section>
+        )}
       </aside>
 
       {isTaskModalOpen && (

@@ -3,12 +3,15 @@ import { useCallback, useEffect, useState } from 'react';
 import CalendarioMantenimiento from './components/CalendarioMantenimiento.jsx';
 import Home from './components/Home.jsx';
 import HistorialLocomotora from './components/HistorialLocomotora.jsx';
+import Login from './components/Login.jsx';
 import Patio from './components/Patio.jsx';
 import RegistroEventoModal from './components/RegistroEventoModal.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import locoAzul from './assets/loco_azul.webp';
 import locoRoja from './assets/loco_roja.webp';
+import { useAuth } from './context/AuthContext.jsx';
 import locomotoras from './data/locomotoras.js';
+import { permisoDenegadoMensaje, puedeGestionarArchivoHistorico, puedeGestionarPatioCalendario } from './lib/permissions.js';
 import { crearActualizacion } from './services/actualizacionesEventoSupabaseService.js';
 import { createHistorialEvent, fetchHistorialByLocomotora } from './services/historialSupabaseService.js';
 import { importarLibroNovedades } from './services/importacionLibroSupabaseService.js';
@@ -127,12 +130,17 @@ function sortHistoryDescending(items) {
 }
 
 export default function App() {
+  const { session, perfil, loading: authLoading, authError, signOut } = useAuth();
+  const canManageHistory = puedeGestionarArchivoHistorico(perfil);
+  const canManagePatioCalendar = puedeGestionarPatioCalendario(perfil);
+
   // Navegacion y seleccion de locomotoras.
   const [tab, setTab] = useState('inicio');
   const [selected, setSelected] = useState(null);
   const [historyTarget, setHistoryTarget] = useState(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [eventModalSource, setEventModalSource] = useState('archivo');
+  const [permissionMessage, setPermissionMessage] = useState('');
 
   // Archivo historico completo y resumen local separado para el Patio.
   const [historyEvents, setHistoryEvents] = useState([]);
@@ -159,7 +167,9 @@ export default function App() {
     setHistoryError('');
 
     try {
-      const events = await fetchHistorialByLocomotora(loco.codigo);
+      const events = await fetchHistorialByLocomotora(loco.codigo, {
+        canSyncMantenimiento: canManageHistory,
+      });
       setHistoryEvents(events);
       setHistoryStatus('ready');
     } catch (error) {
@@ -167,7 +177,7 @@ export default function App() {
       setHistoryError(error.message || 'No fue posible conectarse con Supabase.');
       setHistoryStatus('error');
     }
-  }, [defaultHistoryLoco]);
+  }, [canManageHistory, defaultHistoryLoco]);
 
   useEffect(() => {
     if (tab !== 'historial') return undefined;
@@ -198,7 +208,21 @@ export default function App() {
     setTab('historial');
   };
 
+  const denyPermission = useCallback(() => {
+    setPermissionMessage(permisoDenegadoMensaje);
+    window.setTimeout(() => setPermissionMessage(''), 3200);
+  }, []);
+
+  const hasEventPermission = useCallback((source) => (
+    source === 'patio' ? canManagePatioCalendar : canManageHistory
+  ), [canManageHistory, canManagePatioCalendar]);
+
   const openEventModal = (loco = defaultHistoryLoco, source = 'archivo') => {
+    if (!hasEventPermission(source)) {
+      denyPermission();
+      return;
+    }
+
     setSelected(loco);
     setHistoryTarget(loco);
     setEventModalSource(source);
@@ -232,6 +256,11 @@ export default function App() {
   };
 
   const saveHistoryEvent = async (event, files = []) => {
+    if (!hasEventPermission(eventModalSource)) {
+      denyPermission();
+      throw new Error(permisoDenegadoMensaje);
+    }
+
     if (eventModalSource !== 'archivo') {
       saveLocalInterventionEvent(event);
       setIsEventModalOpen(false);
@@ -254,6 +283,11 @@ export default function App() {
   };
 
   const importLibroNovedades = async (file) => {
+    if (!canManageHistory) {
+      denyPermission();
+      throw new Error(permisoDenegadoMensaje);
+    }
+
     const csvText = await file.text();
     const result = await importarLibroNovedades({
       csvText,
@@ -266,6 +300,11 @@ export default function App() {
   };
 
   const saveActualizacionEvento = async (event, actualizacion, files = []) => {
+    if (!canManageHistory) {
+      denyPermission();
+      throw new Error(permisoDenegadoMensaje);
+    }
+
     await crearActualizacion(actualizacion, files, event);
     await loadHistoryEvents(defaultHistoryLoco);
   };
@@ -278,19 +317,65 @@ export default function App() {
     ? 'inicio'
     : tab === 'patio'
       ? 'patio'
-      : tab === 'coches'
-        ? 'coches'
-        : tab === 'calendario'
-          ? 'calendario'
-          : tab === 'locos'
-            ? 'inventario'
-            : 'archivo';
+    : tab === 'coches'
+      ? 'coches'
+      : tab === 'calendario'
+        ? 'calendario'
+        : tab === 'locos'
+          ? 'inventario'
+          : 'archivo';
+
+  if (authLoading) {
+    return (
+      <main className="auth-screen">
+        <section className="auth-status-panel">
+          <span className="panel-kicker">MR Control</span>
+          <h1>Cargando sesión...</h1>
+        </section>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return <Login />;
+  }
+
+  if (!perfil) {
+    return (
+      <main className="auth-screen">
+        <section className="auth-status-panel">
+          <span className="panel-kicker">Acceso pendiente</span>
+          <h1>El acceso de este usuario todavía no está configurado</h1>
+          {authError && <p>{authError}</p>}
+          <button className="secondary-action" onClick={signOut} type="button">Cerrar sesión</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (!perfil.activo) {
+    return (
+      <main className="auth-screen">
+        <section className="auth-status-panel">
+          <span className="panel-kicker">Acceso pendiente</span>
+          <h1>Usuario pendiente de habilitación</h1>
+          <button className="secondary-action" onClick={signOut} type="button">Cerrar sesión</button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <div className="app-shell">
-      <Sidebar active={sidebarActive} onNavigate={setTab} />
+      <Sidebar active={sidebarActive} onNavigate={setTab} onSignOut={signOut} perfil={perfil} />
 
       <div className="app-content">
+        {permissionMessage && (
+          <div className="permission-toast" role="alert">
+            {permissionMessage}
+          </div>
+        )}
+
         {tab === 'inicio' && <Home />}
 
       {tab === 'patio' && (
@@ -374,9 +459,11 @@ export default function App() {
                   )}
                 </div>
 
-                <button className="primary-action" onClick={openInterventionModal}>
-                  Registrar evento
-                </button>
+                {canManagePatioCalendar && (
+                  <button className="primary-action" onClick={openInterventionModal}>
+                    Registrar evento
+                  </button>
+                )}
                 <button className="secondary-action panel-history-action" onClick={() => openHistory(selected)} type="button">
                   Ver historial completo
                 </button>
@@ -400,6 +487,7 @@ export default function App() {
 
       {tab === 'historial' && (
         <HistorialLocomotora
+          canManage={canManageHistory}
           events={historyEvents}
           loadError={historyError}
           loading={historyStatus === 'loading'}
@@ -407,6 +495,7 @@ export default function App() {
           locomotoras={locomotoras}
           locomotiveImage={imagenLocomotora}
           onCreateActualizacion={saveActualizacionEvento}
+          onForbidden={denyPermission}
           onImportLibro={importLibroNovedades}
           onRegisterEvent={(loco) => openEventModal(loco, 'archivo')}
           onRetry={() => loadHistoryEvents(defaultHistoryLoco)}
@@ -439,7 +528,9 @@ export default function App() {
 
       {tab === 'calendario' && (
         <CalendarioMantenimiento
+          canManage={canManagePatioCalendar}
           locomotoras={locomotoras}
+          onForbidden={denyPermission}
           onTaskRealized={saveLocalInterventionEvent}
         />
       )}

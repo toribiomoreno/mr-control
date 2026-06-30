@@ -199,6 +199,19 @@ export async function sincronizarEstadoMantenimientoEvento(event, actualizacione
   };
 }
 
+export function calcularEstadoMantenimientoEvento(event, actualizaciones = []) {
+  if (!['preventivo', 'correctivo'].includes(event.tipo)) return event;
+
+  const resolved = resolverEstadoMantenimiento(event, actualizaciones);
+  return {
+    ...event,
+    estadoMantenimiento: resolved.estado,
+    fechaCierre: resolved.estado === 'finalizado' ? resolved.fechaCierre : event.fechaCierre,
+    horaCierre: normalizeTime(resolved.estado === 'finalizado' ? resolved.horaCierre : event.horaCierre),
+    ultimaActividadAt: resolved.ultimaActividadAt || event.ultimaActividadAt,
+  };
+}
+
 async function deleteActualizacionAttachmentFiles(actualizacionId) {
   const { data, error } = await supabase
     .from('adjuntos_evento')

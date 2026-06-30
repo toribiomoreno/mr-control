@@ -51,7 +51,7 @@ function updateDescription(actualizacion) {
   return actualizacion.descripcion;
 }
 
-export default function TimelineEvent({ event, onCreateActualizacion }) {
+export default function TimelineEvent({ canManage = false, event, onCreateActualizacion, onForbidden }) {
   const [showUpdates, setShowUpdates] = useState(false);
   const [modalMode, setModalMode] = useState('');
   const actualizaciones = event.actualizaciones || [];
@@ -66,6 +66,15 @@ export default function TimelineEvent({ event, onCreateActualizacion }) {
     } catch {
       window.alert('No fue posible abrir el adjunto.');
     }
+  };
+
+  const openUpdateModal = (mode) => {
+    if (!canManage) {
+      onForbidden?.();
+      return;
+    }
+
+    setModalMode(mode);
   };
 
   return (
@@ -107,13 +116,13 @@ export default function TimelineEvent({ event, onCreateActualizacion }) {
               </div>
 
               <div className="maintenance-update-actions">
-                {!isFinished && (
-                  <button className="secondary-action" onClick={() => setModalMode('avance')} type="button">
+                {!isFinished && canManage && (
+                  <button className="secondary-action" onClick={() => openUpdateModal('avance')} type="button">
                     Agregar avance
                   </button>
                 )}
-                {isFinished && (
-                  <button className="secondary-action" onClick={() => setModalMode('observacion')} type="button">
+                {isFinished && canManage && (
+                  <button className="secondary-action" onClick={() => openUpdateModal('observacion')} type="button">
                     Agregar observacion
                   </button>
                 )}

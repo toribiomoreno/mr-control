@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { rolLegible } from '../lib/permissions.js';
+
 const locomotiveItems = [
   { id: 'patio', label: 'Patio', tab: 'patio' },
   { id: 'inventario', label: 'Inventario', tab: 'locos' },
@@ -14,10 +16,11 @@ const sidebarItems = [
   { id: 'configuracion', label: 'Configuracion', tab: 'historial' },
 ];
 
-export default function Sidebar({ active = 'locomotoras', onNavigate }) {
+export default function Sidebar({ active = 'locomotoras', onNavigate, onSignOut, perfil }) {
   const [collapsed, setCollapsed] = useState(false);
   const [locomotivesOpen, setLocomotivesOpen] = useState(true);
   const isLocomotivesActive = ['locomotoras', 'patio', 'inventario', 'archivo'].includes(active);
+  const userName = perfil?.nombre || perfil?.email || 'Usuario';
 
   return (
     <aside className={`history-sidebar app-sidebar ${collapsed ? 'is-collapsed' : ''}`} aria-label="Navegacion principal">
@@ -92,8 +95,12 @@ export default function Sidebar({ active = 'locomotoras', onNavigate }) {
       </nav>
 
       <div className="history-sidebar-footer">
-        <strong>Ferrovias</strong>
-        <span>Sistema de Gestion Material Rodante</span>
+        <strong>{userName}</strong>
+        <span>{rolLegible(perfil?.rol)}</span>
+        {perfil?.es_desarrollador && <small className="developer-badge">Desarrollador</small>}
+        <button className="sidebar-signout" onClick={onSignOut} type="button">
+          Cerrar sesión
+        </button>
         <small>v2.3.0</small>
       </div>
     </aside>
