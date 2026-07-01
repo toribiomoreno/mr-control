@@ -75,6 +75,9 @@ function isCampaignType(type) {
 
 function displayState(loco) {
   const observation = String(loco.observacion || '').toLowerCase();
+  if (loco.estado === 'detenida') return { icon: '!', key: 'detenida', label: 'Detenida' };
+  if (loco.estado === 'operativa') return { icon: 'OK', key: 'servicio', label: 'Operativa' };
+  if (loco.estado === 'uso_excepcional') return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
   if (observation.includes('uso excepcional')) return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
   if (loco.estado === 'reserva') return { icon: 'II', key: 'reserva', label: 'Reserva' };
   if (loco.estado === 'servicio') return { icon: 'OK', key: 'servicio', label: 'En servicio' };

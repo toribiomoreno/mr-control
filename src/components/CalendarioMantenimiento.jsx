@@ -22,6 +22,7 @@ const activityLabels = {
   preventivo: 'Preventivo',
   numeral: 'Preventivo numeral',
   correctivo: 'Correctivo',
+  detenida: 'Detenida',
   campana: 'Campana',
 };
 
@@ -86,18 +87,22 @@ function activityTone(activity) {
   if (activity.type === 'preventivo') return 'preventivo';
   if (activity.type === 'numeral') return 'numeral';
   if (activity.type === 'correctivo') return 'correctivo';
+  if (activity.type === 'detenida') return 'detenida';
   if (activity.type === 'campana') return 'campana';
   return 'otro';
 }
 
 function activityTitle(activity) {
+  if (activity.type === 'preventivo' && !activity.preventiveCode) return `${activity.unit} - Preventivo`;
   if (activity.type === 'preventivo') return `${activity.unit} · Preventivo ${activity.preventiveCode}`;
   if (activity.type === 'numeral') return `${activity.unit} · ${activity.numeral}`;
   if (activity.type === 'correctivo') return `${activity.unit} · Correctivo`;
+  if (activity.type === 'detenida') return `${activity.unit} Â· Detenida`;
   return activity.name;
 }
 
 function activityMeta(activity) {
+  if (activity.type === 'detenida') return activity.origin === 'patio' ? 'Origen Patio - sin clasificar' : `Desde ${formatDateLabel(activity.startDate)}`;
   if (activity.type === 'preventivo') return `${activity.durationTurns} ${activity.durationTurns === 1 ? 'turno' : 'turnos'}`;
   if (activity.type === 'numeral') return `${formatDateLabel(activity.startDate)} al ${formatDateLabel(activity.endDate)}`;
   if (activity.type === 'correctivo') return activity.origin === 'patio' ? 'Origen Patio · solo lectura' : `Desde ${formatDateLabel(activity.startDate)}${activity.endDate ? ` al ${formatDateLabel(activity.endDate)}` : ''}`;
@@ -106,7 +111,7 @@ function activityMeta(activity) {
 
 function buildPatioCorrectives(locomotoras, today) {
   return locomotoras
-    .filter((loco) => loco.estado === 'correctivo')
+    .filter((loco) => ['correctivo', 'detenida'].includes(loco.estado))
     .map((loco) => ({
       id: `patio-correctivo-${loco.codigo}`,
       type: 'correctivo',
@@ -166,6 +171,7 @@ export default function CalendarioMantenimiento({
   canManage = false,
   locomotoras,
   onForbidden,
+  patioActivities = [],
 }) {
   const today = todayValue();
   const [manualActivities, setManualActivities] = useState(initialCalendarActivities);
@@ -178,7 +184,11 @@ export default function CalendarioMantenimiento({
   const [editingActivity, setEditingActivity] = useState(null);
   const [formState, setFormState] = useState(() => defaultFormState(today));
 
-  const patioCorrectives = useMemo(() => buildPatioCorrectives(locomotoras, today), [locomotoras, today]);
+  const patioCorrectives = useMemo(() => (
+    patioActivities.length > 0
+      ? patioActivities.filter((activity) => activity.active)
+      : buildPatioCorrectives(locomotoras, today)
+  ), [locomotoras, patioActivities, today]);
   const activities = useMemo(() => [...manualActivities, ...patioCorrectives], [manualActivities, patioCorrectives]);
   const unitCodes = useMemo(() => locomotoras.map((loco) => loco.codigo), [locomotoras]);
 

@@ -5,9 +5,13 @@ import locoAzul from '../assets/patio/loco-ferrovias-azul-7774.png';
 import locoRoja from '../assets/patio/loco-ferrovias-roja.png';
 
 const statusClassNames = {
+  operativa: 'is-service',
   servicio: 'is-service',
   preventivo: 'is-preventive',
   correctivo: 'is-corrective',
+  detenida: 'is-corrective',
+  reserva: 'is-reserve',
+  uso_excepcional: 'is-exceptional',
   lavado: 'is-wash',
 };
 
@@ -64,14 +68,17 @@ const washSlots = [
 
 const filterOptions = [
   { id: 'all', label: 'Todas', className: 'all', predicate: () => true },
-  { id: 'service', label: 'Operativas', className: 'service', predicate: (loco) => loco.estado === 'servicio' },
-  { id: 'maintenance', label: 'Mantenimiento', className: 'maintenance', predicate: (loco) => loco.estado !== 'servicio' },
+  { id: 'service', label: 'Operativas', className: 'service', predicate: (loco) => ['servicio', 'operativa'].includes(loco.estado) },
+  { id: 'maintenance', label: 'Detenidas', className: 'maintenance', predicate: (loco) => ['preventivo', 'correctivo', 'detenida'].includes(loco.estado) },
   { id: 'wash', label: 'Lavado', className: 'wash', predicate: (loco) => loco.lavadoProgramado },
 ];
 
 function getStatusText(loco) {
   if (loco.lavadoProgramado) return 'Lavado';
-  if (loco.estado === 'servicio') return 'Operativa';
+  if (['servicio', 'operativa'].includes(loco.estado)) return 'Operativa';
+  if (loco.estado === 'reserva') return 'Reserva';
+  if (loco.estado === 'uso_excepcional') return 'Uso excepcional';
+  if (loco.estado === 'detenida') return 'Detenida';
   if (loco.estado === 'preventivo') return 'Preventivo';
   return 'Correctivo';
 }
@@ -91,7 +98,7 @@ function buildYardSlots(locomotoras) {
   return locomotoras.map((loco) => {
     const isWash = loco.lavadoProgramado;
     const isPreventive = loco.estado === 'preventivo';
-    const isCorrective = loco.estado === 'correctivo';
+    const isCorrective = ['correctivo', 'detenida'].includes(loco.estado);
     const slots = isWash ? washSlots : isPreventive ? maintenanceSlots : isCorrective ? correctiveSlots : serviceSlots;
     const counterKey = isWash ? 'lavado' : isPreventive ? 'preventive' : isCorrective ? 'corrective' : 'servicio';
     const index = counters[counterKey];
@@ -112,7 +119,7 @@ function buildYardSlots(locomotoras) {
   });
 }
 
-export default function Patio({ locomotoras, selected, setSelected, onOpenHistory }) {
+export default function Patio({ canManage = false, locomotoras, selected, setSelected, onImportDailyState, onOpenHistory }) {
   const viewportRef = useRef(null);
   const locoRefs = useRef({});
   const dragState = useRef(null);
@@ -143,12 +150,12 @@ export default function Patio({ locomotoras, selected, setSelected, onOpenHistor
       [loco.estado]: totals[loco.estado] + 1,
       lavado: totals.lavado + (loco.lavadoProgramado ? 1 : 0),
     }),
-    { servicio: 0, preventivo: 0, correctivo: 0, lavado: 0 },
+    { servicio: 0, operativa: 0, reserva: 0, uso_excepcional: 0, preventivo: 0, correctivo: 0, detenida: 0, lavado: 0 },
   );
   const filterTotals = {
     all: locomotoras.length,
-    service: statusTotals.servicio,
-    maintenance: statusTotals.preventivo + statusTotals.correctivo,
+    service: statusTotals.servicio + statusTotals.operativa,
+    maintenance: statusTotals.preventivo + statusTotals.correctivo + statusTotals.detenida,
     wash: statusTotals.lavado,
   };
 
@@ -236,6 +243,11 @@ export default function Patio({ locomotoras, selected, setSelected, onOpenHistor
         </div>
 
         <div className="yard-toolbar-actions">
+          {canManage && (
+            <button className="yard-import-button" onClick={onImportDailyState} type="button">
+              Importar estado diario
+            </button>
+          )}
           <div className="yard-filter" aria-label="Filtro rapido de locomotoras">
             {filterOptions.map((option) => (
               <button

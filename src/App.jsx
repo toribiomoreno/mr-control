@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import CalendarioMantenimiento from './components/CalendarioMantenimiento.jsx';
 import Home from './components/Home.jsx';
 import HistorialLocomotora from './components/HistorialLocomotora.jsx';
+import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.jsx';
 import Login from './components/Login.jsx';
 import Patio from './components/Patio.jsx';
 import RegistroEventoModal from './components/RegistroEventoModal.jsx';
@@ -10,7 +11,7 @@ import Sidebar from './components/Sidebar.jsx';
 import locoAzul from './assets/loco_azul.webp';
 import locoRoja from './assets/loco_roja.webp';
 import { useAuth } from './context/useAuth.js';
-import locomotoras from './data/locomotoras.js';
+import initialLocomotoras from './data/locomotoras.js';
 import { permisoDenegadoMensaje, puedeGestionarArchivoHistorico, puedeGestionarPatioCalendario } from './lib/permissions.js';
 import { crearActualizacion } from './services/actualizacionesEventoSupabaseService.js';
 import { createHistorialEvent, fetchHistorialByLocomotora } from './services/historialSupabaseService.js';
@@ -57,7 +58,10 @@ function formatDateDisplay(value) {
 function estadoEtiqueta(loco) {
   if (!loco) return '';
   if (loco.lavadoProgramado) return 'Programada para Lavado';
-  if (loco.estado === 'servicio') return 'En Servicio';
+  if (['servicio', 'operativa'].includes(loco.estado)) return 'Operativa';
+  if (loco.estado === 'reserva') return 'Reserva';
+  if (loco.estado === 'uso_excepcional') return 'Uso excepcional';
+  if (loco.estado === 'detenida') return 'Detenida';
   if (loco.estado === 'preventivo') {
     if (loco.tipoPreventivo && loco.modalidad) return `Preventivo ${loco.tipoPreventivo} - ${loco.modalidad}`;
     if (loco.tipoPreventivo) return `Preventivo ${loco.tipoPreventivo}`;
@@ -69,16 +73,26 @@ function estadoEtiqueta(loco) {
 
 function estadoOperativo(loco) {
   if (!loco) return '';
-  return loco.estado === 'servicio' || loco.lavadoProgramado ? 'Operativa' : 'Mantenimiento';
+  if (loco.lavadoProgramado) return 'Operativa';
+  if (loco.estado === 'reserva') return 'Reserva';
+  if (loco.estado === 'uso_excepcional') return 'Uso excepcional';
+  if (['detenida', 'preventivo', 'correctivo'].includes(loco.estado)) return 'Detenida';
+  return 'Operativa';
 }
 
 function estadoOperativoClase(loco) {
-  return estadoOperativo(loco) === 'Operativa' ? 'is-service' : 'is-preventive';
+  const estado = estadoOperativo(loco);
+  if (estado === 'Operativa') return 'is-service';
+  if (estado === 'Reserva') return 'is-reserve';
+  if (estado === 'Uso excepcional') return 'is-exceptional';
+  return 'is-corrective';
 }
 
 function estadoClase(estado) {
   if (estado?.lavadoProgramado) return 'is-wash';
-  if (estado === 'servicio') return 'is-service';
+  if (estado === 'servicio' || estado === 'operativa') return 'is-service';
+  if (estado === 'reserva') return 'is-reserve';
+  if (estado === 'uso_excepcional') return 'is-exceptional';
   if (estado === 'preventivo') return 'is-preventive';
   return 'is-corrective';
 }
@@ -135,12 +149,17 @@ export default function App() {
   const canManagePatioCalendar = puedeGestionarPatioCalendario(perfil);
 
   // Navegacion y seleccion de locomotoras.
+  const [locomotoras, setLocomotoras] = useState(initialLocomotoras);
   const [tab, setTab] = useState('inicio');
   const [selected, setSelected] = useState(null);
   const [historyTarget, setHistoryTarget] = useState(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [eventModalSource, setEventModalSource] = useState('archivo');
   const [permissionMessage, setPermissionMessage] = useState('');
+  const [isFleetImportOpen, setIsFleetImportOpen] = useState(false);
+  const [, setFleetStatusHistory] = useState([]);
+  const [, setFleetImports] = useState([]);
+  const [patioCalendarActivities, setPatioCalendarActivities] = useState([]);
 
   // Archivo historico completo y resumen local separado para el Patio.
   const [historyEvents, setHistoryEvents] = useState([]);
@@ -191,7 +210,7 @@ export default function App() {
       [loco.estado]: totales[loco.estado] + 1,
       lavado: totales.lavado + (loco.lavadoProgramado ? 1 : 0),
     }),
-    { servicio: 0, preventivo: 0, correctivo: 0, lavado: 0 },
+    { servicio: 0, operativa: 0, reserva: 0, uso_excepcional: 0, preventivo: 0, correctivo: 0, detenida: 0, lavado: 0 },
   );
   const selectedHistory = selected ? histories[selected.id] || [] : [];
   const normalizedSelectedHistory = selected
@@ -309,8 +328,124 @@ export default function App() {
     await loadHistoryEvents(defaultHistoryLoco);
   };
 
-  const openInterventionModal = () => {
-    if (selected) openEventModal(selected, 'patio');
+  const openFleetImport = () => {
+    if (!canManagePatioCalendar) {
+      denyPermission();
+      return;
+    }
+    setIsFleetImportOpen(true);
+  };
+
+  const activityTypeFromImportRow = (row) => {
+    if (row.classification === 'preventivo') {
+      return String(row.preventiveCode || '').toLowerCase().includes('numeral') ? 'numeral' : 'preventivo';
+    }
+    if (row.classification === 'correctivo') return 'correctivo';
+    return 'detenida';
+  };
+
+  const applyFleetImport = (preview, originalText) => {
+    if (!canManagePatioCalendar) {
+      denyPermission();
+      return;
+    }
+
+    const importId = `fleet-import-${Date.now()}`;
+    const partDateTime = `${preview.date}T${preview.time}`;
+    const rowsByUnit = new Map(preview.rows.filter((row) => row.valid).map((row) => [row.unit, row]));
+
+    const nextLocomotoras = locomotoras.map((loco) => {
+      const row = rowsByUnit.get(loco.codigo);
+      if (!row) return loco;
+
+      return {
+        ...loco,
+        estado: row.newState,
+        observacion: row.reason,
+        motivoEstado: row.reason,
+        clasificacionDetencion: row.classification || '',
+        tipoPreventivo: row.classification === 'preventivo' ? row.preventiveCode || loco.tipoPreventivo || '' : '',
+        fechaHoraParte: partDateTime,
+        fechaParte: preview.date,
+        horaParte: preview.time,
+        ultimaImportacionEstadoId: importId,
+      };
+    });
+
+    const nextSelected = selected ? nextLocomotoras.find((loco) => loco.id === selected.id) : null;
+    const nextHistoryTarget = historyTarget ? nextLocomotoras.find((loco) => loco.id === historyTarget.id) : null;
+
+    setLocomotoras(nextLocomotoras);
+    if (nextSelected) setSelected(nextSelected);
+    if (nextHistoryTarget) setHistoryTarget(nextHistoryTarget);
+
+    setFleetImports((current) => [{
+      id: importId,
+      fechaHoraParte: partDateTime,
+      contenidoOriginal: originalText,
+      cantidadFilas: preview.summary.processedRows,
+      cantidadValidas: preview.summary.validRows,
+      cantidadErrores: preview.summary.invalidRows,
+      creadoEn: new Date().toISOString(),
+    }, ...current]);
+
+    setFleetStatusHistory((current) => [
+      ...preview.rows.filter((row) => row.valid).map((row) => ({
+        id: `${importId}-${row.unit}`,
+        importacionId: importId,
+        locomotoraCodigo: row.unit,
+        estadoAnterior: row.previousState,
+        estadoNuevo: row.newState,
+        motivo: row.reason,
+        clasificacionDetencion: row.classification || '',
+        fechaHoraParte: partDateTime,
+        creadoEn: new Date().toISOString(),
+      })),
+      ...current,
+    ]);
+
+    setPatioCalendarActivities((current) => {
+      let next = current.map((activity) => ({ ...activity }));
+
+      preview.rows.filter((row) => row.valid).forEach((row) => {
+        const activeIndex = next.findIndex((activity) => activity.origin === 'patio' && activity.unit === row.unit && activity.active);
+
+        if (row.newState !== 'detenida') {
+          if (activeIndex !== -1) {
+            next[activeIndex] = {
+              ...next[activeIndex],
+              active: false,
+              endDate: preview.date,
+              lastReportedAt: partDateTime,
+            };
+          }
+          return;
+        }
+
+        const existing = activeIndex === -1 ? null : next[activeIndex];
+        const activity = {
+          ...(existing || {}),
+          id: existing?.id || `patio-${row.unit}-${Date.now()}`,
+          type: activityTypeFromImportRow(row),
+          origin: 'patio',
+          readOnly: true,
+          active: true,
+          unit: row.unit,
+          startDate: existing?.startDate || preview.date,
+          endDate: preview.date,
+          lastReportedAt: partDateTime,
+          description: row.reason || 'Detenida sin clasificar',
+          classification: row.classification || 'sin_clasificar',
+          preventiveCode: row.preventiveCode || '',
+          numeral: String(row.preventiveCode || '').toLowerCase().includes('numeral') ? row.preventiveCode : '',
+        };
+
+        if (existing) next[activeIndex] = activity;
+        else next = [activity, ...next];
+      });
+
+      return next;
+    });
   };
 
   const sidebarActive = tab === 'inicio'
@@ -380,7 +515,14 @@ export default function App() {
 
       {tab === 'patio' && (
         <main className="operations-layout">
-          <Patio locomotoras={locomotoras} selected={selected} setSelected={setSelected} onOpenHistory={openHistory} />
+          <Patio
+            canManage={canManagePatioCalendar}
+            locomotoras={locomotoras}
+            onImportDailyState={openFleetImport}
+            onOpenHistory={openHistory}
+            selected={selected}
+            setSelected={setSelected}
+          />
 
           <aside className="side-panel">
             {selected ? (
@@ -403,10 +545,10 @@ export default function App() {
                 <div className="panel-section">
                   <h3>Estado actual</h3>
 
-                  {selected.estado === 'correctivo' && (
+                  {['correctivo', 'detenida'].includes(selected.estado) && (
                     <>
-                      <p><strong>Estado:</strong><br />Mantenimiento correctivo</p>
-                      <p><strong>Tipo correctivo:</strong><br />{currentCorrectiveType}</p>
+                      <p><strong>Estado:</strong><br />Detenida</p>
+                      <p><strong>ClasificaciÃ³n:</strong><br />{selected.clasificacionDetencion || currentCorrectiveType || 'Sin clasificar'}</p>
                     </>
                   )}
 
@@ -417,13 +559,16 @@ export default function App() {
                     </>
                   )}
 
-                  {(selected.estado === 'servicio' || selected.lavadoProgramado) && (
+                  {(['servicio', 'operativa', 'reserva', 'uso_excepcional'].includes(selected.estado) || selected.lavadoProgramado) && (
                     <>
-                      <p><strong>Estado:</strong><br />Operativa</p>
+                      <p><strong>Estado:</strong><br />{estadoOperativo(selected)}</p>
                       <p><strong>Ultima intervencion preventiva:</strong><br />{latestPreventiveIntervention ? `${formatDateDisplay(latestPreventiveIntervention.date)} - ${interventionTitle(latestPreventiveIntervention)}` : 'Pendiente de carga'}</p>
                     </>
                   )}
 
+                  {selected.fechaHoraParte && (
+                    <p><strong>Ãšltimo parte:</strong><br />{selected.fechaParte} {selected.horaParte}</p>
+                  )}
                   <p><strong>Observaciones:</strong><br />{selected.observacion || 'Sin observaciones'}</p>
                 </div>
 
@@ -459,11 +604,6 @@ export default function App() {
                   )}
                 </div>
 
-                {canManagePatioCalendar && (
-                  <button className="primary-action" onClick={openInterventionModal}>
-                    Registrar evento
-                  </button>
-                )}
                 <button className="secondary-action panel-history-action" onClick={() => openHistory(selected)} type="button">
                   Ver historial completo
                 </button>
@@ -474,9 +614,9 @@ export default function App() {
                 <p>Seleccione una locomotora del patio para ver su ficha tecnica.</p>
 
                 <div className="panel-summary">
-                  <span><strong>{resumen.servicio}</strong> Servicio</span>
+                  <span><strong>{resumen.servicio + resumen.operativa}</strong> Operativas</span>
                   <span><strong>{resumen.preventivo}</strong> Preventivo</span>
-                  <span><strong>{resumen.correctivo}</strong> Correctivo</span>
+                  <span><strong>{resumen.correctivo + resumen.detenida}</strong> Detenidas</span>
                   <span><strong>{resumen.lavado}</strong> Lavado</span>
                 </div>
               </div>
@@ -531,6 +671,7 @@ export default function App() {
           canManage={canManagePatioCalendar}
           locomotoras={locomotoras}
           onForbidden={denyPermission}
+          patioActivities={patioCalendarActivities}
           onTaskRealized={saveLocalInterventionEvent}
         />
       )}
@@ -558,6 +699,15 @@ export default function App() {
         </main>
       )}
       </div>
+      {isFleetImportOpen && (
+        <ImportarEstadoDiarioModal
+          canManage={canManagePatioCalendar}
+          locomotoras={locomotoras}
+          onClose={() => setIsFleetImportOpen(false)}
+          onConfirm={applyFleetImport}
+          onForbidden={denyPermission}
+        />
+      )}
     </div>
   );
 }

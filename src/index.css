@@ -219,6 +219,17 @@ button {
   gap: 10px;
 }
 
+.yard-import-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: linear-gradient(135deg, #ef3340, #b91c1c);
+  cursor: pointer;
+  font-weight: 950;
+}
+
 .yard-filter {
   display: flex;
   flex-wrap: wrap;
@@ -338,6 +349,18 @@ button {
   color: #fee2e2;
   background: rgba(239, 68, 68, 0.17);
   border: 1px solid rgba(239, 68, 68, 0.48);
+}
+
+.status-pill.is-reserve {
+  color: #dbeafe;
+  background: rgba(37, 99, 235, 0.16);
+  border: 1px solid rgba(96, 165, 250, 0.42);
+}
+
+.status-pill.is-exceptional {
+  color: #fed7aa;
+  background: rgba(234, 88, 12, 0.17);
+  border: 1px solid rgba(251, 146, 60, 0.42);
 }
 
 .metric.wash,
@@ -818,6 +841,18 @@ button {
 .fleet-card.is-corrective::before,
 .inventory-card.is-corrective::before {
   background: var(--corrective);
+}
+
+.locomotive-unit.is-reserve .locomotive-status,
+.fleet-card.is-reserve::before,
+.inventory-card.is-reserve::before {
+  background: #60a5fa;
+}
+
+.locomotive-unit.is-exceptional .locomotive-status,
+.fleet-card.is-exceptional::before,
+.inventory-card.is-exceptional::before {
+  background: #fb923c;
 }
 
 .locomotive-unit.is-wash .locomotive-status,
@@ -3600,6 +3635,104 @@ button {
   width: min(720px, calc(100vw - 48px));
 }
 
+.fleet-import-modal {
+  width: min(1120px, calc(100vw - 48px));
+}
+
+.fleet-import-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fleet-import-errors {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(248, 113, 113, 0.38);
+  border-radius: 10px;
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.22);
+  font-weight: 850;
+}
+
+.fleet-import-preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.fleet-import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fleet-import-summary span {
+  padding: 7px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  color: #cbd5e1;
+  background: rgba(2, 6, 23, 0.28);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.fleet-import-reported-summary {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 10px;
+  color: #cbd5e1;
+  background: rgba(14, 165, 233, 0.08);
+  font-size: 12px;
+}
+
+.fleet-import-reported-summary strong {
+  color: #e0f2fe;
+  font-weight: 950;
+}
+
+.fleet-import-table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+}
+
+.fleet-import-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: collapse;
+}
+
+.fleet-import-table th,
+.fleet-import-table td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  color: #dbe3ef;
+  font-size: 12px;
+  text-align: left;
+}
+
+.fleet-import-table th {
+  color: #94a3b8;
+  background: rgba(2, 6, 23, 0.32);
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.fleet-import-table tr.has-error td {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.14);
+}
+
+.fleet-import-confirm:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .calendar-workspace {
   display: block;
   width: min(1620px, calc(100% - 28px));
@@ -3765,6 +3898,11 @@ button {
 .correctivo {
   background: rgba(220, 38, 38, 0.24);
   border-color: rgba(248, 113, 113, 0.48) !important;
+}
+
+.detenida {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(252, 165, 165, 0.42) !important;
 }
 
 .week-column-grid {
@@ -4054,6 +4192,12 @@ button {
   color: #fed7aa;
   border-color: rgba(251, 146, 60, 0.42);
   background: rgba(234, 88, 12, 0.17);
+}
+
+.history-state-badge.detenida {
+  color: #fee2e2;
+  border-color: rgba(239, 68, 68, 0.52);
+  background: rgba(239, 68, 68, 0.16);
 }
 
 .history-state-badge i {
