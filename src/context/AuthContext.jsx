@@ -1,8 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { assertSupabaseConfig, supabase, supabaseConfigError } from '../lib/supabase.js';
-
-const AuthContext = createContext(null);
+import { AuthContext } from './authContext.js';
 
 function normalizeProfile(row) {
   if (!row) return null;
@@ -185,10 +184,3 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth debe usarse dentro de AuthProvider.');
-  }
-  return context;
-}

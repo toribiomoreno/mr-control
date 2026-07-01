@@ -9,7 +9,7 @@ import RegistroEventoModal from './components/RegistroEventoModal.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import locoAzul from './assets/loco_azul.webp';
 import locoRoja from './assets/loco_roja.webp';
-import { useAuth } from './context/AuthContext.jsx';
+import { useAuth } from './context/useAuth.js';
 import locomotoras from './data/locomotoras.js';
 import { permisoDenegadoMensaje, puedeGestionarArchivoHistorico, puedeGestionarPatioCalendario } from './lib/permissions.js';
 import { crearActualizacion } from './services/actualizacionesEventoSupabaseService.js';

@@ -38,6 +38,31 @@ function eventMatchesSearch(event, search) {
   ].join(' ').toLowerCase().includes(query);
 }
 
+function toCalendarDay(value) {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function eventMatchesDateRange(event, dateFrom, dateTo) {
+  if (!dateFrom && !dateTo) return true;
+
+  const eventDay = toCalendarDay(event.fecha);
+  if (!eventDay) return false;
+  if (dateFrom && eventDay < dateFrom) return false;
+  if (dateTo && eventDay > dateTo) return false;
+  return true;
+}
+
 function formatDateLabel(value) {
   const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
   const [year, month, day] = value.split('-');
@@ -72,19 +97,34 @@ export default function HistorialLocomotora({
   onRetry,
 }) {
   const [activeFilter, setActiveFilter] = useState('todo');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const targetLoco = loco || locomotoras.find((item) => item.codigo === '7774') || locomotoras[0];
   const currentState = displayState(targetLoco);
+  const hasDateRange = Boolean(dateFrom || dateTo);
+  const dateRangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const dateRangeError = dateRangeInvalid ? 'La fecha desde no puede ser posterior a la fecha hasta.' : '';
   const locomotiveEvents = events
     .filter((event) => event.locomotoraCodigo === targetLoco.codigo)
     .sort((a, b) => `${b.fecha} ${b.hora}`.localeCompare(`${a.fecha} ${a.hora}`));
-  const filteredEvents = locomotiveEvents.filter((event) => eventMatchesFilter(event, activeFilter) && eventMatchesSearch(event, search));
+  const filteredEvents = dateRangeInvalid
+    ? []
+    : locomotiveEvents.filter((event) => (
+      eventMatchesFilter(event, activeFilter)
+      && eventMatchesSearch(event, search)
+      && eventMatchesDateRange(event, dateFrom, dateTo)
+    ));
   const groupedEvents = groupEventsByDate(filteredEvents);
   const latestPreventive = locomotiveEvents.find((event) => event.tipo === 'preventivo');
   const latestCorrective = locomotiveEvents.find((event) => event.tipo === 'correctivo');
-  const attachmentCount = locomotiveEvents.reduce((total, event) => total + (event.adjuntos || []).length, 0);
+
+  const handleClearDateRange = () => {
+    setDateFrom('');
+    setDateTo('');
+  };
 
   const handleLibroImport = async (inputEvent) => {
     const [file] = inputEvent.target.files || [];
@@ -114,23 +154,15 @@ export default function HistorialLocomotora({
   return (
     <main className="history-workspace">
       <section className="history-main-panel">
-        <div className="history-topbar">
-          <span className="history-external-sync">
-            <b />
-            Sincronizacion externa activa
-          </span>
-          {canManage && (
-            <div className="history-header-actions">
-              <label className={`history-import-button ${isImporting ? 'is-loading' : ''}`}>
-                {isImporting ? 'Importando...' : 'Importar libro de novedades'}
-                <input accept=".csv,text/csv" disabled={isImporting} onChange={handleLibroImport} type="file" />
-              </label>
-            </div>
-          )}
-        </div>
-
         <header className="history-file-header">
           <div className="history-hero-copy">
+            <div className="history-hero-statusbar">
+              <span className="history-external-sync">
+                <b />
+                Sincronizacion externa activa
+              </span>
+              <span>{loading ? 'Cargando historial...' : 'Supabase'}</span>
+            </div>
             <p className="eyebrow">Archivo historico ferroviario</p>
             <h2>Archivo Historico de Locomotora</h2>
             <div className="history-title-row">
@@ -147,19 +179,26 @@ export default function HistorialLocomotora({
                   {locomotoras.map((item) => <option key={item.codigo} value={item.codigo}>{item.codigo}</option>)}
                 </select>
               </label>
-              <span>{loading ? 'Cargando historial...' : 'Supabase'}</span>
+            </div>
+
+            <div className="history-hero-actions">
+              {canManage && (
+                <label className={`history-import-button ${isImporting ? 'is-loading' : ''}`}>
+                  {isImporting ? 'Importando...' : 'Importar libro de novedades'}
+                  <input accept=".csv,text/csv" disabled={isImporting} onChange={handleLibroImport} type="file" />
+                </label>
+              )}
+              {canManage && (
+                <button className="history-register-button" onClick={() => onRegisterEvent(targetLoco)} type="button">
+                  Registrar evento
+                </button>
+              )}
             </div>
           </div>
 
           <div className={`history-hero-loco ${targetLoco.codigo === '7774' ? 'blue' : 'red'}`}>
             <img alt={`Locomotora ${targetLoco.codigo}`} src={locomotiveImage(targetLoco)} />
           </div>
-
-          {canManage && (
-            <button className="history-register-button" onClick={() => onRegisterEvent(targetLoco)} type="button">
-              Registrar evento
-            </button>
-          )}
         </header>
 
         {importStatus && (
@@ -172,13 +211,17 @@ export default function HistorialLocomotora({
           <KpiCard icon="C" label="Ultimo preventivo" tone="preventivo" value={latestPreventive ? formatDateLabel(latestPreventive.fecha) : 'Sin registro'} />
           <KpiCard icon="H" label="Ultimo correctivo" tone="correctivo" value={latestCorrective ? formatDateLabel(latestCorrective.fecha) : 'Sin registro'} />
           <KpiCard icon="D" label="Dias sin novedades" tone="libro" value="0" />
-          <KpiCard icon="E" label="Eventos historicos" tone="campana" value={locomotiveEvents.length} />
-          <KpiCard icon="F" label="Archivos asociados" tone="lavado" value={attachmentCount} />
         </section>
 
         <EventFilters
           activeFilter={activeFilter}
+          dateFrom={dateFrom}
+          dateRangeError={dateRangeError}
+          dateTo={dateTo}
           onFilterChange={setActiveFilter}
+          onClearDateRange={handleClearDateRange}
+          onDateFromChange={setDateFrom}
+          onDateToChange={setDateTo}
           onSearchChange={setSearch}
           search={search}
         />
@@ -202,20 +245,24 @@ export default function HistorialLocomotora({
           ))}
 
           {loading && (
-            <p className="history-empty large">Cargando historial...</p>
+            <div className="history-empty large">
+              <strong>Cargando historial...</strong>
+            </div>
           )}
 
           {!loading && loadError && (
             <div className="history-empty large">
+              <strong>Sin conexion al historial</strong>
               <p>No fue posible conectarse con Supabase.</p>
               <button className="secondary-action" onClick={onRetry} type="button">Reintentar</button>
             </div>
           )}
 
-          {!loading && !loadError && groupedEvents.length === 0 && (
-            <p className="history-empty large">
-              {locomotiveEvents.length === 0 ? 'No hay eventos registrados.' : 'No hay eventos para esos filtros.'}
-            </p>
+          {!loading && !loadError && !dateRangeInvalid && groupedEvents.length === 0 && (
+            <div className="history-empty large">
+              <strong>Sin resultados</strong>
+              <p>{hasDateRange ? 'No hay eventos registrados para ese rango de fechas.' : locomotiveEvents.length === 0 ? 'No hay eventos registrados.' : 'No hay eventos para esos filtros.'}</p>
+            </div>
           )}
         </section>
       </section>

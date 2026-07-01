@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth } from '../context/useAuth.js';
 
 export default function Login() {
   const { authError, signIn } = useAuth();
