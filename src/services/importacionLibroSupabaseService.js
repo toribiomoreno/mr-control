@@ -160,6 +160,7 @@ export async function importarLibroNovedades({ csvText, archivoOrigen, locomotor
     .from('importaciones_libro')
     .insert({
       archivo_origen: archivoOrigen,
+      nombre_archivo: archivoOrigen,
       estado: 'procesando',
       total_grupos: groups.length,
     })
