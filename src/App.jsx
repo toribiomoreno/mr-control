@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import AreasMaterialRodante from './components/AreasMaterialRodante.jsx';
 import CalendarioMantenimiento from './components/CalendarioMantenimiento.jsx';
 import Home from './components/Home.jsx';
 import HistorialLocomotora from './components/HistorialLocomotora.jsx';
@@ -7,6 +8,7 @@ import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.js
 import Login from './components/Login.jsx';
 import Patio from './components/Patio.jsx';
 import RegistroEventoModal from './components/RegistroEventoModal.jsx';
+import ReportesGestion from './components/ReportesGestion.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import locoAzul from './assets/loco_azul.webp';
 import locoRoja from './assets/loco_roja.webp';
@@ -448,17 +450,14 @@ export default function App() {
     });
   };
 
-  const sidebarActive = tab === 'inicio'
-    ? 'inicio'
-    : tab === 'patio'
-      ? 'patio'
-    : tab === 'coches'
-      ? 'coches'
-      : tab === 'calendario'
-        ? 'calendario'
-        : tab === 'locos'
-          ? 'inventario'
-          : 'archivo';
+  const sidebarActive = (() => {
+    if (['inicio', 'areas', 'reportes'].includes(tab)) return 'inicio';
+    if (tab === 'patio') return 'patio';
+    if (tab === 'coches') return 'coches';
+    if (tab === 'calendario') return 'calendario';
+    if (tab === 'locos') return 'inventario';
+    return 'archivo';
+  })();
 
   if (authLoading) {
     return (
@@ -511,7 +510,11 @@ export default function App() {
           </div>
         )}
 
-        {tab === 'inicio' && <Home />}
+        {tab === 'inicio' && <Home onNavigate={setTab} />}
+
+        {tab === 'areas' && <AreasMaterialRodante onNavigate={setTab} />}
+
+        {tab === 'reportes' && <ReportesGestion onNavigate={setTab} />}
 
       {tab === 'patio' && (
         <main className="operations-layout">

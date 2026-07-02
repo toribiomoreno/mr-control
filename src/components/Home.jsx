@@ -4,7 +4,12 @@ import motionLocomotive from '../assets/home/home-motion-loc.jpeg';
 
 const quickTabs = ['Locomotoras', 'Coches', 'Areas', 'Reportes'];
 
-export default function Home() {
+const navigationTargets = {
+  Areas: 'areas',
+  Reportes: 'reportes',
+};
+
+export default function Home({ onNavigate }) {
   return (
     <main className="home-dashboard">
       <section className="home-hero" aria-labelledby="home-title">
@@ -23,7 +28,12 @@ export default function Home() {
       <section className="home-command-bar" aria-label="Accesos principales">
         <div className="home-quick-tabs">
           {quickTabs.map((item, index) => (
-            <button className={index === 0 ? 'active' : ''} key={item} type="button">
+            <button
+              className={index === 0 ? 'active' : ''}
+              key={item}
+              onClick={navigationTargets[item] ? () => onNavigate?.(navigationTargets[item]) : undefined}
+              type="button"
+            >
               <span className="tab-mark" />
               {item}
             </button>
@@ -39,7 +49,12 @@ export default function Home() {
       <section className="home-modules" aria-label="Modulos de material rodante">
         <div className="home-module-tabs">
           {quickTabs.map((item, index) => (
-            <button className={index === 0 ? 'active' : ''} key={item} type="button">
+            <button
+              className={index === 0 ? 'active' : ''}
+              key={item}
+              onClick={navigationTargets[item] ? () => onNavigate?.(navigationTargets[item]) : undefined}
+              type="button"
+            >
               <span className="module-icon" />
               {item}
             </button>
