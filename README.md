@@ -102,3 +102,5 @@ Existen dos copias de `ferrovias-f.png` por motivos distintos:
 - `public/ferrovias-f.png`: usada por la aplicacion Vite.
 
 No eliminar una de ellas sin actualizar su referencia correspondiente.
+
+Aplicación desplegada mediante Vercel.

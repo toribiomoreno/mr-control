@@ -47,6 +47,14 @@ function uniqueLines(lines) {
   return [...new Set(lines.map((line) => String(line || '').trim()).filter(Boolean))];
 }
 
+function normalizeArchivoOrigen(archivoOrigen) {
+  if (typeof archivoOrigen === 'string' && archivoOrigen.trim()) {
+    return archivoOrigen.trim();
+  }
+
+  return archivoOrigen?.name?.trim() || 'libro_novedades.csv';
+}
+
 function parseLibroCsv(csvText, activeCodes) {
   const rows = String(csvText || '').split(/\r?\n/).map(parseCsvLine);
   const groups = new Map();
@@ -155,11 +163,13 @@ export async function importarLibroNovedades({ csvText, archivoOrigen, locomotor
   assertSupabaseConfig();
   const activeCodes = new Set(locomotoras.map((loco) => loco.codigo));
   const groups = parseLibroCsv(csvText, activeCodes);
+  const nombreArchivo = normalizeArchivoOrigen(archivoOrigen);
 
   const { data: importacion, error: importError } = await supabase
     .from('importaciones_libro')
     .insert({
-      archivo_origen: archivoOrigen,
+      nombre_archivo: nombreArchivo,
+      archivo_origen: nombreArchivo,
       estado: 'procesando',
       total_grupos: groups.length,
     })
@@ -173,7 +183,7 @@ export async function importarLibroNovedades({ csvText, archivoOrigen, locomotor
 
   try {
     for (const item of groups) {
-      const result = await upsertLibroEvent(item, archivoOrigen, importacion.id);
+      const result = await upsertLibroEvent(item, nombreArchivo, importacion.id);
       created += result.created;
       updated += result.updated;
     }

@@ -89,7 +89,7 @@ export async function mapAttachmentRows(rows = []) {
   const mapped = [];
 
   for (const row of rows) {
-    let url = '#';
+    let url;
     try {
       url = row.storage_path ? await createSignedAttachmentUrl(row.storage_path) : '#';
     } catch {

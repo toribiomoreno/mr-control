@@ -8,6 +8,7 @@ dist-ssr/
 .env.*
 !.env.example
 *.local
+.env.local
 
 # Logs
 logs/
