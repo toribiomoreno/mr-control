@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import AreasMaterialRodante from './components/AreasMaterialRodante.jsx';
-import CalendarioMantenimiento from './components/CalendarioMantenimiento.jsx';
+import SeguimientoMantenimiento from './components/SeguimientoMantenimiento.jsx';
 import Home from './components/Home.jsx';
 import HistorialLocomotora from './components/HistorialLocomotora.jsx';
 import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.jsx';
@@ -282,14 +282,10 @@ export default function App() {
       throw new Error(permisoDenegadoMensaje);
     }
 
-    if (eventModalSource !== 'archivo') {
-      saveLocalInterventionEvent(event);
-      setIsEventModalOpen(false);
-      return;
-    }
 
     const next = locomotoras.find((loco) => loco.codigo === event.locomotoraCodigo);
     const savedEvent = await createHistorialEvent(event, files, locomotoras);
+    if (eventModalSource !== 'archivo') saveLocalInterventionEvent(event);
     setHistoryEvents((current) => {
       const withoutDuplicate = current.filter((item) => item.id !== savedEvent.id);
       return [savedEvent, ...withoutDuplicate];
@@ -670,12 +666,15 @@ export default function App() {
       )}
 
       {tab === 'calendario' && (
-        <CalendarioMantenimiento
-          canManage={canManagePatioCalendar}
+        <SeguimientoMantenimiento
+          canManage={canManageHistory}
           locomotoras={locomotoras}
-          onForbidden={denyPermission}
           patioActivities={patioCalendarActivities}
-          onTaskRealized={saveLocalInterventionEvent}
+          onOpenHistory={(codigo) => {
+            const loco = locomotoras.find(l => l.codigo === codigo);
+            if (loco) { setSelected(loco); setHistoryTarget(loco); }
+            setTab('historial');
+          }}
         />
       )}
 

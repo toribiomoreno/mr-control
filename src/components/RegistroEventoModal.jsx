@@ -1,3 +1,5 @@
+import SeguimientoFields from './SeguimientoFields.jsx';
+import { today, wholeLocomotive } from '../domain/maintenance/types.js';
 import { useState } from 'react';
 
 import TimeSelect from './TimeSelect.jsx';
@@ -21,13 +23,6 @@ const numeralOptions = [
 const preventiveOptions = ['E', 'A', 'AB', 'ABC', ...numeralOptions];
 const correctiveSpecialties = ['Mecanica', 'Electrica', 'Neumatica', 'Sistemas de seguridad', 'Otra'];
 
-function todayInputValue() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 function currentTimeValue() {
   return new Date().toTimeString().slice(0, 5);
@@ -99,6 +94,11 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
         titulo: eventTitle(currentType, form),
         descripcion: form.get('descripcion'),
         responsable: eventResponsible(currentType, form),
+        metadata: isMaintenanceType(currentType) ? { seguimiento: {
+          detentionStart: form.get('detentionStart'), location: form.get('location'),
+          system: currentType === 'preventivo' ? wholeLocomotive.system : form.get('system'),
+          component: currentType === 'preventivo' ? wholeLocomotive.component : form.get('component'),
+        } } : {},
         origen: 'manual',
         automatico: false,
         tags: currentType === 'alistamiento' ? ['alistamiento-con-novedad'] : [],
@@ -134,7 +134,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
 
         <label>
           Fecha
-          <input name="fecha" type="date" defaultValue={todayInputValue()} required />
+          <input name="fecha" type="date" defaultValue={today()} max={today()} required />
         </label>
 
         <TimeSelect defaultValue={currentTimeValue()} />
@@ -274,6 +274,8 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
           </fieldset>
         )}
 
+        {isMaintenanceType(tipo) && <SeguimientoFields tipo={tipo} code={preventivoCodigo} />}
+        <label className="tracking-confirm"><input type="checkbox" required /> Confirmo la locomotora, fechas, tipo y responsable que estoy cargando.</label>
         <div className="history-file-drop">
           <strong>Anadir archivo</strong>
           <span>Arrastre archivos aca o examine su PC para adjuntar PDF, fotos, OT o informes.</span>

@@ -1,3 +1,5 @@
+import { causes, systems, today } from '../domain/maintenance/types.js';
+import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
 import { useState } from 'react';
 
 import TimeSelect from './TimeSelect.jsx';
@@ -13,13 +15,6 @@ const updateTypes = [
 
 const responsibleOptions = ['Turno fijo', 'Turno rotativo'];
 
-function todayInputValue() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 function currentTimeValue() {
   return new Date().toTimeString().slice(0, 5);
@@ -35,12 +30,18 @@ function defaultStateForType(type) {
 export default function ActualizacionEventoModal({
   event,
   mode = 'avance',
+  initialUpdate = null,
+  initialDate = '',
   onClose,
   onSave,
 }) {
   const isObservationOnly = mode === 'observacion';
-  const initialType = isObservationOnly ? 'observacion' : 'avance';
+  const initialType = initialUpdate?.tipoActualizacion || (isObservationOnly ? 'observacion' : 'avance');
   const [tipo, setTipo] = useState(initialType);
+  const saved = initialUpdate?.metadata?.seguimiento || {};
+  const [activity, setActivity] = useState(saved.activity || '');
+  const [staff, setStaff] = useState(initialUpdate?.responsable || (isLight(event) ? 'Turno rotativo' : ''));
+  const [fraction, setFraction] = useState(saved.usefulFraction == null ? '' : String(saved.usefulFraction));
   const [errorMessage, setErrorMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const isPause = tipo === 'pausa';
@@ -61,6 +62,7 @@ export default function ActualizacionEventoModal({
     }
 
     const payload = {
+      ...(initialUpdate?.id ? { id: initialUpdate.id, updatedAt: initialUpdate.updatedAt } : {}),
       eventoId: event.id,
       fecha: form.get('fecha'),
       hora,
@@ -74,9 +76,18 @@ export default function ActualizacionEventoModal({
       resultadoPrueba: null,
       estadoUnidadResultante: null,
       pendientes: null,
+      metadata: { ...initialUpdate?.metadata, seguimiento: {
+        activity, system: form.get('system') || event.metadata?.seguimiento?.system || '', component: form.get('component') || event.metadata?.seguimiento?.component || '', period: staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? 'Mañana' : form.get('period') || '',
+        cause: ['espera', 'mixto'].includes(activity) ? form.get('cause') : '',
+        fullDay: activity === 'espera' && form.get('fullDay') === 'on',
+        weekendEligible: form.get('weekendEligible') === 'on',
+        ...(fraction !== '' ? { usefulFraction: Number(fraction) } : {}),
+        allocationNote: form.get('allocationNote') || '',
+      } },
     };
     const files = form.getAll('adjuntos').filter((file) => file && file.name);
 
+    try { validateUpdate(event, payload); } catch (error) { setErrorMessage(error.message); return; }
     setIsSaving(true);
 
     try {
@@ -111,14 +122,14 @@ export default function ActualizacionEventoModal({
 
         <label>
           Fecha
-          <input name="fecha" type="date" defaultValue={todayInputValue()} required />
+          <input name="fecha" type="date" defaultValue={initialUpdate?.fecha || initialDate || today()} min={event.fecha} max={today()} required />
         </label>
 
-        <TimeSelect defaultValue={currentTimeValue()} />
+        <TimeSelect defaultValue={initialUpdate?.hora || currentTimeValue()} />
 
         <label>
           Responsable
-          <select name="responsable" defaultValue="" required>
+          <select name="responsable" value={staff} onChange={e => setStaff(e.target.value)} required>
             <option value="" disabled>Seleccionar turno</option>
             {responsibleOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
@@ -126,9 +137,27 @@ export default function ActualizacionEventoModal({
 
         <label>
           {descriptionLabel}
-          <textarea name={isPause ? 'motivoPausa' : 'descripcion'} rows="4" required />
+          <textarea name={isPause ? 'motivoPausa' : 'descripcion'} defaultValue={initialUpdate?.descripcion || ''} rows="4" required />
         </label>
 
+        <fieldset className="tracking-fields"><legend>¿Qué ocurrió durante el período relevado?</legend>
+          <div className="tracking-choices">{[['trabajo', 'Se trabajó'], ['espera', 'No se pudo trabajar'], ['mixto', 'Trabajo y demora'], ['sin_dato', 'Solo anotación / sin información']].map(([value, label]) => <button type="button" key={value} aria-pressed={activity === value} onClick={() => { setActivity(value); setFraction(''); }}>{label}</button>)}</div>
+          {activity && activity !== 'sin_dato' && <>
+            {event.tipo === 'correctivo' && ['trabajo', 'mixto'].includes(activity) && <>
+              <label>¿De qué sistema hablamos?<select name="system" defaultValue={saved.system || event.metadata?.seguimiento?.system || ''} required><option value="">Seleccionar sistema</option>{systems.filter(x => x !== 'Por confirmar').map(x => <option key={x}>{x}</option>)}</select></label>
+              <label>¿Qué parte se trabajó en esta novedad?<input name="component" defaultValue={saved.component || event.metadata?.seguimiento?.component || ''} required /></label>
+            </>}
+            <label>¿En qué turno? {staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? <input value="Mañana · turno fijo" readOnly /> : <select name="period" defaultValue={saved.period || ''} required><option value="">Seleccionar</option><option>Mañana</option><option>Tarde</option><option>Mañana y tarde</option><option>Día completo</option></select>}</label>
+            {['espera', 'mixto'].includes(activity) && <label>¿Por qué no se pudo trabajar?<select name="cause" defaultValue={saved.cause || ''} required><option value="">Seleccionar causa</option>{Object.entries(causes).filter(([c]) => c !== 'PENDIENTE').map(([c, label]) => <option key={c} value={c}>{c} · {label}</option>)}</select></label>}
+            {activity === 'espera' && <label className="tracking-confirm"><input type="checkbox" name="fullDay" defaultChecked={saved.fullDay} /> Confirmo que no se trabajó en todo el día</label>}
+            <label className="tracking-confirm"><input type="checkbox" name="weekendEligible" defaultChecked={saved.weekendEligible} /> Trabajo excepcional previsto para este fin de semana</label>
+            <label>Evaluación del día completo<select value={fraction} onChange={e => setFraction(e.target.value)}><option value="">Sin reparto adicional</option>{activity === 'mixto' ? <option value="0.5">50 % útil / 50 % pérdida</option> : activity === 'trabajo' ? <option value="1">100 % útil</option> : <option value="0">100 % pérdida</option>}</select></label>
+            {fraction !== '' && <label>¿Qué justifica ese reparto?<input name="allocationNote" defaultValue={saved.allocationNote || ''} required /></label>}
+            {activity === 'mixto' && fraction === '' && <p>La eficiencia quedará sin calcular hasta confirmar el reparto. Podés volver a este registro y corregirlo.</p>}
+          </>}
+          <label className="tracking-confirm"><input type="checkbox" required /> Confirmo esta información{activity === 'sin_dato' ? ' y elijo dejar la actividad sin confirmar' : ''}.</label>
+          <p className="tracking-hint">No se crean tareas pendientes automáticamente. Mañana: 6–14 h · tarde: 14–22 h.</p>
+        </fieldset>
         <div className="history-file-drop">
           <strong>Adjuntos</strong>
           <span>Adjunte PDF, fotos, OT o informes asociados al avance.</span>

@@ -1,4 +1,5 @@
-import { assertSupabaseConfig, supabase } from '../lib/supabase.js';
+import { validateUpdate } from '../domain/maintenance/adapter.js';
+import { assertSupabaseConfig, assertSeguimientoReady, supabase } from '../lib/supabase.js';
 import { attachmentKind, mapAttachmentRows } from './adjuntosSupabaseService.js';
 
 const BUCKET = 'eventos-adjuntos';
@@ -40,7 +41,7 @@ function activityTimestamp(fecha, hora) {
   return `${fecha} ${normalizeTime(hora)}:00`;
 }
 
-function mapActualizacionRow(row, adjuntos = []) {
+export function mapActualizacionRow(row, adjuntos = []) {
   return {
     id: row.id,
     eventoId: row.evento_id,
@@ -313,6 +314,8 @@ export async function subirAdjuntosActualizacion({ eventoId, actualizacionId, lo
 
 export async function crearActualizacion(actualizacion, files = [], event = {}) {
   assertSupabaseConfig();
+  await assertSeguimientoReady();
+  validateUpdate(event, actualizacion);
   const { data, error } = await supabase
     .from('actualizaciones_evento')
     .insert(toActualizacionPayload(actualizacion))
@@ -337,16 +340,15 @@ export async function crearActualizacion(actualizacion, files = [], event = {}) 
 
 export async function editarActualizacion(actualizacion, files = [], event = {}) {
   assertSupabaseConfig();
+  await assertSeguimientoReady();
+  validateUpdate(event, actualizacion);
   if (!actualizacion.id) throw new Error('La actualizacion no tiene id de Supabase.');
 
-  const { data, error } = await supabase
-    .from('actualizaciones_evento')
-    .update(toActualizacionPayload(actualizacion))
-    .eq('id', actualizacion.id)
-    .select('*')
-    .single();
-
+  let query = supabase.from('actualizaciones_evento').update(toActualizacionPayload(actualizacion)).eq('id', actualizacion.id);
+  if (actualizacion.updatedAt) query = query.eq('updated_at', actualizacion.updatedAt);
+  const { data, error } = await query.select('*').maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('El registro cambió. Actualizá el seguimiento antes de corregirlo.');
 
   await subirAdjuntosActualizacion({
     eventoId: data.evento_id,
