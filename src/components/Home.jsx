@@ -2,14 +2,7 @@ import heroLocomotive from '../assets/home/home-hero-loc.jpeg';
 import frontLocomotive from '../assets/home/locdetrompa.png';
 import motionLocomotive from '../assets/home/home-motion-loc.jpeg';
 
-const quickTabs = ['Locomotoras', 'Coches', 'Areas', 'Reportes'];
-
-const navigationTargets = {
-  Areas: 'areas',
-  Reportes: 'reportes',
-};
-
-export default function Home({ onNavigate }) {
+export default function Home() {
   return (
     <main className="home-dashboard">
       <section className="home-hero" aria-labelledby="home-title">
@@ -25,42 +18,7 @@ export default function Home({ onNavigate }) {
         </div>
       </section>
 
-      <section className="home-command-bar" aria-label="Accesos principales">
-        <div className="home-quick-tabs">
-          {quickTabs.map((item, index) => (
-            <button
-              className={index === 0 ? 'active' : ''}
-              key={item}
-              onClick={navigationTargets[item] ? () => onNavigate?.(navigationTargets[item]) : undefined}
-              type="button"
-            >
-              <span className="tab-mark" />
-              {item}
-            </button>
-          ))}
-        </div>
-
-        <div className="home-action-row">
-          <div className="home-search" aria-hidden="true" />
-          <button className="home-register-button" type="button">+ Registrar Intervencion</button>
-        </div>
-      </section>
-
-      <section className="home-modules" aria-label="Modulos de material rodante">
-        <div className="home-module-tabs">
-          {quickTabs.map((item, index) => (
-            <button
-              className={index === 0 ? 'active' : ''}
-              key={item}
-              onClick={navigationTargets[item] ? () => onNavigate?.(navigationTargets[item]) : undefined}
-              type="button"
-            >
-              <span className="module-icon" />
-              {item}
-            </button>
-          ))}
-        </div>
-
+      <section className="home-modules" aria-label="Material rodante">
         <div className="home-info-grid">
           <article className="home-info-card">
             <span className="home-card-icon target" />

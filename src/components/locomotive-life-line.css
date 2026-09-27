@@ -20,3 +20,5 @@
 .life-intervention strong,.life-intervention small { display:block; overflow:hidden; text-overflow:ellipsis; }
 .life-intervention small { font-size:10px; font-weight:400; opacity:.8; }
 .life-caption { margin:12px 0 0; line-height:1.5; }
+.life-available { background:#38bdf8; }.life-operation.disponible { background:#12334b; border-color:#38bdf8; color:#bae6fd; }
+.life-intervention.is-unconfirmed { border-style:dashed; }

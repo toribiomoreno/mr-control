@@ -97,7 +97,7 @@ export default function TimelineEvent({ canManage = false, event, onCreateActual
           </div>
 
           <p>{event.descripcion}</p>
-          {event.metadata?.seguimiento && <p className="history-modal-note">Seguimiento: {event.metadata.seguimiento.system} · {event.metadata.seguimiento.component} · {event.metadata.seguimiento.location} · detenida desde {event.metadata.seguimiento.detentionStart?.split('-').reverse().join('/') || 'sin confirmar'}</p>}
+          {event.metadata?.seguimiento && <p className="history-modal-note">Mantenimiento: {event.metadata.seguimiento.system} · {event.metadata.seguimiento.component} · {event.metadata.seguimiento.location} · detenida desde {event.metadata.seguimiento.detentionStart?.split('-').reverse().join('/') || 'sin confirmar'}</p>}
 
           <div className="timeline-event-meta">
             {event.responsable && <span>Responsable: {event.responsable}</span>}

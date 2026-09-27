@@ -1,4 +1,5 @@
 import { fleet, normalizeUnit, today, wholeLocomotive } from './types.js';
+import { detentionReason, outcomeLabels } from './view.js';
 
 export const isMaintenance = e => ['preventivo', 'correctivo'].includes(e.tipo);
 export const isLight = e => e.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(e.preventivoCodigo);
@@ -14,7 +15,7 @@ export function toRegister(events) {
     });
     const confirmed = [meta.detentionStart || '', meta.confirmedThrough || '', ...observations.filter(o => o.activity !== 'sin_dato').map(o => o.date)].sort().at(-1);
     register.episodes.push({ id, unit: normalizeUnit(event.locomotoraCodigo), start: meta.detentionStart || '', end: meta.availableDate || '', confirmedThrough: confirmed, scope: meta.location === 'Boulogne' ? 'Boulogne' : 'Externo', notes: '' });
-    register.maintenances.push({ id, unit: normalizeUnit(event.locomotoraCodigo), kind: event.tipo === 'correctivo' ? 'correctivo' : light ? 'liviano' : 'pesado', subtype: event.tipo === 'preventivo' ? light ? event.preventivoCodigo : 'N' + String(event.preventivoCodigo || '').replace(/\D/g, '') : '', reason: event.tipo === 'preventivo' ? 'Kilometraje' : event.descripcion, system: light ? wholeLocomotive.system : meta.system || 'Por confirmar', component: light ? wholeLocomotive.component : meta.component || 'Por confirmar', staff: light ? wholeLocomotive.staff : event.responsable || 'Por confirmar', location: meta.location || 'Ubicación por confirmar', start: event.fecha, end: event.estadoMantenimiento === 'finalizado' ? event.fechaCierre || '' : '', status: event.estadoMantenimiento === 'finalizado' ? 'finalizado' : 'abierto', episodeId: id, notes: event.descripcion || '', questions: [], savedQuestions: [] });
+    register.maintenances.push({ id, unit: normalizeUnit(event.locomotoraCodigo), kind: event.tipo === 'correctivo' ? 'correctivo' : light ? 'liviano' : 'pesado', subtype: event.tipo === 'preventivo' ? light ? event.preventivoCodigo : 'N' + String(event.preventivoCodigo || '').replace(/\D/g, '') : '', reason: detentionReason(event), system: light ? wholeLocomotive.system : meta.system || 'Por confirmar', component: light ? wholeLocomotive.component : meta.component || 'Por confirmar', staff: light ? wholeLocomotive.staff : event.responsable || 'Por confirmar', location: meta.location || 'Ubicación por confirmar', start: event.fecha, end: event.estadoMantenimiento === 'finalizado' ? event.fechaCierre || '' : '', status: event.estadoMantenimiento === 'finalizado' ? 'finalizado' : 'abierto', episodeId: id, notes: event.descripcion || '', questions: [], savedQuestions: [] });
     register.observations.push(...observations);
   }
   return register;
@@ -29,6 +30,15 @@ export function validateEvent(event, now = today()) {
   if (!isMaintenance(event)) return;
   const meta = event.metadata?.seguimiento;
   assert(meta, 'Completá los datos de seguimiento del mantenimiento.');
+  if (meta.captureVersion === 2) {
+    assert(meta.outcome, '¿Cómo quedó la máquina después del registro?');
+    if (event.tipo === 'correctivo') assert(meta.detentionReason?.trim(), '¿Por qué quedó detenida la máquina?');
+  }
+  if (meta.outcome) {
+    assert(Object.hasOwn(outcomeLabels, meta.outcome), 'Confirmá cómo quedó la máquina.');
+    assert(!(event.estadoMantenimiento === 'finalizado' && meta.outcome === 'continua'), 'Un mantenimiento finalizado no puede continuar al día siguiente. Revisá el estado.');
+    assert(!(['disponible', 'operativa'].includes(meta.outcome) && event.estadoMantenimiento !== 'finalizado'), 'Si la máquina queda disponible u operativa, marcá este mantenimiento como finalizado.');
+  }
   assert(['Boulogne', 'Externo'].includes(meta.location), 'Confirmá dónde se realiza el mantenimiento.');
   assert(validDate(meta.detentionStart) && meta.detentionStart <= event.fecha, 'Confirmá desde cuándo está detenida; debe ser anterior o igual al inicio.');
   if (meta.confirmedThrough) assert(validDate(meta.confirmedThrough) && meta.confirmedThrough <= now && meta.confirmedThrough >= meta.detentionStart, 'La última confirmación de detención no es válida.');
@@ -43,6 +53,16 @@ export function validateUpdate(event, update, now = today()) {
   assert(update.descripcion?.trim(), 'Describí el trabajo o la observación.');
   const t = update.metadata?.seguimiento;
   assert(t && ['trabajo', 'espera', 'mixto', 'sin_dato'].includes(t.activity), 'Confirmá si hubo trabajo, espera o falta información.');
+  if (t.captureVersion === 2) {
+    if (t.activity !== 'sin_dato' || update.tipoActualizacion === 'cierre') assert(t.outcome, '¿Quedó disponible, operativa o continúa el mantenimiento?');
+    if (t.activity === 'sin_dato') assert(t.confirmedUnknownActivity, 'Confirmá que querés dejar la actividad sin información.');
+    if (t.outcome === 'pendiente') assert(t.confirmedUnknownOutcome, 'Confirmá que querés dejar el estado posterior pendiente.');
+  }
+  if (t.outcome) {
+    assert(Object.hasOwn(outcomeLabels, t.outcome), 'Confirmá cómo quedó la máquina.');
+    assert(!(t.outcome === 'continua' && (update.tipoActualizacion === 'cierre' || event.estadoMantenimiento === 'finalizado')), 'El cierre no puede indicar que continúa el mantenimiento.');
+    assert(!(['disponible', 'operativa'].includes(t.outcome) && event.estadoMantenimiento !== 'finalizado' && update.tipoActualizacion !== 'cierre'), 'La disponibilidad requiere cerrar el mantenimiento.');
+  }
   if (event.estadoMantenimiento === 'finalizado') {
     assert(update.tipoActualizacion === 'observacion' || (update.id && event.actualizaciones?.some(a => a.id === update.id && a.tipoActualizacion === update.tipoActualizacion)), 'El mantenimiento está cerrado; solo admite observaciones.');
     assert(t.activity === 'sin_dato' || update.fecha <= event.fechaCierre, 'No puede haber actividad después del cierre.');

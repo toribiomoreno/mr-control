@@ -12,8 +12,10 @@ test('continúa el mismo mantenimiento y corta el tramo cuando empieza otro', ()
   assert.equal(timeline.hasUnconfirmedDays, true);
 });
 
-test('un mantenimiento abierto se dibuja solo hasta la última detención confirmada', () => {
-  const timeline = buildLifeLine([{ id: '709', tipo: 'correctivo', fecha: '2026-09-24', estadoMantenimiento: 'en_curso', metadata: { seguimiento: { detentionStart: '2026-09-24' } }, actualizaciones: [{ fecha: '2026-09-25' }] }], '2026-09-27');
-  assert.equal(timeline.maintenance[0].end, '2026-09-25');
+test('un mantenimiento abierto indica explícitamente continuidad sin confirmar', () => {
+  const timeline = buildLifeLine([{ id: '709', tipo: 'correctivo', fecha: '2026-09-24', estadoMantenimiento: 'en_curso', metadata: { seguimiento: { detentionStart: '2026-09-24' } }, actualizaciones: [{ fecha: '2026-09-25', metadata: { seguimiento: { activity: 'espera' } } }] }], '2026-09-27');
+  assert.equal(timeline.maintenance[0].end, '2026-09-27');
+  assert.equal(timeline.maintenance[0].confirmedThrough, '2026-09-25');
+  assert.equal(timeline.maintenance[0].unconfirmed, true);
   assert.equal(timeline.operation.length, 0);
 });

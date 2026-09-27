@@ -47,3 +47,55 @@
   .tracking-page { padding:0; }.tracking-table-wrap { overflow:visible; }.tracking-table { font-size:10pt; }.tracking-table th { background:#eee; }.tracking-table td { padding:8px; }.tracking-note { background:white; }
   .tracking-heading h2 { font-size:20pt; }.tracking-job-link { color:#111; } tr { break-inside:avoid; }
 }
+
+/* Mantenimientos: semana, detalle diario y ficha de intervención. */
+.maintenance-page { max-width:1600px; margin:auto; }
+.maintenance-heading { display:flex; flex-wrap:wrap; align-items:center; gap:20px 32px; margin-bottom:28px; }
+.maintenance-heading h2 { margin:2px 0; font-size:clamp(34px,4vw,54px); letter-spacing:-1.4px; }
+.maintenance-heading .primary-action { margin-left:auto; }
+.maintenance-week-range { color:#cbd5e1; padding-left:24px; border-left:1px solid #334155; font-size:17px; }
+.maintenance-toolbar { padding:16px; border:1px solid var(--border); border-radius:14px; background:#101b2c; align-items:end; gap:16px; }
+.week-navigation { display:flex; align-items:end; gap:8px; }.week-navigation button { font-size:24px; line-height:21px; }
+.maintenance-toolbar label { color:#a6b4c8; font-size:12px; }
+.maintenance-export { margin-left:auto; align-self:center; position:relative; color:#a6b4c8; font-size:13px; }
+.maintenance-export summary { cursor:pointer; padding:12px; }.maintenance-export button { display:block; margin-top:5px; }
+.maintenance-key { display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin:20px 0 16px; font-size:12px; color:#cbd5e1; }
+.maintenance-key span { display:flex; align-items:center; gap:7px; }.maintenance-key i { width:10px; height:10px; border-radius:3px; }.maintenance-key small { margin-left:auto; color:#94a3b8; }
+.maintenance-key .preventivo { background:#facc15; }.maintenance-key .correctivo { background:#f87171; }
+.maintenance-page .tracking-week-head > div button { border:0; border-right:1px solid #263449; border-bottom:2px solid transparent; padding:18px 4px; background:#142136; color:#cbd5e1; font:inherit; font-size:13px; cursor:pointer; }
+.maintenance-page .tracking-week-head > div button:hover,.maintenance-page .tracking-week-head > div button[aria-pressed=true] { background:#22354e; color:#fff; border-bottom-color:#60a5fa; }
+.maintenance-page .tracking-lanes { padding:12px 0; min-height:78px; }
+.tracking-bar.preventivo,.tracking-bar.liviano,.tracking-bar.pesado { background:linear-gradient(120deg,#4c3b0b,#302a16); border-color:#957721; border-left:4px solid #facc15; color:#fef3a8; }
+.tracking-bar.correctivo { background:linear-gradient(120deg,#4c1f26,#302028); border-color:#91444c; border-left:4px solid #f87171; color:#ffe0e0; }
+.tracking-bar { border-radius:10px; min-height:56px; padding:12px; transition:filter .15s,transform .15s; }
+.tracking-bar:hover { filter:brightness(1.22); transform:translateY(-1px); }.tracking-bar:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+.tracking-bar.is-unconfirmed { border-style:dashed; }
+.maintenance-day-panel { margin-top:24px; padding:24px; background:#101b2c; border:1px solid #334155; border-radius:16px; }
+.maintenance-day-panel > header { display:flex; justify-content:space-between; align-items:center; }.maintenance-day-panel h3 { margin:0 0 18px; font-size:22px; }.maintenance-day-panel header button { background:none; border:0; color:#cbd5e1; font-size:28px; }
+.maintenance-day-card { display:grid; grid-template-columns:220px 1fr; gap:20px; border-top:1px solid #2b394d; padding:20px 0; }
+.maintenance-day-card > button { display:grid; align-content:start; gap:7px; text-align:left; background:transparent; border:0; border-left:3px solid #f87171; padding:4px 14px; color:#fecaca; }
+.maintenance-day-card.preventivo > button { border-left-color:#facc15; color:#fef08a; }.maintenance-day-card > button strong { font-size:21px; }.maintenance-day-card > button small { margin-top:6px; color:#94a3b8; }
+.day-update + .day-update { border-top:1px solid #263449; padding-top:14px; margin-top:14px; }.day-update p { margin:8px 0; color:#dbe3ef; }.day-update small { color:#94a3b8; }
+.maintenance-type { display:inline-block; padding:5px 9px; border-radius:6px; font-size:12px; color:#fecaca; background:#4c1f26; }.maintenance-type.preventivo { color:#fef08a; background:#4c3b0b; }
+.tracking-detail .modal-heading h2 { font-size:25px; line-height:1.25; max-width:780px; }
+.tracking-facts { gap:10px; }.tracking-facts dt { margin-bottom:8px; }.tracking-facts dd { line-height:1.45; }
+.maintenance-delays { border-left:3px solid #f87171; background:#2d202a; border-radius:6px; padding:14px 18px; margin:20px 0; }.maintenance-delays h3 { margin-top:0; }.maintenance-delays p { color:#f1cbd0; line-height:1.5; }
+.maintenance-questions { padding:14px; border:1px solid #48546a; border-radius:8px; color:#cbd5e1; }.maintenance-questions summary { cursor:pointer; }.maintenance-questions > div { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:10px; }
+.journal-title { margin:28px 0 12px; }
+.maintenance-journal-entry { display:grid; grid-template-columns:145px 1fr; gap:18px; border-top:1px solid #2b394d; padding:22px 0; }
+.maintenance-journal-date small { display:block; margin-top:7px; color:#94a3b8; }.maintenance-journal-entry p { white-space:pre-wrap; line-height:1.55; }
+.journal-activity { padding:4px 8px; border-radius:5px; font-size:12px; background:#263449; }.journal-activity.trabajo { color:#86efac; background:#15372c; }.journal-activity.espera,.journal-activity.mixto { color:#fca5a5; background:#44252d; }
+.journal-facts { display:grid; grid-template-columns:1fr 1fr; gap:14px; }.journal-facts dt { font-size:11px; color:#94a3b8; margin-bottom:5px; }.journal-facts dd { margin:0; font-size:13px; line-height:1.5; }
+.tracking-detail .journal-edit { background:transparent!important; font-size:12px; margin-top:12px; }
+.maintenance-efficiency { margin-top:30px; padding:24px; border:1px solid #37516a; border-radius:14px; background:#0e1c2d; }
+.efficiency-heading { display:flex; justify-content:space-between; gap:18px; align-items:center; }.efficiency-heading h3 { margin:5px 0; }.efficiency-heading > strong { font-size:32px; color:#e2e8f0; white-space:nowrap; }
+.efficiency-bar { display:flex; height:22px; border-radius:7px; overflow:hidden; background:#263449; margin:20px 0 12px; }
+.efficiency-bar span { min-width:2px; }.efficiency-bar .useful,.efficiency-legend .useful { background:#34d399; }.efficiency-bar .lost,.efficiency-legend .lost { background:#fb7185; }.efficiency-bar .missing,.efficiency-legend .missing { background:repeating-linear-gradient(135deg,#64748b 0,#64748b 5px,#475569 5px,#475569 10px); }
+.efficiency-legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:#cbd5e1; }.efficiency-legend span { display:flex; gap:6px; align-items:center; }.efficiency-legend i { width:10px; height:10px; border-radius:2px; }.efficiency-days summary { padding:12px 0; cursor:pointer; color:#bfdbfe; }
+@media(max-width:760px) { .maintenance-page { padding:20px 14px; }.maintenance-heading { gap:12px; }.maintenance-week-range { padding:0; border:0; margin:0; }.maintenance-heading .primary-action { margin:0; }.maintenance-toolbar { gap:12px; }.maintenance-export { margin:0; }.maintenance-day-card,.maintenance-journal-entry { grid-template-columns:1fr; gap:12px; }.journal-facts,.tracking-facts { grid-template-columns:1fr; }.efficiency-heading { align-items:start; flex-direction:column; }.maintenance-efficiency { padding:16px; }.maintenance-day-panel { padding:16px; } }
+.maintenance-heading .primary-action { width:auto; min-width:210px; padding:13px 18px; }
+.maintenance-page .tracking-week-head > strong { font-size:12px; }
+.maintenance-day-card.correctivo,.maintenance-day-card.preventivo { background:transparent; }
+.maintenance-export[open] { padding-bottom:0; }
+.intervention-modal.tracking-detail { width:min(1040px,calc(100vw - 32px)); max-width:1040px; }
+.tracking-detail .tracking-toolbar .primary-action { width:auto; margin-top:0; }

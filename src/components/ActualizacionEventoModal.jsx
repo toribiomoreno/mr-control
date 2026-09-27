@@ -1,5 +1,6 @@
 import { causes, systems, today } from '../domain/maintenance/types.js';
 import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
+import { outcomeLabels } from '../domain/maintenance/view.js';
 import { useState } from 'react';
 
 import TimeSelect from './TimeSelect.jsx';
@@ -42,6 +43,7 @@ export default function ActualizacionEventoModal({
   const [activity, setActivity] = useState(saved.activity || '');
   const [staff, setStaff] = useState(initialUpdate?.responsable || (isLight(event) ? 'Turno rotativo' : ''));
   const [fraction, setFraction] = useState(saved.usefulFraction == null ? '' : String(saved.usefulFraction));
+  const [outcome, setOutcome] = useState(saved.outcome || '');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const isPause = tipo === 'pausa';
@@ -66,17 +68,21 @@ export default function ActualizacionEventoModal({
       eventoId: event.id,
       fecha: form.get('fecha'),
       hora,
-      tipoActualizacion: tipo,
+      tipoActualizacion: event.estadoMantenimiento !== 'finalizado' && ['disponible', 'operativa'].includes(outcome) ? 'cierre' : tipo,
       descripcion: descriptionValue,
       responsable,
       porcentajeAvance: null,
-      estadoResultante: defaultStateForType(tipo),
+      estadoResultante: event.estadoMantenimiento !== 'finalizado' && ['disponible', 'operativa'].includes(outcome) ? 'finalizado' : defaultStateForType(tipo),
       motivoPausa: isPause ? descriptionValue : null,
       motivoReapertura: null,
       resultadoPrueba: null,
-      estadoUnidadResultante: null,
+      estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : outcome === 'prueba' ? 'pendiente_de_prueba' : null,
       pendientes: null,
       metadata: { ...initialUpdate?.metadata, seguimiento: {
+        captureVersion: 2,
+        confirmedUnknownOutcome: outcome === 'pendiente' && form.get('confirmUnknownOutcome') === 'on',
+        confirmedUnknownActivity: activity === 'sin_dato' && form.get('confirmActivity') === 'on',
+        ...(outcome ? { outcome } : {}),
         activity, system: form.get('system') || event.metadata?.seguimiento?.system || '', component: form.get('component') || event.metadata?.seguimiento?.component || '', period: staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? 'Mañana' : form.get('period') || '',
         cause: ['espera', 'mixto'].includes(activity) ? form.get('cause') : '',
         fullDay: activity === 'espera' && form.get('fullDay') === 'on',
@@ -128,7 +134,7 @@ export default function ActualizacionEventoModal({
         <TimeSelect defaultValue={initialUpdate?.hora || currentTimeValue()} />
 
         <label>
-          Responsable
+          ¿Quién intervino o informó la espera?
           <select name="responsable" value={staff} onChange={e => setStaff(e.target.value)} required>
             <option value="" disabled>Seleccionar turno</option>
             {responsibleOptions.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -155,8 +161,16 @@ export default function ActualizacionEventoModal({
             {fraction !== '' && <label>¿Qué justifica ese reparto?<input name="allocationNote" defaultValue={saved.allocationNote || ''} required /></label>}
             {activity === 'mixto' && fraction === '' && <p>La eficiencia quedará sin calcular hasta confirmar el reparto. Podés volver a este registro y corregirlo.</p>}
           </>}
-          <label className="tracking-confirm"><input type="checkbox" required /> Confirmo esta información{activity === 'sin_dato' ? ' y elijo dejar la actividad sin confirmar' : ''}.</label>
+          <label className="tracking-confirm"><input name="confirmActivity" type="checkbox" required /> Confirmo esta información{activity === 'sin_dato' ? ' y elijo dejar la actividad sin confirmar' : ''}.</label>
           <p className="tracking-hint">No se crean tareas pendientes automáticamente. Mañana: 6–14 h · tarde: 14–22 h.</p>
+        </fieldset>
+        <fieldset className="tracking-fields"><legend>¿Cómo quedó la máquina después de este día?</legend>
+          <select aria-label="Estado posterior de la máquina" value={outcome} onChange={e => setOutcome(e.target.value)} required={activity !== 'sin_dato' || tipo === 'cierre' || Boolean(saved.outcome)}>
+            <option value="">Confirmar estado posterior</option>
+            {Object.entries(outcomeLabels).filter(([key]) => !(key === 'continua' && event.estadoMantenimiento === 'finalizado')).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+          {['disponible', 'operativa'].includes(outcome) && event.estadoMantenimiento !== 'finalizado' && <p>Este registro cerrará el mantenimiento en la fecha indicada.</p>}
+          {outcome === 'pendiente' && <label className="tracking-confirm"><input name="confirmUnknownOutcome" type="checkbox" required /> Elijo dejar el estado posterior sin confirmar.</label>}
         </fieldset>
         <div className="history-file-drop">
           <strong>Adjuntos</strong>

@@ -2,15 +2,15 @@
 
 ## Qué cambia
 
-La opción Seguimiento reemplaza al calendario. Conserva estilos, navegación, flota y Archivo Histórico. El seguimiento usa `eventos_historial` y `actualizaciones_evento`; no hay una segunda base de mantenimientos. Patio también guarda sus nuevos eventos en ese historial. Los resúmenes anteriores guardados solo en el navegador se conservan, pero no se convierten en hechos de mantenimiento.
+La opción Mantenimientos reemplaza al calendario. Conserva estilos, navegación, flota y Archivo Histórico. El seguimiento usa `eventos_historial` y `actualizaciones_evento`; no hay una segunda base de mantenimientos. Patio también guarda sus nuevos eventos en ese historial. Los resúmenes anteriores guardados solo en el navegador se conservan, pero no se convierten en hechos de mantenimiento.
 
 - Semana: una barra continua por mantenimiento; distintas intervenciones se separan.
 - Detalle: sistema, componente, detención, personal, trabajos diarios, correcciones y vínculo al historial con adjuntos.
-- Eficiencia: resultado semanal por mantenimiento y explicación de toda la intervención al abrirlo.
+- Eficiencia: porcentaje, composición útil/pérdida/sin datos y desglose diario dentro del detalle del mantenimiento.
 - Informe: tabla filtrada para imprimir o guardar PDF. CSV de registros y de indicadores. Respaldo JSON de mantenimientos (no incluye contenido binario de adjuntos ni el resto del Libro).
 - Importación del respaldo JSON del piloto: vista previa, validación, transacción atómica, identificadores de origen, omisión de importados y detección conservadora de posibles duplicados. No sobrescribe registros existentes. Los casos incompletos o duplicados requieren revisión y quedan fuera; se muestran antes de confirmar.
 - Archivo Histórico: línea de vida de dos semanas por locomotora, con períodos de disponibilidad confirmada sobre el eje y cada mantenimiento debajo. Un mantenimiento de varios días conserva la misma barra; al tocarlo abre su detalle en Seguimiento. Los días sin evidencia se dejan sin color.
-- En Archivo Histórico y Seguimiento, **Ver archivo privado (temporal)** permite revisar un JSON local de la semana piloto en ambas pantallas sin subirlo al repositorio ni guardarlo en la base. Al cerrar la pestaña se pierde esta vista. La importación permanente requiere base habilitada y revisión de duplicados.
+- En Archivo Histórico, **Ver archivo privado (temporal)** permite revisar un JSON local de la semana piloto en ambas pantallas sin subirlo al repositorio ni guardarlo en la base. Al cerrar la pestaña se pierde esta vista. La importación permanente requiere base habilitada y revisión de duplicados.
 
 ## Reglas combinadas
 
@@ -43,13 +43,13 @@ El indicador es por mantenimiento, no un indicador de utilización del personal 
 3. Verificar con cuentas reales de supervisor, observador, inactivo y sesión anónima: lectura/escritura, perfiles y descarga de adjuntos. El módulo se bloquea si no encuentra la versión de migración.
 4. Revisar también políticas de TODOS los módulos anteriores (Patio, importaciones, flota), RPC existentes y cualquier bucket distinto de `eventos-adjuntos`. Esta migración no certifica la seguridad de toda la instalación. Configurar acceso privado del despliegue y desactivar registro libre si corresponde. El repositorio de origen es público: solo código y datos sintéticos en la rama.
 5. Desplegar primero la rama en preview; verificar el esquema real y los flujos completos. No usar producción como entorno de pruebas.
-6. En el piloto, descargar **Respaldo JSON**. En Seguimiento, **Integrar archivo del piloto**, revisar filas y confirmar. CSV no permite reconstruir fielmente todas las relaciones. Ante coincidencia con un evento viejo, completar ese evento o reconciliar manualmente antes de importar; no hay fusión automática de supuestos duplicados.
+6. En el piloto, descargar **Respaldo JSON**. La importación definitiva queda pendiente de habilitar junto con la base; se retiró su botón de Mantenimientos para simplificar esa pantalla. El modal y el procedimiento de importación se conservan en el código. CSV no permite reconstruir fielmente todas las relaciones. Ante coincidencia con un evento viejo, completar ese evento o reconciliar manualmente antes de importar; no hay fusión automática de supuestos duplicados.
 7. Comparar los mantenimientos importados con el piloto y el Archivo. Repetir la importación debe omitirlos. Conservar el piloto y su respaldo hasta verificar la equivalencia.
 8. Una vez validado, integrar la rama y seleccionar el commit de producción en Vercel. Identificar la versión por commit/despliegue, no solo por el texto del pie.
 
 La base conserva los datos; Vercel sirve la interfaz. No guardar datos de empresa en archivos del repositorio ni en variables `VITE_*` (son públicas para el navegador). El JSON descargado y los informes contienen datos: compartir únicamente la selección necesaria.
 
-El archivo privado preparado para el piloto 21–25/9 contiene 11 mantenimientos y 21 novedades. No incluye E719 N9 ni numerales de EMEPA porque faltan fechas verificadas. E714, E709 y E718 siguen abiertos en el archivo, con su última confirmación del 25/9; las franjas posteriores quedan sin estado confirmado hasta registrar un parte nuevo.
+El archivo privado preparado para el piloto 21–25/9 contiene 11 mantenimientos y 21 novedades. No incluye E719 N9 ni numerales de EMEPA porque faltan fechas verificadas. E714, E709 y E718 siguen abiertos en el archivo, con su última confirmación del 25/9; la continuidad posterior se identifica con borde punteado hasta registrar un parte nuevo.
 
 ## Verificación
 

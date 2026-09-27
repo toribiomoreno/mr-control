@@ -1,5 +1,6 @@
 import SeguimientoFields from './SeguimientoFields.jsx';
 import { today, wholeLocomotive } from '../domain/maintenance/types.js';
+import { outcomeLabels } from '../domain/maintenance/view.js';
 import { useState } from 'react';
 
 import TimeSelect from './TimeSelect.jsx';
@@ -72,7 +73,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
     const currentType = form.get('tipo');
     const fecha = form.get('fecha');
     const hora = String(form.get('hora') || '').slice(0, 5);
-    const estadoMantenimiento = isMaintenanceType(currentType) ? form.get('estadoMantenimiento') : null;
+    const estadoMantenimiento = isMaintenanceType(currentType) ? (['disponible', 'operativa'].includes(form.get('outcome')) ? 'finalizado' : form.get('estadoMantenimiento')) : null;
     const adjuntos = form.getAll('adjuntos').filter((file) => file && file.name);
     setErrorMessage('');
 
@@ -95,7 +96,10 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
         descripcion: form.get('descripcion'),
         responsable: eventResponsible(currentType, form),
         metadata: isMaintenanceType(currentType) ? { seguimiento: {
+          captureVersion: 2,
           detentionStart: form.get('detentionStart'), location: form.get('location'),
+          detentionReason: currentType === 'preventivo' ? 'Kilometraje' : form.get('detentionReason'),
+          outcome: form.get('outcome'),
           system: currentType === 'preventivo' ? wholeLocomotive.system : form.get('system'),
           component: currentType === 'preventivo' ? wholeLocomotive.component : form.get('component'),
         } } : {},
@@ -275,6 +279,9 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
         )}
 
         {isMaintenanceType(tipo) && <SeguimientoFields tipo={tipo} code={preventivoCodigo} />}
+        {isMaintenanceType(tipo) && <label>¿Cómo queda la máquina después de este registro?
+          <select name="outcome" defaultValue="" required><option value="">Confirmar estado</option>{Object.entries(outcomeLabels).filter(([key]) => key !== 'pendiente').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+        </label>}
         <label className="tracking-confirm"><input type="checkbox" required /> Confirmo la locomotora, fechas, tipo y responsable que estoy cargando.</label>
         <div className="history-file-drop">
           <strong>Anadir archivo</strong>
