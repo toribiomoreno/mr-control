@@ -39,3 +39,19 @@ export function preparePilotImport(input, existing = [], now) {
     return { sourceId, event, actualizaciones, issues, skipped: !!existingSource };
   });
 }
+
+export function previewPilotEvents(input, existing = [], now) {
+  const rows = preparePilotImport(input, existing, now);
+  const issues = rows.filter(row => row.issues.length);
+  if (issues.length) throw new Error(`${issues.length} mantenimiento(s) requieren revisión. Corregí el archivo antes de mostrarlo.`);
+  return rows.filter(row => !row.skipped).map(row => ({
+    ...row.event,
+    id: `vista:${row.sourceId}`,
+    origen: 'vista-previa-privada',
+    adjuntos: [],
+    actualizaciones: row.actualizaciones.map((item, index) => ({
+      ...item, id: `vista:${row.sourceId}:${index + 1}`,
+      tipoActualizacion: item.tipoActualizacion,
+    })),
+  }));
+}

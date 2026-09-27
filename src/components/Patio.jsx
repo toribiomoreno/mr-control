@@ -239,7 +239,7 @@ export default function Patio({ canManage = false, locomotoras, selected, setSel
       <div className="yard-toolbar">
         <div>
           <p className="eyebrow">Tablero operativo</p>
-          <h2>Patio Ferroviario</h2>
+          <h2>Parque ferroviario</h2>
         </div>
 
         <div className="yard-toolbar-actions">

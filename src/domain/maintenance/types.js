@@ -1,5 +1,5 @@
 export const causes = { MO: 'Mano de obra', MAT: 'Materiales', Acc: 'Accidental', CAP: 'Capacidad instalada', GES: 'Productividad', PENDIENTE: 'Por confirmar' };
-export const systems = ['Motor diésel', 'Sistema neumático', 'Sistema eléctrico', 'Bogie', 'Varios sistemas', 'Otro', 'Por confirmar'];
+export const systems = ['Motor diésel', 'Sistema neumático', 'Sistema eléctrico', 'Bogie', 'Equipos de a bordo', 'Varios sistemas', 'Otro', 'Por confirmar'];
 export const staffOptions = ['Turno fijo', 'Turno rotativo', 'Otro sector', 'Por confirmar'];
 export const periods = ['Mañana', 'Tarde', 'Mañana y tarde', 'Noche (alistamiento)', 'Día completo', 'Período por confirmar'];
 export const wholeLocomotive = { system: 'Varios sistemas', component: 'Locomotora completa', staff: 'Turno rotativo' };

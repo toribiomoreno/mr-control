@@ -21,21 +21,28 @@ const stateNames = { worked: 'Útil', mixed: 'Mixto', wait: 'Pérdida', unknown:
 function DayBreakdown({ result, onComplete }) {
   return <div className="tracking-table-wrap"><table className="tracking-table"><thead><tr><th>Día</th><th>Evaluación</th><th>Útil</th><th>Pérdida</th><th>Motivo / trabajo</th></tr></thead><tbody>{result.rows.map(r => <tr key={r.date}><td>{dateLabel(r.date)}</td><td><span className={'tracking-state ' + r.state}>{stateNames[r.state]}</span>{r.state === 'unknown' && onComplete && <button onClick={() => onComplete(r.date)}>Completar</button>}</td><td>{formatDays(r.useful)}</td><td>{formatDays(r.lost)}</td><td>{r.reason}{r.lossCause && <small>{causeName(r.lossCause)}</small>}</td></tr>)}</tbody></table></div>;
 }
-export default function SeguimientoMantenimiento({ canManage, locomotoras, patioActivities = [], onOpenHistory }) {
+export default function SeguimientoMantenimiento({ canManage, locomotoras, patioActivities = [], onOpenHistory, initialSelection, privatePreviewEvents = [], onPreviewFile }) {
   const [importing, setImporting] = useState(false);
   const [events, setEvents] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState('');
-  const [week, setWeek] = useState(monday(today())), [unit, setUnit] = useState(''), [place, setPlace] = useState('Boulogne'), [view, setView] = useState('semana');
-  const [selectedId, setSelectedId] = useState(''), [creating, setCreating] = useState(false), [update, setUpdate] = useState(null), [editingMeta, setEditingMeta] = useState(false), [saving, setSaving] = useState(false);
+  const [week, setWeek] = useState(() => monday(initialSelection?.fecha || today())), [unit, setUnit] = useState(initialSelection?.codigo || ''), [place, setPlace] = useState(initialSelection?.place || 'Boulogne'), [view, setView] = useState('semana');
+  const [selectedId, setSelectedId] = useState(initialSelection?.id || ''), [creating, setCreating] = useState(false), [update, setUpdate] = useState(null), [editingMeta, setEditingMeta] = useState(false), [saving, setSaving] = useState(false);
   const load = useCallback(async () => {
     setLoading(true); setError('');
-    try { setEvents(await fetchSeguimiento()); } catch (e) { setError(e.message || 'No se pudo cargar el seguimiento.'); } finally { setLoading(false); }
-  }, []);
+    try {
+      const saved = await fetchSeguimiento();
+      setEvents([...saved, ...privatePreviewEvents.filter(preview => !saved.some(item => item.metadata?.pilotSourceId === preview.metadata?.pilotSourceId))]);
+    } catch (e) {
+      setEvents(privatePreviewEvents);
+      setError(privatePreviewEvents.length ? 'Vista temporal desde archivo privado. La base todavía no guarda estos registros.' : e.message || 'No se pudo cargar el seguimiento.');
+    } finally { setLoading(false); }
+  }, [privatePreviewEvents]);
   useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
   const register = useMemo(() => toRegister(events), [events]);
   const range = { from: week, to: shiftDay(week, 6) };
   const days = Array.from({ length: 7 }, (_, i) => shiftDay(week, i));
   const jobs = register.maintenances.filter(m => (!unit || m.unit === unit) && (!place || m.location === place) && m.start <= range.to && (!m.end || m.end >= range.from));
   const selected = register.maintenances.find(m => m.id === selectedId), event = events.find(e => e.id === selectedId);
+  const previewOnly = event?.origen === 'vista-previa-privada';
   const episode = register.episodes.find(e => e.id === selectedId);
   const result = selected ? maintenanceEfficiency(register, selected, undefined) : null;
   const subset = { ...register, maintenances: jobs, observations: register.observations.filter(o => jobs.some(m => m.id === o.maintenanceId)), episodes: register.episodes.filter(e => jobs.some(m => m.episodeId === e.id)) };
@@ -66,7 +73,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, patio
       <button onClick={() => setWeek(shiftDay(week, -7))} aria-label="Semana anterior">←</button><label>Semana del<input type="date" value={week} onChange={e => e.target.value && setWeek(monday(e.target.value))} /></label><button onClick={() => setWeek(shiftDay(week, 7))} aria-label="Semana siguiente">→</button>
       <label>Locomotora<select value={unit} onChange={e => setUnit(e.target.value)}><option value="">Todas</option>{locomotoras.map(l => <option key={l.codigo}>{l.codigo}</option>)}</select></label>
       <label>Ubicación<select value={place} onChange={e => setPlace(e.target.value)}><option>Boulogne</option><option>Externo</option><option>Ubicación por confirmar</option><option value="">Todas</option></select></label>
-      <button onClick={load} disabled={loading}>Actualizar</button>{canManage && <button onClick={() => setImporting(true)}>Integrar archivo del piloto</button>}
+      <button onClick={load} disabled={loading}>Actualizar</button><label className="tracking-private-file">Ver archivo privado (temporal)<input type="file" accept="application/json,.json" onChange={e => { const [file] = e.target.files || []; onPreviewFile?.(file); e.target.value = ''; }} /></label>{canManage && <button onClick={() => setImporting(true)}>Integrar archivo del piloto</button>}
     </div>
     <nav className="tracking-tabs no-print" aria-label="Vistas de mantenimiento">{[['semana', 'Seguimiento semanal'], ['indicadores', 'Eficiencia'], ['informe', 'Informe para compartir']].map(([id, name]) => <button key={id} aria-pressed={view === id} onClick={() => setView(id)}>{name}</button>)}</nav>
     {error && <p role="alert" className="tracking-error">{error}</p>}
@@ -90,13 +97,14 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, patio
     {selected && event && <div className="modal-backdrop"><section className="intervention-modal tracking-detail" role="dialog" aria-modal="true" aria-label={`Mantenimiento ${selected.unit}`}><div className="modal-heading"><div><span className="panel-kicker">{selected.unit} · {event.estadoMantenimiento}</span><h2>{jobTitle(selected)}</h2></div><button className="modal-close" aria-label="Cerrar detalle" onClick={() => select('')}>×</button></div>
       <dl className="tracking-facts"><div><dt>Detenida desde</dt><dd>{dateLabel(episode?.start)}</dd></div><div><dt>Intervención</dt><dd>{dateLabel(selected.start)} — {selected.end ? dateLabel(selected.end) : 'En curso'}</dd></div><div><dt>Parte atacada</dt><dd>{selected.system} · {selected.component}</dd></div><div><dt>Personal / ubicación</dt><dd>{selected.staff} · {selected.location}</dd></div></dl>
       <p>{event.descripcion}</p>
-      <div className="tracking-toolbar">{canManage && <><button onClick={() => setEditingMeta(!editingMeta)}>Completar datos del mantenimiento</button><button className="primary-action" onClick={() => setUpdate({})}>+ Registrar novedad</button></>}<button onClick={() => onOpenHistory(selected.unit)}>Ver historial y adjuntos de la unidad</button></div>
+      {previewOnly && <p className="tracking-note">Vista temporal del archivo privado: podés revisar esta información en Seguimiento y Archivo Histórico. Para editarla y guardarla hace falta integrarla en la base.</p>}
+      <div className="tracking-toolbar">{canManage && !previewOnly && <><button onClick={() => setEditingMeta(!editingMeta)}>Completar datos del mantenimiento</button><button className="primary-action" onClick={() => setUpdate({})}>+ Registrar novedad</button></>}<button onClick={() => onOpenHistory(selected.unit)}>Ver historial y adjuntos de la unidad</button></div>
       {editingMeta && <form onSubmit={saveMeta}><SeguimientoFields tipo={event.tipo} code={event.preventivoCodigo} tracking={event.metadata?.seguimiento} /><button className="primary-action" disabled={saving}>{saving ? 'Guardando…' : 'Confirmar datos'}</button></form>}
       <h3>Trabajos y novedades día a día</h3>
       {!(event.actualizaciones || []).length && <p>No hay actividad registrada. El motivo de ingreso no confirma trabajo realizado.</p>}
-      {(event.actualizaciones || []).map(a => <article className="tracking-update" key={a.id}><strong>{dateLabel(a.fecha)} · {a.hora} · {a.responsable || 'Personal sin confirmar'}</strong><small>{a.tipoActualizacion} · {a.metadata?.seguimiento?.period || 'Turno sin confirmar'}</small><p>{a.descripcion}</p>{canManage && <button onClick={() => setUpdate({ initialUpdate: a })}>Corregir / completar registro</button>}</article>)}
+      {(event.actualizaciones || []).map(a => <article className="tracking-update" key={a.id}><strong>{dateLabel(a.fecha)} · {a.hora} · {a.responsable || 'Personal sin confirmar'}</strong><small>{a.tipoActualizacion} · {a.metadata?.seguimiento?.period || 'Turno sin confirmar'}</small><p>{a.descripcion}</p>{canManage && !previewOnly && <button onClick={() => setUpdate({ initialUpdate: a })}>Corregir / completar registro</button>}</article>)}
       <h3>Eficiencia de toda la intervención: {selected.location !== 'Boulogne' ? 'fuera de alcance' : result.percent == null ? 'sin confirmar' : `${result.percent} %`}</h3><p>{result.reason}</p>
-      <DayBreakdown result={result} onComplete={canManage ? date => setUpdate({ initialDate: date }) : null} />
+      <DayBreakdown result={result} onComplete={canManage && !previewOnly ? date => setUpdate({ initialDate: date }) : null} />
       {error && <p role="alert" className="tracking-error">{error}</p>}
     </section></div>}
     {importing && <ImportarPilotoModal events={events} onClose={() => setImporting(false)} onImported={load} />}

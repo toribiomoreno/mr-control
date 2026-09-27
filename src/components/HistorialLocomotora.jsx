@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import EventFilters from './EventFilters.jsx';
-import KpiCard from './KpiCard.jsx';
+import LocomotiveLifeLine from './LocomotiveLifeLine.jsx';
 import TimelineEvent from './TimelineEvent.jsx';
 
 function groupEventsByDate(events) {
@@ -93,9 +93,11 @@ export default function HistorialLocomotora({
   locomotiveImage,
   locomotoras,
   onLocomotiveChange,
+  onOpenMaintenance,
   onCreateActualizacion,
   onForbidden,
   onImportLibro,
+  onPreviewFile,
   onRegisterEvent,
   onRetry,
 }) {
@@ -121,8 +123,6 @@ export default function HistorialLocomotora({
       && eventMatchesDateRange(event, dateFrom, dateTo)
     ));
   const groupedEvents = groupEventsByDate(filteredEvents);
-  const latestPreventive = locomotiveEvents.find((event) => event.tipo === 'preventivo');
-  const latestCorrective = locomotiveEvents.find((event) => event.tipo === 'correctivo');
 
   const handleClearDateRange = () => {
     setDateFrom('');
@@ -185,6 +185,9 @@ export default function HistorialLocomotora({
             </div>
 
             <div className="history-hero-actions">
+              <label className="history-import-button">Ver archivo privado (temporal)
+                <input accept="application/json,.json" onChange={(event) => { const [file] = event.target.files || []; onPreviewFile?.(file); event.target.value = ''; }} type="file" />
+              </label>
               {canManage && (
                 <label className={`history-import-button ${isImporting ? 'is-loading' : ''}`}>
                   {isImporting ? 'Importando...' : 'Importar libro de novedades'}
@@ -210,11 +213,10 @@ export default function HistorialLocomotora({
           </div>
         )}
 
-        <section className="history-kpi-grid">
-          <KpiCard icon="C" label="Ultimo preventivo" tone="preventivo" value={latestPreventive ? formatDateLabel(latestPreventive.fecha) : 'Sin registro'} />
-          <KpiCard icon="H" label="Ultimo correctivo" tone="correctivo" value={latestCorrective ? formatDateLabel(latestCorrective.fecha) : 'Sin registro'} />
-          <KpiCard icon="D" label="Dias sin novedades" tone="libro" value="0" />
-        </section>
+        {!loadError && <LocomotiveLifeLine events={locomotiveEvents} loading={loading} onOpenMaintenance={(id) => {
+          const maintenance = locomotiveEvents.find((event) => event.id === id);
+          onOpenMaintenance(id, targetLoco.codigo, maintenance?.fecha, maintenance?.metadata?.seguimiento?.location);
+        }} />}
 
         <EventFilters
           activeFilter={activeFilter}
@@ -236,7 +238,7 @@ export default function HistorialLocomotora({
               <div className="timeline-day-events">
                 {group.events.map((event) => (
                   <TimelineEvent
-                    canManage={canManage}
+                    canManage={canManage && event.origen !== 'vista-previa-privada'}
                     event={event}
                     key={event.id}
                     onCreateActualizacion={onCreateActualizacion}

@@ -9,6 +9,8 @@ La opción Seguimiento reemplaza al calendario. Conserva estilos, navegación, f
 - Eficiencia: resultado semanal por mantenimiento y explicación de toda la intervención al abrirlo.
 - Informe: tabla filtrada para imprimir o guardar PDF. CSV de registros y de indicadores. Respaldo JSON de mantenimientos (no incluye contenido binario de adjuntos ni el resto del Libro).
 - Importación del respaldo JSON del piloto: vista previa, validación, transacción atómica, identificadores de origen, omisión de importados y detección conservadora de posibles duplicados. No sobrescribe registros existentes. Los casos incompletos o duplicados requieren revisión y quedan fuera; se muestran antes de confirmar.
+- Archivo Histórico: línea de vida de dos semanas por locomotora, con períodos de disponibilidad confirmada sobre el eje y cada mantenimiento debajo. Un mantenimiento de varios días conserva la misma barra; al tocarlo abre su detalle en Seguimiento. Los días sin evidencia se dejan sin color.
+- En Archivo Histórico y Seguimiento, **Ver archivo privado (temporal)** permite revisar un JSON local de la semana piloto en ambas pantallas sin subirlo al repositorio ni guardarlo en la base. Al cerrar la pestaña se pierde esta vista. La importación permanente requiere base habilitada y revisión de duplicados.
 
 ## Reglas combinadas
 
@@ -46,6 +48,8 @@ El indicador es por mantenimiento, no un indicador de utilización del personal 
 8. Una vez validado, integrar la rama y seleccionar el commit de producción en Vercel. Identificar la versión por commit/despliegue, no solo por el texto del pie.
 
 La base conserva los datos; Vercel sirve la interfaz. No guardar datos de empresa en archivos del repositorio ni en variables `VITE_*` (son públicas para el navegador). El JSON descargado y los informes contienen datos: compartir únicamente la selección necesaria.
+
+El archivo privado preparado para el piloto 21–25/9 contiene 11 mantenimientos y 21 novedades. No incluye E719 N9 ni numerales de EMEPA porque faltan fechas verificadas. E714, E709 y E718 siguen abiertos en el archivo, con su última confirmación del 25/9; las franjas posteriores quedan sin estado confirmado hasta registrar un parte nuevo.
 
 ## Verificación
 

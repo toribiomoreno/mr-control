@@ -5,6 +5,8 @@
 .tracking-heading p,.tracking-hint,.tracking-note, .tracking-period span { color:var(--muted); line-height:1.6; }
 .tracking-page button,.tracking-detail button,.tracking-choices button { cursor:pointer; }
 .tracking-toolbar { margin:16px 0; }
+.tracking-private-file { display:inline-flex!important; align-items:center; padding:10px 14px; border:1px solid var(--border); border-radius:8px; background:#152238; color:var(--text); cursor:pointer; }
+.tracking-private-file input { display:none; }
 .tracking-toolbar label,.tracking-fields label { display:grid; gap:8px; }
 .tracking-toolbar button,.tracking-tabs button,.tracking-page select,.tracking-page input,.tracking-detail button:not(.modal-close),.tracking-choices button { padding:10px 14px; border:1px solid var(--border); border-radius:8px; background:#152238; color:var(--text); font:inherit; }
 .tracking-tabs { border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:20px; }

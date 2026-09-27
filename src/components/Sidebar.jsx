@@ -3,8 +3,7 @@ import { useState } from 'react';
 import { rolLegible } from '../lib/permissions.js';
 
 const locomotiveItems = [
-  { id: 'patio', label: 'Patio', tab: 'patio' },
-  { id: 'inventario', label: 'Inventario', tab: 'locos' },
+  { id: 'patio', label: 'Parque', tab: 'patio' },
   { id: 'archivo', label: 'Archivo historico', tab: 'historial' },
 ];
 
@@ -13,13 +12,13 @@ const sidebarItems = [
   { id: 'locomotoras', label: 'Locomotoras', children: locomotiveItems },
   { id: 'coches', label: 'Coches', tab: 'coches' },
   { id: 'calendario', label: 'Seguimiento', tab: 'calendario' },
-  { id: 'configuracion', label: 'Configuracion', tab: 'historial' },
+  { id: 'configuracion', label: 'Configuracion', tab: 'configuracion' },
 ];
 
 export default function Sidebar({ active = 'locomotoras', onNavigate, onSignOut, perfil }) {
   const [collapsed, setCollapsed] = useState(false);
   const [locomotivesOpen, setLocomotivesOpen] = useState(true);
-  const isLocomotivesActive = ['locomotoras', 'patio', 'inventario', 'archivo'].includes(active);
+  const isLocomotivesActive = ['locomotoras', 'patio', 'archivo'].includes(active);
   const userName = perfil?.nombre || perfil?.email || 'Usuario';
 
   return (

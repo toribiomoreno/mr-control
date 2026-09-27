@@ -21,7 +21,7 @@ const numeralOptions = [
 ];
 
 const preventiveOptions = ['E', 'A', 'AB', 'ABC', ...numeralOptions];
-const correctiveSpecialties = ['Mecanica', 'Electrica', 'Neumatica', 'Sistemas de seguridad', 'Otra'];
+const correctiveSpecialties = ['Mecanica', 'Electrica', 'Neumatica', 'Sistemas de seguridad', 'Equipos de a bordo', 'Otra'];
 
 
 function currentTimeValue() {
