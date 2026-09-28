@@ -51,6 +51,20 @@ function updateDescription(actualizacion) {
   return actualizacion.descripcion;
 }
 
+function sameText(left, right) {
+  return String(left || '').trim().toLocaleLowerCase('es') === String(right || '').trim().toLocaleLowerCase('es');
+}
+
+function summaryParts(event) {
+  const tracking = event.metadata?.seguimiento;
+  if (!tracking) return [];
+  const parts = [];
+  if (tracking.system && !sameText(tracking.system, event.especialidad)) parts.push(tracking.system);
+  if (tracking.component && !String(event.titulo || '').toLocaleLowerCase('es').includes(tracking.component.toLocaleLowerCase('es'))) parts.push(tracking.component);
+  if (tracking.detentionStart) parts.push(`Detenida desde ${tracking.detentionStart.split('-').reverse().join('/')}`);
+  return parts;
+}
+
 export default function TimelineEvent({ canManage = false, event, onCreateActualizacion, onForbidden }) {
   const [showUpdates, setShowUpdates] = useState(false);
   const [modalMode, setModalMode] = useState('');
@@ -88,7 +102,7 @@ export default function TimelineEvent({ canManage = false, event, onCreateActual
           <div className="timeline-event-topline">
             <strong>{event.titulo || typeLabels[event.tipo] || event.tipo}</strong>
             {event.metadata?.fleetConfirmation && <span>Estado de flota</span>}
-            <span>{event.especialidad}</span>
+            {event.especialidad && !sameText(event.especialidad, event.titulo) && <span>{event.especialidad}</span>}
             {event.automatico && <em>Automatico</em>}
             {isMaintenance && (
               <em className={`maintenance-state-badge ${estadoMantenimiento}`}>
@@ -97,8 +111,8 @@ export default function TimelineEvent({ canManage = false, event, onCreateActual
             )}
           </div>
 
-          <p>{event.descripcion}</p>
-          {event.metadata?.seguimiento && <p className="history-modal-note">Mantenimiento: {event.metadata.seguimiento.system} · {event.metadata.seguimiento.component} · {event.metadata.seguimiento.location} · detenida desde {event.metadata.seguimiento.detentionStart?.split('-').reverse().join('/') || 'sin confirmar'}</p>}
+          {event.descripcion && !sameText(event.descripcion, event.titulo) && <p>{event.descripcion}</p>}
+          {summaryParts(event).length > 0 && <p className="history-modal-note">{summaryParts(event).join(' · ')}</p>}
 
           <div className="timeline-event-meta">
             {event.responsable && <span>Responsable: {event.responsable}</span>}

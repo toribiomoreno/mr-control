@@ -148,7 +148,7 @@ export default function App() {
   const [historyError, setHistoryError] = useState('');
 
   const historyLoco = historyTarget || selected;
-  const defaultHistoryLoco = historyLoco || locomotoras.find((loco) => loco.codigo === '7774') || locomotoras[0];
+  const defaultHistoryLoco = historyLoco || locomotoras.find((loco) => loco.codigo === 'E721') || locomotoras[0];
 
   const loadHistoryEvents = useCallback(async (loco = defaultHistoryLoco) => {
     if (!loco?.codigo) return;

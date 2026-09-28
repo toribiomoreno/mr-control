@@ -108,7 +108,7 @@ export default function HistorialLocomotora({
   const [search, setSearch] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const targetLoco = loco || locomotoras.find((item) => item.codigo === '7774') || locomotoras[0];
+  const targetLoco = loco || locomotoras.find((item) => item.codigo === 'E721') || locomotoras[0];
   const currentState = displayState(targetLoco);
   const hasDateRange = Boolean(dateFrom || dateTo);
   const dateRangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
