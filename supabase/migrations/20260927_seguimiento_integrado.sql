@@ -33,6 +33,20 @@ begin
   end loop;
 end $$;
 
+-- El parte importado también contiene información de la empresa.
+alter table public.importaciones_libro enable row level security;
+revoke all on public.importaciones_libro from anon;
+grant select, insert, update, delete on public.importaciones_libro to authenticated;
+drop policy if exists mr_book_read_guard on public.importaciones_libro;
+create policy mr_book_read_guard on public.importaciones_libro as restrictive for select to authenticated using(public.mr_access(false));
+drop policy if exists mr_book_write_guard on public.importaciones_libro;
+create policy mr_book_write_guard on public.importaciones_libro as restrictive for all to authenticated using(public.mr_access(true)) with check(public.mr_access(true));
+alter table public.locomotoras enable row level security;
+revoke all on public.locomotoras from anon;
+grant select on public.locomotoras to authenticated;
+drop policy if exists mr_locomotive_read_guard on public.locomotoras;
+create policy mr_locomotive_read_guard on public.locomotoras as restrictive for select to authenticated using(public.mr_access(false));
+
 -- Profiles must not allow self-promotion through a legacy permissive policy.
 create or replace function public.mr_developer()
 returns boolean language sql stable security definer set search_path = public as $$

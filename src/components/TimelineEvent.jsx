@@ -87,6 +87,7 @@ export default function TimelineEvent({ canManage = false, event, onCreateActual
         <div className="timeline-event-body">
           <div className="timeline-event-topline">
             <strong>{event.titulo || typeLabels[event.tipo] || event.tipo}</strong>
+            {event.metadata?.fleetConfirmation && <span>Estado de flota</span>}
             <span>{event.especialidad}</span>
             {event.automatico && <em>Automatico</em>}
             {isMaintenance && (

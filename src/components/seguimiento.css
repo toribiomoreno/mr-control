@@ -57,6 +57,9 @@
 .maintenance-toolbar { padding:16px; border:1px solid var(--border); border-radius:14px; background:#101b2c; align-items:end; gap:16px; }
 .week-navigation { display:flex; align-items:end; gap:8px; }.week-navigation button { font-size:24px; line-height:21px; }
 .maintenance-toolbar label { color:#a6b4c8; font-size:12px; }
+.maintenance-entry { display:flex; align-items:end; gap:8px; min-width:min(390px,100%); }
+.maintenance-entry label { flex:1; min-width:170px; }.maintenance-entry select { width:100%; }
+.maintenance-entry button:disabled { opacity:.5; cursor:not-allowed; }
 .maintenance-export { margin-left:auto; align-self:center; position:relative; color:#a6b4c8; font-size:13px; }
 .maintenance-export summary { cursor:pointer; padding:12px; }.maintenance-export button { display:block; margin-top:5px; }
 .maintenance-key { display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin:20px 0 16px; font-size:12px; color:#cbd5e1; }
@@ -78,13 +81,21 @@
 .day-update + .day-update { border-top:1px solid #263449; padding-top:14px; margin-top:14px; }.day-update p { margin:8px 0; color:#dbe3ef; }.day-update small { color:#94a3b8; }
 .maintenance-type { display:inline-block; padding:5px 9px; border-radius:6px; font-size:12px; color:#fecaca; background:#4c1f26; }.maintenance-type.preventivo { color:#fef08a; background:#4c3b0b; }
 .tracking-detail .modal-heading h2 { font-size:25px; line-height:1.25; max-width:780px; }
+.maintenance-detail-section { margin-top:20px; padding:22px; border:1px solid #334155; border-radius:14px; background:#101d2d; }
+.maintenance-detail-section + .maintenance-detail-section { margin-top:22px; }
+.maintenance-section-heading { display:flex; gap:14px; align-items:center; margin-bottom:20px; }
+.maintenance-section-heading > span { display:grid; place-items:center; width:40px; height:40px; flex:none; color:#93c5fd; border:1px solid #3b577a; border-radius:10px; font-weight:800; }
+.maintenance-section-heading h3 { margin:3px 0; font-size:21px; }
+.maintenance-section-heading .eyebrow { margin:0; }
 .tracking-facts { gap:10px; }.tracking-facts dt { margin-bottom:8px; }.tracking-facts dd { line-height:1.45; }
 .maintenance-delays { border-left:3px solid #f87171; background:#2d202a; border-radius:6px; padding:14px 18px; margin:20px 0; }.maintenance-delays h3 { margin-top:0; }.maintenance-delays p { color:#f1cbd0; line-height:1.5; }
 .maintenance-questions { padding:14px; border:1px solid #48546a; border-radius:8px; color:#cbd5e1; }.maintenance-questions summary { cursor:pointer; }.maintenance-questions > div { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:10px; }
 .journal-title { margin:28px 0 12px; }
 .maintenance-journal-entry { display:grid; grid-template-columns:145px 1fr; gap:18px; border-top:1px solid #2b394d; padding:22px 0; }
 .maintenance-journal-date small { display:block; margin-top:7px; color:#94a3b8; }.maintenance-journal-entry p { white-space:pre-wrap; line-height:1.55; }
+.maintenance-journal-entry .journal-outcome { margin-top:12px; color:#94a3b8; font-size:13px; }.journal-outcome strong { color:#f1f5f9; }
 .journal-activity { padding:4px 8px; border-radius:5px; font-size:12px; background:#263449; }.journal-activity.trabajo { color:#86efac; background:#15372c; }.journal-activity.espera,.journal-activity.mixto { color:#fca5a5; background:#44252d; }
+.journal-preventive { display:inline-block; margin-right:8px; color:#fde68a; font-size:12px; }
 .journal-facts { display:grid; grid-template-columns:1fr 1fr; gap:14px; }.journal-facts dt { font-size:11px; color:#94a3b8; margin-bottom:5px; }.journal-facts dd { margin:0; font-size:13px; line-height:1.5; }
 .tracking-detail .journal-edit { background:transparent!important; font-size:12px; margin-top:12px; }
 .maintenance-efficiency { margin-top:30px; padding:24px; border:1px solid #37516a; border-radius:14px; background:#0e1c2d; }
@@ -93,9 +104,15 @@
 .efficiency-bar span { min-width:2px; }.efficiency-bar .useful,.efficiency-legend .useful { background:#34d399; }.efficiency-bar .lost,.efficiency-legend .lost { background:#fb7185; }.efficiency-bar .missing,.efficiency-legend .missing { background:repeating-linear-gradient(135deg,#64748b 0,#64748b 5px,#475569 5px,#475569 10px); }
 .efficiency-legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:#cbd5e1; }.efficiency-legend span { display:flex; gap:6px; align-items:center; }.efficiency-legend i { width:10px; height:10px; border-radius:2px; }.efficiency-days summary { padding:12px 0; cursor:pointer; color:#bfdbfe; }
 @media(max-width:760px) { .maintenance-page { padding:20px 14px; }.maintenance-heading { gap:12px; }.maintenance-week-range { padding:0; border:0; margin:0; }.maintenance-heading .primary-action { margin:0; }.maintenance-toolbar { gap:12px; }.maintenance-export { margin:0; }.maintenance-day-card,.maintenance-journal-entry { grid-template-columns:1fr; gap:12px; }.journal-facts,.tracking-facts { grid-template-columns:1fr; }.efficiency-heading { align-items:start; flex-direction:column; }.maintenance-efficiency { padding:16px; }.maintenance-day-panel { padding:16px; } }
+@media(max-width:760px) { .maintenance-entry { flex-wrap:wrap; }.maintenance-detail-section { padding:16px; } }
 .maintenance-heading .primary-action { width:auto; min-width:210px; padding:13px 18px; }
 .maintenance-page .tracking-week-head > strong { font-size:12px; }
 .maintenance-day-card.correctivo,.maintenance-day-card.preventivo { background:transparent; }
 .maintenance-export[open] { padding-bottom:0; }
 .intervention-modal.tracking-detail { width:min(1040px,calc(100vw - 32px)); max-width:1040px; }
 .tracking-detail .tracking-toolbar .primary-action { width:auto; margin-top:0; }
+.voice-field { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+.voice-field textarea { flex: 1 1 100%; }
+.voice-field button { border: 1px solid #b8c9c2; border-radius: .55rem; padding: .45rem .75rem; background: #eef8f3; color: #15513c; cursor: pointer; font: inherit; }
+.voice-field button:focus-visible { outline: 2px solid #176b50; outline-offset: 2px; }
+.voice-field small { color: #cbd5e1; }

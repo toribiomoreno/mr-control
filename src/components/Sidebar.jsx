@@ -5,20 +5,19 @@ import { rolLegible } from '../lib/permissions.js';
 const locomotiveItems = [
   { id: 'patio', label: 'Parque', tab: 'patio' },
   { id: 'archivo', label: 'Archivo historico', tab: 'historial' },
+  { id: 'calendario', label: 'Mantenimientos', tab: 'calendario' },
 ];
 
 const sidebarItems = [
   { id: 'inicio', label: 'Inicio', tab: 'inicio' },
   { id: 'locomotoras', label: 'Locomotoras', children: locomotiveItems },
   { id: 'coches', label: 'Coches', tab: 'coches' },
-  { id: 'calendario', label: 'Mantenimientos', tab: 'calendario' },
-  { id: 'configuracion', label: 'Configuracion', tab: 'configuracion' },
 ];
 
 export default function Sidebar({ active = 'locomotoras', onNavigate, onSignOut, perfil }) {
   const [collapsed, setCollapsed] = useState(false);
   const [locomotivesOpen, setLocomotivesOpen] = useState(true);
-  const isLocomotivesActive = ['locomotoras', 'patio', 'archivo'].includes(active);
+  const isLocomotivesActive = ['locomotoras', 'patio', 'archivo', 'calendario'].includes(active);
   const userName = perfil?.nombre || perfil?.email || 'Usuario';
 
   return (

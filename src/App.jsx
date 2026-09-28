@@ -4,6 +4,7 @@ import AreasMaterialRodante from './components/AreasMaterialRodante.jsx';
 import SeguimientoMantenimiento from './components/SeguimientoMantenimiento.jsx';
 import Home from './components/Home.jsx';
 import HistorialLocomotora from './components/HistorialLocomotora.jsx';
+import ConfirmarEstadoModal from './components/ConfirmarEstadoModal.jsx';
 import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.jsx';
 import Login from './components/Login.jsx';
 import Patio from './components/Patio.jsx';
@@ -15,14 +16,13 @@ import locoRoja from './assets/loco_roja.webp';
 import { useAuth } from './context/useAuth.js';
 import initialLocomotoras from './data/locomotoras.js';
 import { previewPilotEvents } from './domain/maintenance/import.js';
+import { fleetFromTracking } from './domain/maintenance/fleetState.js';
 import { permisoDenegadoMensaje, puedeGestionarArchivoHistorico, puedeGestionarPatioCalendario } from './lib/permissions.js';
 import { crearActualizacion } from './services/actualizacionesEventoSupabaseService.js';
 import { createHistorialEvent, fetchHistorialByLocomotora } from './services/historialSupabaseService.js';
 import { importarLibroNovedades } from './services/importacionLibroSupabaseService.js';
-import { localStorageKeys } from './services/localStorageKeys.js';
-
-// Historial local usado por el panel de intervenciones recientes del Patio.
-const historyStorageKey = localStorageKeys.histories;
+import { fetchSeguimiento } from './services/seguimientoService.js';
+import { fetchFleetConfirmations, saveFleetConfirmation } from './services/fleetConfirmationService.js';
 
 const interventionLabels = {
   correctivo: 'Correctivo',
@@ -32,14 +32,6 @@ const interventionLabels = {
   prueba: 'Prueba',
 };
 
-function interventionClassFromType(type) {
-  const normalized = String(type || '').trim().toLowerCase();
-  if (normalized.includes('prevent')) return 'preventivo';
-  if (normalized.includes('lavado')) return 'lavado';
-  if (normalized.includes('inspe')) return 'inspeccion';
-  if (normalized.includes('prueba')) return 'prueba';
-  return 'correctivo';
-}
 
 function interventionTitle(item) {
   if (item.interventionClass !== 'preventivo') {
@@ -76,6 +68,7 @@ function estadoEtiqueta(loco) {
 
 function estadoOperativo(loco) {
   if (!loco) return '';
+  if (loco.estado === 'sin_confirmar') return 'Sin estado confirmado';
   if (loco.lavadoProgramado) return 'Operativa';
   if (loco.estado === 'reserva') return 'Reserva';
   if (loco.estado === 'uso_excepcional') return 'Uso excepcional';
@@ -88,6 +81,7 @@ function estadoOperativoClase(loco) {
   if (estado === 'Operativa') return 'is-service';
   if (estado === 'Reserva') return 'is-reserve';
   if (estado === 'Uso excepcional') return 'is-exceptional';
+  if (estado === 'Sin estado confirmado') return 'is-reserve';
   return 'is-corrective';
 }
 
@@ -117,31 +111,6 @@ function dotClase(area) {
   return 'service';
 }
 
-function normalizeHistoryItem(item, loco) {
-  const interventionClass = item.interventionClass || interventionClassFromType(item.type);
-  const preventiveCode = interventionClass === 'preventivo' ? item.preventiveCode || item.preventiveType || '' : '';
-  const preventiveFamily = interventionClass === 'preventivo'
-    ? item.preventiveFamily || (String(preventiveCode || item.type || '').toLowerCase().includes('numeral') ? 'numeral' : 'liviana')
-    : '';
-  const modality = interventionClass === 'preventivo'
-    ? preventiveFamily === 'numeral'
-      ? item.modality || item.modalidad || 'Interno'
-      : 'Interno'
-    : '';
-
-  return {
-    ...item,
-    interventionClass,
-    preventiveFamily,
-    preventiveCode,
-    modality,
-    type: item.type || interventionLabels[interventionClass] || 'Intervencion',
-    locomotoraId: item.locomotoraId || loco.id,
-    locomotoraCodigo: item.locomotoraCodigo || loco.codigo,
-    area: item.area || 'General',
-  };
-}
-
 function sortHistoryDescending(items) {
   return [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.id || 0) - (a.id || 0));
 }
@@ -166,23 +135,17 @@ export default function App() {
   const [isFleetImportOpen, setIsFleetImportOpen] = useState(false);
   const [, setFleetStatusHistory] = useState([]);
   const [, setFleetImports] = useState([]);
-  const [patioCalendarActivities, setPatioCalendarActivities] = useState([]);
+  const [, setPatioCalendarActivities] = useState([]);
 
-  // Archivo historico completo y resumen local separado para el Patio.
+  // Archivo historico y estado del parque comparten el seguimiento.
   const [historyEvents, setHistoryEvents] = useState([]);
+  const [trackingEvents, setTrackingEvents] = useState([]);
+  const [fleetConfirmations, setFleetConfirmations] = useState([]);
+  const [confirmationTarget, setConfirmationTarget] = useState(null);
+  const [trackingError, setTrackingError] = useState('');
+  const [trackingRevision, setTrackingRevision] = useState(0);
   const [historyStatus, setHistoryStatus] = useState('idle');
   const [historyError, setHistoryError] = useState('');
-  const [histories, setHistories] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(historyStorageKey)) || {};
-    } catch {
-      return {};
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem(historyStorageKey, JSON.stringify(histories));
-  }, [histories]);
 
   const historyLoco = historyTarget || selected;
   const defaultHistoryLoco = historyLoco || locomotoras.find((loco) => loco.codigo === '7774') || locomotoras[0];
@@ -211,27 +174,60 @@ export default function App() {
     return () => window.clearTimeout(timeoutId);
   }, [tab, defaultHistoryLoco, loadHistoryEvents]);
 
-  const resumen = locomotoras.reduce(
+  useEffect(() => {
+    if (!session || !perfil?.activo) return undefined;
+    let active = true;
+    Promise.all([fetchSeguimiento(), fetchFleetConfirmations()]).then(([events, confirmations]) => {
+      if (active) { setTrackingEvents(events); setFleetConfirmations(confirmations); setTrackingError(''); }
+    }).catch(error => { if (active) setTrackingError(error.message); });
+    return () => { active = false; };
+  }, [session, perfil?.activo, tab, trackingRevision]);
+
+  const combinedTracking = [...trackingEvents, ...privatePreviewEvents.filter(preview =>
+    !trackingEvents.some(saved => saved.metadata?.pilotSourceId === preview.metadata?.pilotSourceId))];
+  const parque = fleetFromTracking(locomotoras, [...combinedTracking, ...fleetConfirmations]);
+  const parqueSelected = selected ? parque.find(loco => loco.codigo === selected.codigo) : null;
+  const parqueHistoryTarget = historyTarget ? parque.find(loco => loco.codigo === historyTarget.codigo) : null;
+
+  const resumen = parque.reduce(
     (totales, loco) => ({
       ...totales,
       [loco.estado]: totales[loco.estado] + 1,
       lavado: totales.lavado + (loco.lavadoProgramado ? 1 : 0),
     }),
-    { servicio: 0, operativa: 0, reserva: 0, uso_excepcional: 0, preventivo: 0, correctivo: 0, detenida: 0, lavado: 0 },
+    { servicio: 0, operativa: 0, reserva: 0, uso_excepcional: 0, preventivo: 0, correctivo: 0, detenida: 0, sin_confirmar: 0, lavado: 0 },
   );
-  const selectedHistory = selected ? histories[selected.id] || [] : [];
   const normalizedSelectedHistory = selected
-    ? sortHistoryDescending(selectedHistory.map((item) => normalizeHistoryItem(item, selected)))
+    ? sortHistoryDescending(combinedTracking.filter(item => item.locomotoraCodigo === selected.codigo).map(item => ({
+      id: item.id, date: item.fecha, type: item.titulo, interventionClass: item.tipo,
+      preventiveCode: item.preventivoCodigo, area: item.especialidad,
+      technician: item.responsable || 'Por confirmar', detail: item.descripcion,
+    })))
     : [];
   const latestPreventiveIntervention = normalizedSelectedHistory.find((item) => item.interventionClass === 'preventivo');
-  const latestCorrectiveIntervention = normalizedSelectedHistory.find((item) => item.interventionClass === 'correctivo');
-  const currentPreventiveType = selected?.tipoPreventivo || latestPreventiveIntervention?.preventiveCode || '';
-  const currentCorrectiveType = latestCorrectiveIntervention?.area || 'General';
 
   const openHistory = (loco) => {
     setSelected(loco);
     setHistoryTarget(loco);
     setTab('historial');
+  };
+
+  const resolvePendingFleet = (loco) => {
+    const open = combinedTracking.filter(item => item.locomotoraCodigo === loco.codigo && ['preventivo', 'correctivo'].includes(item.tipo) && !item.anulado && item.estadoMantenimiento !== 'finalizado')
+      .sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+    if (open) {
+      setTrackingSelection({ id: open.id, codigo: loco.codigo, fecha: open.fecha });
+      setTab('calendario');
+      return;
+    }
+    setConfirmationTarget(loco);
+  };
+
+  const confirmFleet = async (data) => {
+    if (!canManageHistory) throw new Error(permisoDenegadoMensaje);
+    const saved = await saveFleetConfirmation(data, locomotoras, perfil?.nombre || perfil?.email, combinedTracking);
+    setFleetConfirmations(current => [saved, ...current]);
+    if (historyLoco?.codigo === data.codigo) await loadHistoryEvents(historyLoco);
   };
 
   const loadPrivatePreview = async (file) => {
@@ -270,32 +266,6 @@ export default function App() {
     setIsEventModalOpen(true);
   };
 
-  const saveLocalInterventionEvent = (event) => {
-    const next = locomotoras.find((loco) => loco.codigo === event.locomotoraCodigo);
-    if (next) {
-      const panelItem = {
-        id: event.id || `${event.locomotoraCodigo}-${Date.now()}`,
-        date: event.fecha,
-        type: event.titulo,
-        interventionClass: event.tipo,
-        preventiveCode: event.tipo === 'preventivo' ? event.preventivoCodigo || event.titulo.replace('Preventivo ', '') : '',
-        area: event.especialidad || 'General',
-        locomotoraId: next.id,
-        locomotoraCodigo: next.codigo,
-        technician: event.responsable || 'Sin responsable asignado',
-        detail: event.descripcion,
-        criticidad: event.criticidad || 'baja',
-      };
-
-      setHistories((current) => ({
-        ...current,
-        [next.id]: sortHistoryDescending([panelItem, ...(current[next.id] || [])]),
-      }));
-      setSelected(next);
-      setHistoryTarget(next);
-    }
-  };
-
   const saveHistoryEvent = async (event, files = []) => {
     if (!hasEventPermission(eventModalSource)) {
       denyPermission();
@@ -305,7 +275,7 @@ export default function App() {
 
     const next = locomotoras.find((loco) => loco.codigo === event.locomotoraCodigo);
     const savedEvent = await createHistorialEvent(event, files, locomotoras);
-    if (eventModalSource !== 'archivo') saveLocalInterventionEvent(event);
+    setTrackingRevision(value => value + 1);
     setHistoryEvents((current) => {
       const withoutDuplicate = current.filter((item) => item.id !== savedEvent.id);
       return [savedEvent, ...withoutDuplicate];
@@ -522,6 +492,7 @@ export default function App() {
 
       <div className="app-content">
         {privatePreviewMessage && <div className="history-modal-note" role="status">{privatePreviewMessage}{privatePreviewNotes.length > 0 && <details><summary>{privatePreviewNotes.length} datos por confirmar</summary><ul>{privatePreviewNotes.map((note) => <li key={note}>{note}</li>)}</ul></details>}</div>}
+        {trackingError && <div className="history-modal-note" role="status">Base de seguimiento pendiente: {trackingError} Podés revisar un archivo privado temporalmente.</div>}
         {permissionMessage && (
           <div className="permission-toast" role="alert">
             {permissionMessage}
@@ -538,59 +509,63 @@ export default function App() {
         <main className="operations-layout">
           <Patio
             canManage={canManagePatioCalendar}
-            locomotoras={locomotoras}
+            canConfirm={canManageHistory}
+            locomotoras={parque}
             onImportDailyState={openFleetImport}
             onOpenHistory={openHistory}
-            selected={selected}
+            onResolvePending={resolvePendingFleet}
+            selected={parqueSelected}
             setSelected={setSelected}
           />
 
           <aside className="side-panel">
-            {selected ? (
+            {parqueSelected ? (
               <>
                 <div className="panel-heading">
                   <div>
                     <span className="panel-kicker">Locomotora seleccionada</span>
-                    <h2>{selected.codigo}</h2>
+                    <h2>{parqueSelected.codigo}</h2>
                   </div>
 
-                  <span className={`status-pill ${estadoOperativoClase(selected)}`}>
-                    {estadoOperativo(selected)}
+                  <span className={`status-pill ${estadoOperativoClase(parqueSelected)}`}>
+                    {estadoOperativo(parqueSelected)}
                   </span>
                 </div>
 
-                <div className={`panel-loco-preview ${selected.codigo === '7774' ? 'blue' : 'red'}`}>
-                  <img alt={`Locomotora ${selected.codigo}`} src={imagenLocomotora(selected)} />
+                <div className={`panel-loco-preview ${parqueSelected.codigo === '7774' ? 'blue' : 'red'}`}>
+                  <img alt={`Locomotora ${parqueSelected.codigo}`} src={imagenLocomotora(parqueSelected)} />
                 </div>
 
                 <div className="panel-section">
                   <h3>Estado actual</h3>
 
-                  {['correctivo', 'detenida'].includes(selected.estado) && (
+                  {['correctivo', 'detenida'].includes(parqueSelected.estado) && (
                     <>
                       <p><strong>Estado:</strong><br />Detenida</p>
-                      <p><strong>ClasificaciÃ³n:</strong><br />{selected.clasificacionDetencion || currentCorrectiveType || 'Sin clasificar'}</p>
+                      <p><strong>Motivo:</strong><br />{parqueSelected.observacion || 'Sin clasificar'}</p>
                     </>
                   )}
 
-                  {selected.estado === 'preventivo' && (
+                  {parqueSelected.estado === 'preventivo' && (
                     <>
                       <p><strong>Estado:</strong><br />Mantenimiento preventivo</p>
-                      <p><strong>Tipo preventivo:</strong><br />{currentPreventiveType || 'Pendiente de carga'}</p>
+                      <p><strong>Tipo preventivo:</strong><br />{parqueSelected.tipoPreventivo || 'Pendiente de carga'}</p>
                     </>
                   )}
 
-                  {(['servicio', 'operativa', 'reserva', 'uso_excepcional'].includes(selected.estado) || selected.lavadoProgramado) && (
+                  {(['servicio', 'operativa', 'reserva', 'uso_excepcional'].includes(parqueSelected.estado) || parqueSelected.lavadoProgramado) && (
                     <>
-                      <p><strong>Estado:</strong><br />{estadoOperativo(selected)}</p>
+                      <p><strong>Estado:</strong><br />{estadoOperativo(parqueSelected)}</p>
                       <p><strong>Ultima intervencion preventiva:</strong><br />{latestPreventiveIntervention ? `${formatDateDisplay(latestPreventiveIntervention.date)} - ${interventionTitle(latestPreventiveIntervention)}` : 'Pendiente de carga'}</p>
                     </>
                   )}
 
-                  {selected.fechaHoraParte && (
-                    <p><strong>Ãšltimo parte:</strong><br />{selected.fechaParte} {selected.horaParte}</p>
+                  {parqueSelected.fechaHoraParte && (
+                    <p><strong>Último parte:</strong><br />{parqueSelected.fechaParte} {parqueSelected.horaParte}</p>
                   )}
-                  <p><strong>Observaciones:</strong><br />{selected.observacion || 'Sin observaciones'}</p>
+                  <p><strong>Estado registrado:</strong><br />{parqueSelected.fuenteEstado}</p>
+                  <p><strong>Observaciones:</strong><br />{parqueSelected.observacion || 'Sin observaciones'}</p>
+                  {(parqueSelected.estado === 'sin_confirmar' || parqueSelected.estadoConfirmado === false) && canManageHistory && <button className="primary-action" type="button" onClick={() => resolvePendingFleet(parqueSelected)}>Completar estado pendiente</button>}
                 </div>
 
                 <div className="panel-section timeline">
@@ -646,14 +621,16 @@ export default function App() {
         </main>
       )}
 
+      {confirmationTarget && <ConfirmarEstadoModal loco={confirmationTarget} onClose={() => setConfirmationTarget(null)} onSave={confirmFleet} />}
+
         {tab === 'historial' && (
         <HistorialLocomotora
           canManage={canManageHistory}
-          events={[...historyEvents, ...privatePreviewEvents.filter((preview) => !historyEvents.some((saved) => saved.metadata?.pilotSourceId === preview.metadata?.pilotSourceId))]}
+          events={[...historyEvents, ...combinedTracking.filter((item) => item.origen === 'vista-previa-privada')]}
           loadError={privatePreviewEvents.length ? '' : historyError}
           loading={historyStatus === 'loading' && !privatePreviewEvents.length}
-          loco={defaultHistoryLoco}
-          locomotoras={locomotoras}
+          loco={parqueHistoryTarget || parqueSelected || parque.find(loco => loco.codigo === defaultHistoryLoco.codigo)}
+          locomotoras={parque}
           locomotiveImage={imagenLocomotora}
           onCreateActualizacion={saveActualizacionEvento}
           onForbidden={denyPermission}
@@ -696,20 +673,11 @@ export default function App() {
         <SeguimientoMantenimiento
           initialSelection={trackingSelection}
           privatePreviewEvents={privatePreviewEvents}
-          onPreviewFile={loadPrivatePreview}
+          onChanged={() => setTrackingRevision(value => value + 1)}
           canManage={canManageHistory}
-          locomotoras={locomotoras}
-          patioActivities={patioCalendarActivities}
-          onOpenHistory={(codigo) => {
-            setTrackingSelection(null);
-            const loco = locomotoras.find(l => l.codigo === codigo);
-            if (loco) { setSelected(loco); setHistoryTarget(loco); }
-            setTab('historial');
-          }}
+          locomotoras={parque}
         />
       )}
-
-      {tab === 'configuracion' && <main className="module-placeholder"><section><h2>Configuración</h2></section></main>}
 
       {tab === 'locos' && (
         <main className="locomotive-list">

@@ -1,0 +1,47 @@
+import { isVisibleMaintenance, maintenanceWindow, outcomeAtEnd, detentionReason } from './view.js';
+import { today } from './types.js';
+
+// Una fecha sin parte no convierte una locomotora en operativa.
+export function fleetState(loco, events, asOf = today()) {
+  const jobs = events.filter(e => e.locomotoraCodigo === loco.codigo && isVisibleMaintenance(e) && e.fecha <= asOf);
+  const confirmations = events.filter(e => e.locomotoraCodigo === loco.codigo && !e.anulado && e.fecha <= asOf && ['operativa', 'reserva', 'uso_excepcional'].includes(e.metadata?.fleetConfirmation?.state));
+  const latestConfirmation = [...confirmations].sort((a, b) => `${b.fecha} ${b.hora || ''}`.localeCompare(`${a.fecha} ${a.hora || ''}`))[0];
+  const open = jobs.filter(e => e.estadoMantenimiento !== 'finalizado' && maintenanceWindow(e, asOf).start <= asOf)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const last = [...jobs].sort((a, b) => (b.fechaCierre || b.fecha).localeCompare(a.fechaCierre || a.fecha))[0];
+  const reportDate = loco.fechaParte || '';
+  const lastMaintenanceDate = last?.fechaCierre || last?.fecha || '';
+  if (reportDate && reportDate >= lastMaintenanceDate && (!open.length || reportDate > open[0].fecha) && (!latestConfirmation || `${reportDate} ${loco.horaParte || ''}` > `${latestConfirmation.fecha} ${latestConfirmation.hora || ''}`)) {
+    return { ...loco, estado: loco.estado === 'servicio' ? 'operativa' : loco.estado,
+      estadoConfirmado: true, fuenteEstado: `Parte del ${reportDate}` };
+  }
+  if (open.length) {
+    const job = open[0];
+    const window = maintenanceWindow(job, asOf);
+    return { ...loco, estado: job.tipo, tipoPreventivo: job.preventivoCodigo || '',
+      observacion: detentionReason(job), lavadoProgramado: false,
+      estadoConfirmado: !window.unconfirmed, fuenteEstado: window.unconfirmed
+        ? `Detención confirmada hasta ${window.confirmedThrough}; continuidad por confirmar`
+        : `Mantenimiento desde ${window.start}` };
+  }
+  if (latestConfirmation && latestConfirmation.fecha >= lastMaintenanceDate) {
+    return { ...loco, estado: latestConfirmation.metadata.fleetConfirmation.state,
+      observacion: latestConfirmation.descripcion, lavadoProgramado: false,
+      estadoConfirmado: true, fuenteEstado: `Confirmación manual del ${latestConfirmation.fecha} ${latestConfirmation.hora || ''}`.trim() };
+  }
+  if (last) {
+    const outcome = outcomeAtEnd(last);
+    if (outcome.code === 'operativa') {
+      return { ...loco, estado: 'operativa', observacion: outcome.label,
+        lavadoProgramado: false, estadoConfirmado: true, fuenteEstado: `Resultado del ${outcome.date}` };
+    }
+    return { ...loco, estado: 'sin_confirmar', observacion: 'Disponibilidad por confirmar',
+      lavadoProgramado: false, estadoConfirmado: false, fuenteEstado: `Último mantenimiento: ${last.fechaCierre || last.fecha}` };
+  }
+  return { ...loco, estado: 'sin_confirmar', observacion: 'Sin parte ni mantenimiento confirmado',
+    lavadoProgramado: false, estadoConfirmado: false, fuenteEstado: 'Sin estado actualizado' };
+}
+
+export function fleetFromTracking(locomotoras, events, asOf = today()) {
+  return locomotoras.map(loco => fleetState(loco, events, asOf));
+}

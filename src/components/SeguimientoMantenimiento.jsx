@@ -10,11 +10,13 @@ import { registerCsv, efficiencyCsv } from '../domain/maintenance/export.js';
 import RegistroEventoModal from './RegistroEventoModal.jsx';
 import ActualizacionEventoModal from './ActualizacionEventoModal.jsx';
 import SeguimientoFields from './SeguimientoFields.jsx';
+import ImportarPilotoModal from './ImportarPilotoModal.jsx';
 import './seguimiento.css';
 
 const EMPTY = [];
 const stateNames = { worked: 'Útil', mixed: 'Mixto', wait: 'Pérdida', unknown: 'Sin información', excluded: 'Excluido', open: 'En curso' };
 const activityNames = { trabajo: 'Se trabajó', espera: 'Sin intervención', mixto: 'Trabajo y demora', sin_dato: 'Sin información' };
+const fleetStatusNames = { operativa: 'Operativa', servicio: 'Operativa', preventivo: 'Preventivo', correctivo: 'Correctivo', detenida: 'Detenida', reserva: 'Reserva', uso_excepcional: 'Uso excepcional', sin_confirmar: 'Sin confirmar' };
 const shortDay = day => new Intl.DateTimeFormat('es-AR', { weekday: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${day}T12:00Z`));
 function download(name, content, type = 'text/csv;charset=utf-8') {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -35,25 +37,23 @@ function Efficiency({ result, location, onComplete }) {
     <details className="efficiency-days"><summary>Ver cómo cuenta cada día</summary><div className="tracking-table-wrap"><table className="tracking-table"><thead><tr><th>Día</th><th>Evaluación</th><th>Útil</th><th>Pérdida</th><th>Explicación</th></tr></thead><tbody>{result.rows.map(row => <tr key={row.date}><td>{dateLabel(row.date)}</td><td>{stateNames[row.state]}{row.state === 'unknown' && onComplete && <button onClick={() => onComplete(row.date)}>Completar</button>}</td><td>{formatDays(row.useful)}</td><td>{formatDays(row.lost)}</td><td>{row.reason}{row.lossCause && <small>{causeName(row.lossCause)}</small>}</td></tr>)}</tbody></table></div></details>
   </section>;
 }
-function UpdateEntry({ update, event, canEdit, onEdit }) {
+function UpdateEntry({ update, event }) {
   const data = update.metadata?.seguimiento || {};
-  const whole = event.tipo === 'preventivo';
   return <article className="maintenance-journal-entry">
-    <div className="maintenance-journal-date"><strong>{dateLabel(update.fecha)}</strong><small>{data.period || 'Turno por confirmar'}{update.hora && !update.metadata?.horaEstimada ? ` · ${update.hora}` : ''}</small></div>
-    <div><span className={`journal-activity ${data.activity || 'sin_dato'}`}>{activityNames[data.activity] || 'Actividad por confirmar'}</span><p>{update.descripcion}</p>
-      <dl className="journal-facts"><div><dt>Quién intervino / informó</dt><dd>{update.responsable || 'Por confirmar'}</dd></div><div><dt>Parte</dt><dd>{whole ? 'Locomotora completa' : `${data.system || event.metadata?.seguimiento?.system || 'Sistema por confirmar'} · ${data.component || event.metadata?.seguimiento?.component || 'Parte por confirmar'}`}</dd></div>
-      {['espera', 'mixto'].includes(data.activity) && <div><dt>Motivo de la demora</dt><dd>{causeName(data.cause)}{data.usefulFraction != null ? ` · ${Math.round((1 - data.usefulFraction) * 100)} % del día` : ''}</dd></div>}
-      <div><dt>Al terminar el día</dt><dd>{updateOutcomeLabel(event, update)}</dd></div></dl>
-      {canEdit && <button className="journal-edit" onClick={() => onEdit(update)}>Corregir / completar registro</button>}
+    <div className="maintenance-journal-date"><strong>{dateLabel(update.fecha)}</strong><small>{data.period || 'Turno por confirmar'}</small></div>
+    <div>{event.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(event.preventivoCodigo) && <span className="journal-preventive">Preventivo {event.preventivoCodigo} · locomotora completa</span>}<span className={`journal-activity ${data.activity || 'sin_dato'}`}>{activityNames[data.activity] || 'Actividad por confirmar'}</span><p>{update.descripcion}</p>
+      <p className="journal-outcome">Al terminar el día: <strong>{updateOutcomeLabel(event, update)}</strong></p>
     </div>
   </article>;
 }
-export default function SeguimientoMantenimiento({ canManage, locomotoras, onOpenHistory, initialSelection, privatePreviewEvents = EMPTY }) {
+export default function SeguimientoMantenimiento({ canManage, locomotoras, onChanged, initialSelection, privatePreviewEvents = EMPTY }) {
   const [events, setEvents] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [week, setWeek] = useState(() => monday(initialSelection?.fecha || today()));
-  const [unit, setUnit] = useState(initialSelection?.codigo || ''), [place, setPlace] = useState(initialSelection?.place || 'Boulogne');
+  const [unit, setUnit] = useState(initialSelection?.codigo || '');
+  const [updateTargetId, setUpdateTargetId] = useState('');
   const [day, setDay] = useState(''), [selectedId, setSelectedId] = useState(initialSelection?.id || '');
   const [creating, setCreating] = useState(false), [update, setUpdate] = useState(null), [editingMeta, setEditingMeta] = useState(false), [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -66,35 +66,38 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onOpe
   const register = useMemo(() => toRegister(events), [events]);
   const range = { from: week, to: shiftDay(week, 6) }, weekInfo = isoWeek(week);
   const days = Array.from({ length: 7 }, (_, i) => shiftDay(week, i));
-  const filteredEvents = events.filter(event => (!unit || event.locomotoraCodigo === unit) && (!place || (event.metadata?.seguimiento?.location || 'Ubicación por confirmar') === place));
+  const filteredEvents = events.filter(event => !unit || event.locomotoraCodigo === unit);
   const bars = maintenanceBars(filteredEvents, range.from, range.to);
   const daily = day ? dailyMaintenance(filteredEvents, day) : [];
   const selected = register.maintenances.find(item => item.id === selectedId), event = events.find(item => item.id === selectedId);
+  const selectedLoco = event ? locomotoras.find(item => item.codigo === event.locomotoraCodigo) : null;
+  const updateEvent = update?.eventId ? events.find(item => item.id === update.eventId) : event;
+  const writableJobs = events.filter(item => item.origen !== 'vista-previa-privada' && item.estadoMantenimiento !== 'finalizado').sort((a,b) => a.locomotoraCodigo.localeCompare(b.locomotoraCodigo));
   const canEdit = canManage && event?.origen !== 'vista-previa-privada';
   const result = selected ? maintenanceEfficiency(register, selected) : null;
   const updates = event ? orderedUpdates(event) : [];
   const intervened = updates.filter(item => ['trabajo', 'mixto'].includes(item.metadata?.seguimiento?.activity));
   const questions = event ? evidenceQuestions(event) : [];
   const jobs = register.maintenances.filter(item => bars.some(bar => bar.id === item.id));
-  const subset = { ...register, maintenances: jobs, observations: register.observations.filter(o => jobs.some(m => m.id === o.maintenanceId)), episodes: register.episodes.filter(e => jobs.some(m => m.episodeId === e.id)) };
+  const subset = { ...register, maintenances: jobs, observations: register.observations.filter(o => o.date >= range.from && o.date <= range.to && jobs.some(m => m.id === o.maintenanceId)), episodes: register.episodes.filter(e => jobs.some(m => m.episodeId === e.id)) };
   function changeWeek(value) { setWeek(monday(value)); setDay(''); }
   function select(id) { setSelectedId(id); setEditingMeta(false); }
   async function create(payload, files) {
     if (!canManage) throw new Error('No tenés permisos para cargar mantenimientos.');
     const saved = await createHistorialEvent(payload, files, locomotoras);
-    setCreating(false); await load(); setSelectedId(saved.id);
+    setCreating(false); await load(); onChanged?.(); setSelectedId(saved.id);
   }
   async function saveUpdate(parent, payload, files) {
-    if (!canEdit) throw new Error('Este mantenimiento es de solo lectura.');
+    if (!canManage || parent.origen === 'vista-previa-privada') throw new Error('Este mantenimiento es de solo lectura.');
     if (payload.id) await editarActualizacion(payload, files, parent); else await crearActualizacion(payload, files, parent);
-    await load();
+    await load(); onChanged?.(); setUpdateTargetId(payload.estadoResultante === 'finalizado' ? '' : parent.id);
   }
   async function saveMeta(e) {
     e.preventDefault(); if (!canEdit) return;
     const form = new FormData(e.currentTarget); setSaving(true); setError('');
     try {
       await saveTracking(event, { ...event.metadata?.seguimiento, detentionStart: form.get('detentionStart'), detentionReason: form.get('detentionReason') || detentionReason(event), location: form.get('location'), system: form.get('system') || 'Varios sistemas', component: form.get('component') || 'Locomotora completa' });
-      setEditingMeta(false); await load();
+      setEditingMeta(false); await load(); onChanged?.();
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   }
   return <main className="tracking-page maintenance-page">
@@ -102,8 +105,8 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onOpe
     <div className="tracking-toolbar maintenance-toolbar">
       <div className="week-navigation"><button onClick={() => changeWeek(shiftDay(week, -7))} aria-label="Semana anterior">‹</button><label>Semana del<input type="date" value={week} onChange={e => e.target.value && changeWeek(e.target.value)} /></label><button onClick={() => changeWeek(shiftDay(week, 7))} aria-label="Semana siguiente">›</button></div>
       <label>Locomotora<select value={unit} onChange={e => setUnit(e.target.value)}><option value="">Todas</option>{locomotoras.map(l => <option key={l.codigo}>{l.codigo}</option>)}</select></label>
-      <label>Ubicación<select value={place} onChange={e => setPlace(e.target.value)}><option>Boulogne</option><option>Externo</option><option>Ubicación por confirmar</option><option value="">Todas</option></select></label>
-      <details className="maintenance-export"><summary>Exportar CSV</summary><button onClick={() => download(`mantenimientos-${week}.csv`, registerCsv(subset))}>Registros de la semana</button><button onClick={() => download(`eficiencia-${week}.csv`, efficiencyCsv(register, jobs.filter(m => m.location === 'Boulogne'), range))}>Indicadores de la semana</button></details>
+      {canManage && <div className="maintenance-entry"><label>Registrar avance en<select aria-label="Mantenimiento para registrar avance" value={updateTargetId} onChange={e => setUpdateTargetId(e.target.value)}><option value="">Elegir mantenimiento abierto</option>{writableJobs.map(item => <option value={item.id} key={item.id}>{item.locomotoraCodigo} · {maintenanceLabel(item)}</option>)}</select></label><button type="button" disabled={!updateTargetId} onClick={() => setUpdate({ eventId: updateTargetId })}>+ Cargar novedad</button></div>}
+      <details className="maintenance-export"><summary>Datos</summary><button onClick={() => download(`mantenimientos-${week}.csv`, registerCsv(subset))}>CSV de la semana</button><button onClick={() => download('mantenimientos-completos.csv', registerCsv(register))}>CSV completo</button><button onClick={() => download(`eficiencia-${week}.csv`, efficiencyCsv(register, jobs.filter(m => m.location === 'Boulogne'), range))}>Indicadores CSV</button>{canManage && <button onClick={() => setImporting(true)}>Importar respaldo JSON</button>}</details>
     </div>
     <div className="maintenance-key"><span><i className="preventivo" />Preventivos</span><span><i className="correctivo" />Correctivos</span><small>Tocá una barra para ver el mantenimiento o una fecha para revisar ese día.</small></div>
     {error && <p role="alert" className="tracking-error">{error}</p>}
@@ -122,18 +125,21 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onOpe
       </section>}
     </>}
     {selected && event && <div className="modal-backdrop"><section className="intervention-modal tracking-detail" role="dialog" aria-modal="true" aria-label={`Mantenimiento ${selected.unit}`}><div className="modal-heading"><div><span className={`maintenance-type ${event.tipo}`}>{selected.unit} · {event.tipo === 'preventivo' ? `Preventivo ${event.preventivoCodigo}` : 'Correctivo'}</span><h2>{maintenanceLabel(event)}</h2></div><button className="modal-close" aria-label="Cerrar detalle" onClick={() => select('')}>×</button></div>
-      <dl className="tracking-facts"><div><dt>Detenida desde</dt><dd>{dateLabel(event.metadata?.seguimiento?.detentionStart)}</dd></div><div><dt>Motivo de la detención</dt><dd>{detentionReason(event)}</dd></div><div><dt>Cuándo se intervino</dt><dd>{intervened.length ? [...new Set(intervened.map(a => dateLabel(a.fecha)))].join(' · ') : 'Sin trabajo confirmado'}</dd></div><div><dt>Sistema y parte intervenida</dt><dd>{selected.kind === 'liviano' ? 'Locomotora completa' : `${selected.system} · ${selected.component}`}</dd></div><div><dt>Quién intervino</dt><dd>{intervened.length ? [...new Set(intervened.map(a => a.responsable || 'Por confirmar'))].join(' · ') : 'Sin intervención registrada'}</dd></div><div><dt>Estado posterior informado</dt><dd>{outcomeAtEnd(event).label}{outcomeAtEnd(event).date ? ` · ${dateLabel(outcomeAtEnd(event).date)}` : ''}</dd></div></dl>
+      <section className="maintenance-detail-section"><div className="maintenance-section-heading"><span>01</span><div><p className="eyebrow">Ingreso e intervención</p><h3>Por qué ingresó y qué se hizo</h3></div></div>
+      <dl className="tracking-facts"><div><dt>Estado actual de la locomotora</dt><dd>{fleetStatusNames[selectedLoco?.estado] || 'Sin confirmar'}</dd></div><div><dt>Detenida desde</dt><dd>{dateLabel(event.metadata?.seguimiento?.detentionStart)}</dd></div><div><dt>Motivo de la detención</dt><dd>{detentionReason(event)}</dd></div><div><dt>Cuándo se intervino</dt><dd>{intervened.length ? [...new Set(intervened.map(a => dateLabel(a.fecha)))].join(' · ') : 'Sin trabajo confirmado'}</dd></div><div><dt>Sistema y parte intervenida</dt><dd>{selected.kind === 'liviano' ? 'Locomotora completa' : `${selected.system} · ${selected.component}`}</dd></div><div><dt>Quién intervino</dt><dd>{intervened.length ? [...new Set(intervened.map(a => a.responsable || 'Por confirmar'))].join(' · ') : 'Sin intervención registrada'}</dd></div><div><dt>Estado al cierre de este mantenimiento</dt><dd>{outcomeAtEnd(event).label}{outcomeAtEnd(event).date ? ` · ${dateLabel(outcomeAtEnd(event).date)}` : ''}</dd></div></dl>
       {updates.some(a => ['espera','mixto'].includes(a.metadata?.seguimiento?.activity)) && <div className="maintenance-delays"><h3>Por qué no se pudo trabajar</h3>{updates.filter(a => ['espera','mixto'].includes(a.metadata?.seguimiento?.activity)).map(a => <p key={a.id}><strong>{dateLabel(a.fecha)} · {causeName(a.metadata.seguimiento.cause)}</strong> — {a.descripcion}</p>)}</div>}
       {event.origen === 'vista-previa-privada' && <p className="tracking-hint">Datos del archivo privado en vista temporal.</p>}
-      <div className="tracking-toolbar">{canEdit && <><button onClick={() => setEditingMeta(!editingMeta)}>Completar datos</button><button className="primary-action" onClick={() => setUpdate({})}>+ Registrar novedad</button></>}<button onClick={() => onOpenHistory(selected.unit)}>Archivo Histórico</button></div>
       {questions.length > 0 && <details className="maintenance-questions"><summary>Información por confirmar ({questions.length})</summary>{questions.map((q,index) => <div key={index}><span>{q.text}</span>{canEdit && <button onClick={() => q.field === 'meta' ? setEditingMeta(true) : setUpdate(q.update ? { initialUpdate: q.update } : {})}>Responder</button>}</div>)}</details>}
       {editingMeta && <form onSubmit={saveMeta}><SeguimientoFields tipo={event.tipo} code={event.preventivoCodigo} tracking={{ ...event.metadata?.seguimiento, detentionReason: detentionReason(event) }} /><button className="primary-action" disabled={saving}>{saving ? 'Guardando…' : 'Confirmar datos'}</button></form>}
-      <h3 className="journal-title">Intervenciones día a día</h3>{!updates.length && <p>No hay avances registrados. El ingreso a mantenimiento no confirma una intervención.</p>}
-      {updates.map(a => <UpdateEntry key={a.id} update={a} event={event} canEdit={canEdit} onEdit={value => setUpdate({ initialUpdate: value })} />)}
+      </section>
+      <section className="maintenance-detail-section"><div className="maintenance-section-heading"><span>02</span><div><p className="eyebrow">Seguimiento diario</p><h3>Avances</h3></div></div>{!updates.length && <p>No hay avances registrados. El ingreso a mantenimiento no confirma una intervención.</p>}
+      {updates.map(a => <UpdateEntry key={a.id} update={a} event={event} />)}
+      </section>
       <Efficiency result={result} location={selected.location} onComplete={canEdit ? date => setUpdate({ initialDate: date }) : null} />
       {error && <p role="alert" className="tracking-error">{error}</p>}
     </section></div>}
     {creating && <RegistroEventoModal locomotoras={locomotoras} selectedLoco={locomotoras.find(l => l.codigo === unit) || locomotoras[0]} onClose={() => setCreating(false)} onSave={create} />}
-    {update && event && <ActualizacionEventoModal key={update.initialUpdate?.id || update.initialDate || 'new'} event={event} mode={event.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} {...update} onClose={() => setUpdate(null)} onSave={saveUpdate} />}
+    {update && updateEvent && <ActualizacionEventoModal key={update.initialUpdate?.id || update.initialDate || updateEvent.id} event={updateEvent} mode={updateEvent.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} {...update} onClose={() => setUpdate(null)} onSave={saveUpdate} />}
+    {importing && <ImportarPilotoModal events={events} onClose={() => setImporting(false)} onImported={async () => { await load(); onChanged?.(); }} />}
   </main>;
 }

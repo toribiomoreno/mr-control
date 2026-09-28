@@ -19,18 +19,25 @@ test('semana y línea de vida comparten motivo, inicio de detención y final; d�
   assert.equal(dailyMaintenance([event], '2026-09-23', '2026-09-27')[0].updates.length, 0);
   assert.equal(dailyMaintenance([event], '2026-09-24', '2026-09-27')[0].updates[0].metadata.seguimiento.cause, 'CAP');
 });
-test('disponible no significa operativa y un nuevo mantenimiento corta la franja', () => {
-  assert.equal(outcomeAtEnd(event).code,'disponible');
+test('un cierre significa operativa y un nuevo mantenimiento corta la franja', () => {
+  assert.equal(outcomeAtEnd(event).code,'operativa');
   const other = { ...event, id:'next',fecha:'2026-09-27',estadoMantenimiento:'en_curso',fechaCierre:null,metadata:{seguimiento:{detentionStart:'2026-09-27'}} };
   const segments = operatingSegments([event,other],'2026-09-21','2026-09-27');
-  assert.equal(segments[0].kind,'disponible');
+  assert.equal(segments[0].kind,'operativa');
   assert.equal(segments[0].end,'2026-09-26');
   const operational = { ...event,actualizaciones:[{fecha:'2026-09-25',metadata:{seguimiento:{outcome:'operativa'}}}] };
   assert.equal(operatingSegments([operational],'2026-09-21','2026-09-27')[0].kind,'operativa');
 });
-test('un cierre no puede indicar continuidad y una disponibilidad requiere cierre', () => {
+test('un cierre exige estado operativo y el estado operativo requiere cierre', () => {
   const open = { ...event,estadoMantenimiento:'en_curso',actualizaciones:[] };
   const update = {fecha:'2026-09-25',descripcion:'Avance',tipoActualizacion:'cierre',metadata:{seguimiento:{activity:'sin_dato',outcome:'continua'}}};
-  assert.throws(() => validateUpdate(open, update, '2026-09-27'), /cierre no puede/);
-  assert.throws(() => validateUpdate(open, {...update,tipoActualizacion:'avance',metadata:{seguimiento:{activity:'sin_dato',outcome:'operativa'}}}, '2026-09-27'), /disponibilidad requiere/);
+  assert.throws(() => validateUpdate(open, update, '2026-09-27'), /cierre deja/);
+  assert.throws(() => validateUpdate(open, {...update,tipoActualizacion:'avance',metadata:{seguimiento:{activity:'sin_dato',outcome:'operativa'}}}, '2026-09-27'), /operativo requiere/);
+});
+
+test('la confirmación manual aparece en la línea de vida y termina ante un correctivo', () => {
+  const confirmation = { id: 'manual', tipo: 'otro', fecha: '2026-09-23', metadata: { fleetConfirmation: { state: 'operativa' } } };
+  const correction = { ...event, id: 'correction', fecha: '2026-09-25', estadoMantenimiento: 'en_curso', fechaCierre: null, metadata: { seguimiento: { detentionStart: '2026-09-25' } } };
+  const segments = operatingSegments([confirmation, correction], '2026-09-21', '2026-09-27');
+  assert.deepEqual(segments.map(({ start, end }) => [start, end]), [['2026-09-23', '2026-09-24']]);
 });

@@ -6,7 +6,7 @@ export default function LocomotiveLifeLine({ events, loading, onOpenMaintenance 
   const { days, maintenance, operation, hasUnconfirmedDays } = buildLifeLine(events);
   return <section className="life-card" aria-label="Línea de vida de las últimas dos semanas">
     <div className="life-heading"><div><p className="eyebrow">Últimas dos semanas</p><h3>Línea de vida de la locomotora</h3></div><span>{dateLabel(days[0])} — {dateLabel(days.at(-1))}</span></div>
-    <div className="life-legend"><span><i className="life-green" /> Operativa</span><span><i className="life-available" /> Disponible</span><span><i className="life-red" /> Correctivo</span><span><i className="life-yellow" /> Preventivo</span><span><i className="life-unknown" /> Sin estado confirmado</span></div>
+    <div className="life-legend"><span><i className="life-green" /> Operativa</span><span><i className="life-red" /> Correctivo</span><span><i className="life-yellow" /> Preventivo</span><span><i className="life-unknown" /> Sin estado confirmado</span></div>
     <div className="life-scroll"><div className="life-chart">
       <div className="life-days">{days.map((day) => <span key={day}>{day.slice(8)}/{day.slice(5, 7)}</span>)}</div>
       <div className="life-upper">{operation.map((item, index) => <div key={item.id} className={`life-operation ${item.kind}`} style={{ gridColumn: `${item.column} / span ${item.span}`, gridRow: index + 1 }} title={item.reason}>{item.label}</div>)}</div>

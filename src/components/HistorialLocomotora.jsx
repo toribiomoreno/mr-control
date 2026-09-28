@@ -74,6 +74,7 @@ function isCampaignType(type) {
 }
 
 function displayState(loco) {
+  if (loco.estado === 'sin_confirmar') return { icon: '?', key: 'reserva', label: 'Sin estado confirmado' };
   const observation = String(loco.observacion || '').toLowerCase();
   if (loco.estado === 'detenida') return { icon: '!', key: 'detenida', label: 'Detenida' };
   if (loco.estado === 'operativa') return { icon: 'OK', key: 'servicio', label: 'Operativa' };

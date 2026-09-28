@@ -1,7 +1,7 @@
 import { today, shiftDay } from './types.js';
 
 export const outcomeLabels = {
-  continua: 'Continúa el mantenimiento', disponible: 'Disponible', operativa: 'Operativa',
+  continua: 'Continúa el mantenimiento', operativa: 'Operativa',
   prueba: 'Pendiente de prueba', detenida: 'Detenida por otro motivo', pendiente: 'Por confirmar',
 };
 export const isVisibleMaintenance = event => ['preventivo', 'correctivo'].includes(event.tipo) && !event.anulado && event.estadoMantenimiento !== 'cancelado';
@@ -11,19 +11,21 @@ export function orderedUpdates(event) {
   return [...(event.actualizaciones || [])].sort((a, b) => `${a.fecha} ${a.hora || ''} ${a.createdAt || ''}`.localeCompare(`${b.fecha} ${b.hora || ''} ${b.createdAt || ''}`));
 }
 export function outcomeAtEnd(event) {
+  if (event.estadoMantenimiento === 'finalizado') {
+    return { code: 'operativa', label: 'Operativa', date: event.fechaCierre || event.metadata?.seguimiento?.availableDate || event.fecha };
+  }
   const latest = orderedUpdates(event).filter(a => a.metadata?.seguimiento?.outcome || ['cierre', 'reapertura'].includes(a.tipoActualizacion)).at(-1);
   let code = latest ? latest.metadata?.seguimiento?.outcome || (latest.estadoUnidadResultante === 'servicio' ? 'operativa' : latest.estadoUnidadResultante === 'pendiente_de_prueba' ? 'prueba' : latest.tipoActualizacion === 'reapertura' ? 'continua' : 'pendiente') : event.metadata?.seguimiento?.outcome;
-  if (event.estadoMantenimiento === 'finalizado' && code === 'continua') code = 'pendiente';
   if (event.estadoMantenimiento !== 'finalizado' && ['disponible', 'operativa'].includes(code)) code = 'pendiente';
+  if (code === 'disponible') code = 'operativa';
   if (code) return { code, label: outcomeLabels[code] || 'Por confirmar', date: latest?.fecha || event.fechaCierre || event.fecha };
   if (event.estadoUnidadResultante === 'servicio') return { code: 'operativa', label: 'Operativa', date: event.fechaCierre };
   if (event.estadoUnidadResultante === 'pendiente_de_prueba') return { code: 'prueba', label: 'Pendiente de prueba', date: event.fechaCierre };
-  if (event.metadata?.seguimiento?.availableDate) return { code: 'disponible', label: 'Disponible', date: event.metadata.seguimiento.availableDate };
-  return { code: 'pendiente', label: event.estadoMantenimiento === 'finalizado' ? 'Finalizado · disponibilidad por confirmar' : 'Abierto · continuidad por confirmar', date: '' };
+  return { code: 'pendiente', label: 'Abierto · continuidad por confirmar', date: '' };
 }
 export function updateOutcomeLabel(event, update) {
   const explicit = update.metadata?.seguimiento?.outcome;
-  if (explicit) return outcomeLabels[explicit] || 'Estado por confirmar';
+  if (explicit) return explicit === 'disponible' ? 'Operativa' : outcomeLabels[explicit] || 'Estado por confirmar';
   const final = outcomeAtEnd(event);
   return final.date === update.fecha ? final.label : 'Estado por confirmar';
 }
@@ -73,23 +75,25 @@ export function evidenceQuestions(event) {
     if (['trabajo', 'mixto'].includes(t.activity) && event.tipo === 'correctivo' && (missing(t.system || meta.system) || missing(t.component || meta.component))) add('¿Qué parte se trabajó?');
     if (['espera', 'mixto'].includes(t.activity) && (!t.cause || t.cause === 'PENDIENTE')) add('¿Por qué no se pudo trabajar?');
   }
-  if (outcomeAtEnd(event).code === 'pendiente') questions.push({ field: 'outcome', text: '¿Quedó disponible, operativa o continúa el mantenimiento?' });
+  if (outcomeAtEnd(event).code === 'pendiente') questions.push({ field: 'outcome', text: '¿Quedó operativa o continúa el mantenimiento?' });
   return questions;
 }
 
 export function operatingSegments(events, from, to) {
   const active = events.filter(isVisibleMaintenance);
+  const windows = active.map(event => maintenanceWindow(event, to));
+  const markers = [
+    ...active.filter(event => event.estadoMantenimiento === 'finalizado').map(event => ({ date: shiftDay(event.fechaCierre || event.fecha, 1), time: '', manual: false, state: 'operativa', source: `Mantenimiento finalizado el ${event.fechaCierre || event.fecha}`, id: event.id })),
+    ...events.filter(event => !event.anulado && event.metadata?.fleetConfirmation?.state).map(event => ({ date: event.fecha, time: event.hora || '', manual: true, state: event.metadata.fleetConfirmation.state, source: `Confirmación manual del ${event.fecha}`, id: event.id })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || Number(a.manual) - Number(b.manual) || a.time.localeCompare(b.time) || String(a.id).localeCompare(String(b.id)));
   const result = [];
-  for (const event of active) {
-    const outcome = outcomeAtEnd(event);
-    if (event.estadoMantenimiento !== 'finalizado' || !['operativa', 'disponible'].includes(outcome.code) || !outcome.date) continue;
-    const start = shiftDay(outcome.date, 1);
-    const stops = active.filter(other => other.id !== event.id).map(other => maintenanceWindow(other, to));
-    if (stops.some(stop => stop.start < start && stop.end >= start)) continue;
-    const nextStop = stops.filter(stop => stop.start >= start).map(stop => stop.start).sort()[0];
-    const end = nextStop ? shiftDay(nextStop, -1) : to;
-    if (start > to || end < from || end < start) continue;
-    result.push({ id: `${event.id}-available`, start: start < from ? from : start, end: end > to ? to : end, kind: outcome.code, label: outcome.label, reason: `${outcome.label} desde ${outcome.date} · último estado informado` });
+  for (let day = from; day <= to; day = shiftDay(day, 1)) {
+    if (windows.some(window => window.start <= day && day <= window.end)) continue;
+    const marker = markers.filter(item => item.date <= day).at(-1);
+    if (marker?.state !== 'operativa') continue;
+    const previous = result.at(-1);
+    if (previous && previous.end === shiftDay(day, -1)) previous.end = day;
+    else result.push({ id: `${marker.id}-operativa-${day}`, start: day, end: day, kind: 'operativa', label: 'Operativa', reason: marker.source });
   }
   return result;
 }

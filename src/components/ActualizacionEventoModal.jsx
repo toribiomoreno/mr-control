@@ -2,6 +2,7 @@ import { causes, systems, today } from '../domain/maintenance/types.js';
 import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
 import { outcomeLabels } from '../domain/maintenance/view.js';
 import { useState } from 'react';
+import VoiceTextarea from './VoiceTextarea.jsx';
 
 import TimeSelect from './TimeSelect.jsx';
 import { isValidTimeValue } from './timeUtils.js';
@@ -68,11 +69,11 @@ export default function ActualizacionEventoModal({
       eventoId: event.id,
       fecha: form.get('fecha'),
       hora,
-      tipoActualizacion: event.estadoMantenimiento !== 'finalizado' && ['disponible', 'operativa'].includes(outcome) ? 'cierre' : tipo,
+      tipoActualizacion: event.estadoMantenimiento !== 'finalizado' && outcome === 'operativa' ? 'cierre' : tipo,
       descripcion: descriptionValue,
       responsable,
       porcentajeAvance: null,
-      estadoResultante: event.estadoMantenimiento !== 'finalizado' && ['disponible', 'operativa'].includes(outcome) ? 'finalizado' : defaultStateForType(tipo),
+      estadoResultante: event.estadoMantenimiento !== 'finalizado' && outcome === 'operativa' ? 'finalizado' : defaultStateForType(tipo),
       motivoPausa: isPause ? descriptionValue : null,
       motivoReapertura: null,
       resultadoPrueba: null,
@@ -108,7 +109,7 @@ export default function ActualizacionEventoModal({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <form className="intervention-modal maintenance-update-modal" onSubmit={handleSubmit}>
+      <form className="intervention-modal maintenance-update-modal" onSubmit={handleSubmit} onInvalidCapture={(event) => setErrorMessage(`Falta completar: ${event.target.closest('label')?.firstChild?.textContent?.trim() || event.target.getAttribute('aria-label') || 'un dato obligatorio'}.`)}>
         <div className="modal-heading">
           <div>
             <span className="panel-kicker">{event.titulo || 'Mantenimiento'}</span>
@@ -143,7 +144,7 @@ export default function ActualizacionEventoModal({
 
         <label>
           {descriptionLabel}
-          <textarea name={isPause ? 'motivoPausa' : 'descripcion'} defaultValue={initialUpdate?.descripcion || ''} rows="4" required />
+          <VoiceTextarea name={isPause ? 'motivoPausa' : 'descripcion'} defaultValue={initialUpdate?.descripcion || ''} rows={4} required />
         </label>
 
         <fieldset className="tracking-fields"><legend>¿Qué ocurrió durante el período relevado?</legend>
@@ -169,7 +170,7 @@ export default function ActualizacionEventoModal({
             <option value="">Confirmar estado posterior</option>
             {Object.entries(outcomeLabels).filter(([key]) => !(key === 'continua' && event.estadoMantenimiento === 'finalizado')).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>
-          {['disponible', 'operativa'].includes(outcome) && event.estadoMantenimiento !== 'finalizado' && <p>Este registro cerrará el mantenimiento en la fecha indicada.</p>}
+          {outcome === 'operativa' && event.estadoMantenimiento !== 'finalizado' && <p>Este registro cerrará el mantenimiento en la fecha indicada.</p>}
           {outcome === 'pendiente' && <label className="tracking-confirm"><input name="confirmUnknownOutcome" type="checkbox" required /> Elijo dejar el estado posterior sin confirmar.</label>}
         </fieldset>
         <div className="history-file-drop">
@@ -185,8 +186,10 @@ export default function ActualizacionEventoModal({
           </button>
         </div>
 
+        <p className="tracking-hint">El formulario te indicará los datos que falten antes de guardar. Revisá el texto dictado.</p>
+
         {errorMessage && (
-          <div className="history-modal-note">
+          <div className="history-modal-note" role="alert">
             {errorMessage}
           </div>
         )}

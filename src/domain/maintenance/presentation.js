@@ -52,7 +52,7 @@ export function maintenanceEfficiency(s, m, range, now = today()) {
         }
         else if (!closed && ep && d > ep.confirmedThrough && !ev.some(o => o.activity !== 'sin_dato')) {
             state = 'unknown';
-            reason = 'Falta confirmar si continuaba detenida o ya estaba disponible.';
+            reason = 'Falta confirmar si continuaba detenida o ya estaba operativa.';
         }
         else if (assessment) {
             useful = assessment.usefulFraction;

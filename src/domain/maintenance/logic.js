@@ -195,7 +195,7 @@ export function outstanding(s, from, to, now = today()) {
             if (!indicatorEligible(s, unit, d, ev))
                 continue;
             if (!ev.length || ev.every(o => o.activity === 'sin_dato'))
-                list.push({ unit, date: d, maintenanceId: m.id, message: d > ep.confirmedThrough ? 'Confirmar si continúa detenida o quedó disponible.' : '¿Se trabajó? Falta el registro del día.' });
+                list.push({ unit, date: d, maintenanceId: m.id, message: d > ep.confirmedThrough ? 'Confirmar si continúa detenida o quedó operativa.' : '¿Se trabajó? Falta el registro del día.' });
             else if (ev.every(o => o.activity === 'espera' && !o.fullDay))
                 list.push({ unit, date: d, maintenanceId: m.id, message: 'Espera parcial: falta confirmar el resto del día.' });
         }

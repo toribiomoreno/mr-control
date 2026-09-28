@@ -2,6 +2,7 @@ import SeguimientoFields from './SeguimientoFields.jsx';
 import { today, wholeLocomotive } from '../domain/maintenance/types.js';
 import { outcomeLabels } from '../domain/maintenance/view.js';
 import { useState } from 'react';
+import VoiceTextarea from './VoiceTextarea.jsx';
 
 import TimeSelect from './TimeSelect.jsx';
 import { isValidTimeValue } from './timeUtils.js';
@@ -22,7 +23,7 @@ const numeralOptions = [
 ];
 
 const preventiveOptions = ['E', 'A', 'AB', 'ABC', ...numeralOptions];
-const correctiveSpecialties = ['Mecanica', 'Electrica', 'Neumatica', 'Sistemas de seguridad', 'Equipos de a bordo', 'Otra'];
+const correctiveSpecialties = ['Mecanica', 'Electrica', 'Neumatica', 'Carpintería', 'Sistemas de seguridad', 'Equipos de a bordo', 'Otra'];
 
 
 function currentTimeValue() {
@@ -73,7 +74,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
     const currentType = form.get('tipo');
     const fecha = form.get('fecha');
     const hora = String(form.get('hora') || '').slice(0, 5);
-    const estadoMantenimiento = isMaintenanceType(currentType) ? (['disponible', 'operativa'].includes(form.get('outcome')) ? 'finalizado' : form.get('estadoMantenimiento')) : null;
+    const estadoMantenimiento = isMaintenanceType(currentType) ? (form.get('outcome') === 'operativa' ? 'finalizado' : form.get('estadoMantenimiento')) : null;
     const adjuntos = form.getAll('adjuntos').filter((file) => file && file.name);
     setErrorMessage('');
 
@@ -120,7 +121,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <form className="intervention-modal history-event-modal" onSubmit={handleSubmit}>
+      <form className="intervention-modal history-event-modal" onSubmit={handleSubmit} onInvalidCapture={(event) => setErrorMessage(`Falta completar: ${event.target.closest('label')?.firstChild?.textContent?.trim() || event.target.getAttribute('aria-label') || 'un dato obligatorio'}.`)}>
         <div className="modal-heading">
           <div>
             <span className="panel-kicker">Carga de datos</span>
@@ -181,7 +182,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
             </label>
             <label>
               Descripcion / novedad
-              <textarea
+              <VoiceTextarea
                 name="descripcion"
                 rows="4"
                 placeholder="Detalle del preventivo realizado..."
@@ -217,7 +218,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
             </label>
             <label>
               Descripcion / novedad
-              <textarea
+              <VoiceTextarea
                 name="descripcion"
                 rows="4"
                 placeholder="Detalle del correctivo realizado..."
@@ -242,7 +243,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
             </label>
             <label>
               Descripcion / novedad
-              <textarea
+              <VoiceTextarea
                 name="descripcion"
                 rows="4"
                 placeholder="Detalle de la novedad de alistamiento..."
@@ -260,7 +261,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
             </label>
             <label>
               Descripcion / novedad
-              <textarea
+              <VoiceTextarea
                 name="descripcion"
                 rows="4"
                 placeholder="Detalle del lavado realizado..."
@@ -289,9 +290,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
           <input name="adjuntos" type="file" accept="application/pdf,image/*" multiple />
         </div>
 
-        <div className="history-modal-note">
-          El libro de novedades puede importarse desde Archivo Historico mientras no exista sincronizacion automatica real.
-        </div>
+        <p className="tracking-hint">Completá cada dato obligatorio. Si falta alguno, el formulario te indicará cuál antes de guardar. Revisá el texto dictado.</p>
 
         <div className="modal-actions">
           <button className="secondary-action" onClick={onClose} type="button">Cancelar</button>
@@ -301,7 +300,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
         </div>
 
         {errorMessage && (
-          <div className="history-modal-note">
+          <div className="history-modal-note" role="alert">
             {errorMessage}
           </div>
         )}

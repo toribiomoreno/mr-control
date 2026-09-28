@@ -13,6 +13,8 @@ test('migración, permisos, importación atómica y cierre estable', async()=>{
  insert into perfiles values('${supervisor}',true,'supervisor',false),('${observer}',true,'observador',false);
  create table eventos_historial(id uuid primary key default gen_random_uuid(),locomotora_codigo text,fecha date,hora time,tipo text,preventivo_codigo text,titulo text,descripcion text,responsable text,especialidad text,criticidad text,origen text,metadata jsonb default '{}',anulado boolean default false,created_at timestamptz default now(),updated_at timestamptz default now());
  create table adjuntos_evento(id uuid primary key default gen_random_uuid(),evento_id uuid references eventos_historial(id));
+ create table importaciones_libro(id uuid primary key default gen_random_uuid());
+ create table locomotoras(id uuid primary key default gen_random_uuid(),codigo text);
  create table storage.buckets(id text primary key,public boolean); insert into storage.buckets values('eventos-adjuntos',true);
  create table storage.objects(id uuid,bucket_id text); alter table storage.objects enable row level security;
  grant select on perfiles to authenticated;`);
@@ -20,6 +22,9 @@ test('migración, permisos, importación atómica y cierre estable', async()=>{
  const migration=await readFile('supabase/migrations/20260927_seguimiento_integrado.sql','utf8');
  await db.exec(migration);
  await db.exec(migration); // repeatable
+ await db.exec(await readFile('supabase/migrations/20260927_cerrar_ejecucion_anonima_funciones.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/20260927_permitir_recalculo_interno.sql','utf8'));
+ assert.equal((await db.query("select has_function_privilege('anon','public.mr_access(boolean)','EXECUTE') as allowed")).rows[0].allowed,false);
  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${supervisor}';`);
  const e={locomotoraCodigo:'E701',fecha:'2020-01-06',hora:'06:00',tipo:'correctivo',titulo:'Prueba sintética',descripcion:'Ejemplo de validación',responsable:'Turno fijo',especialidad:'Mecanica',estadoMantenimiento:'finalizado',fechaCierre:'2020-01-07',horaCierre:'14:00',metadata:{pilotSourceId:'test-one',seguimiento:{location:'Boulogne',detentionStart:'2020-01-06',system:'Bogie',component:'Prueba'}}};
  const a={fecha:'2020-01-06',hora:'06:00',descripcion:'Ejemplo',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',period:'Mañana'}}};

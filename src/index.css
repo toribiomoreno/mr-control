@@ -5551,3 +5551,10 @@ button {
 .home-dashboard .home-hero-photo { object-position:58% 48%; transform:none; }
 .home-dashboard .home-modules { padding-top:24px; }
 @media(max-width:760px) { .home-dashboard .home-hero { min-height:300px; padding:36px 24px; }.home-dashboard .home-hero-copy { width:100%; }.home-dashboard .home-hero-copy h2 { font-size:36px; } }
+.yard-pending { margin:0 0 18px; padding:18px 20px; border:1px solid #526272; border-radius:14px; background:#122338; color:#e2e8f0; }
+.yard-pending h3 { margin:2px 0 7px; font-size:20px; }.yard-pending h3 span { display:inline-grid; place-items:center; min-width:28px; height:28px; border-radius:50%; background:#334155; font-size:13px; }
+.yard-pending p { margin:0 0 10px; color:#bac8d8; font-size:13px; }
+.yard-pending-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; max-height:205px; overflow:auto; }
+.yard-pending-item { display:flex; gap:8px; align-items:center; padding:9px 10px; border:1px solid #36465a; border-radius:8px; background:#172b43; }
+.yard-pending-item small { flex:1; color:#b8c5d4; }.yard-pending-item button { border:1px solid #92a9bc; border-radius:7px; background:#e8f5ee; color:#174b37; font:inherit; cursor:pointer; padding:5px 9px; }
+.yard-pending-item button:focus-visible { outline:2px solid #86efac; outline-offset:2px; }
