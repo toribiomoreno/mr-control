@@ -2,6 +2,7 @@ import { supabase, assertSupabaseConfig, assertSeguimientoReady } from '../lib/s
 import { mapEventRow } from './historialSupabaseService.js';
 import { mapActualizacionRow } from './actualizacionesEventoSupabaseService.js';
 import { validateEvent } from '../domain/maintenance/adapter.js';
+import { trackingForCurrentState } from '../domain/maintenance/view.js';
 
 async function pages(table, configure) {
   const rows = [];
@@ -25,7 +26,7 @@ export async function fetchSeguimiento() {
 }
 export async function saveTracking(event, tracking) {
   await assertSeguimientoReady();
-  const next = { ...event, metadata: { ...event.metadata, seguimiento: tracking } };
+  const next = { ...event, metadata: { ...event.metadata, seguimiento: trackingForCurrentState(event, tracking) } };
   validateEvent(next);
   const { data, error } = await supabase.from('eventos_historial').update({ metadata: next.metadata }).eq('id', event.id).eq('metadata', JSON.stringify(event.metadata || {})).select('id');
   if (error) throw error;

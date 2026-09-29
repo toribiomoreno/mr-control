@@ -147,6 +147,7 @@ export async function createHistorialEvent(event, files, locomotoras) {
 
 export async function updateHistorialEvent(event, locomotoras) {
   assertSupabaseConfig();
+  validateEvent(event);
   if (!event.id) throw new Error('El evento no tiene id de Supabase.');
   if (!locomotoras.some((loco) => loco.codigo === event.locomotoraCodigo)) {
     throw new Error(`La locomotora ${event.locomotoraCodigo} no existe.`);

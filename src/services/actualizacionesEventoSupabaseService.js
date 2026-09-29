@@ -140,7 +140,7 @@ function resolverEstadoMantenimiento(event, actualizaciones = []) {
       hasStateChange = true;
     }
 
-    if (type === 'reanudacion') {
+    if (type === 'reanudacion' || type === 'avance') {
       estado = 'en_curso';
       ultimaActividadAt = activityTimestamp(update.fecha, update.hora);
       hasStateChange = true;
