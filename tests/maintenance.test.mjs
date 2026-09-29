@@ -20,3 +20,13 @@ test('observación después del cierre permite anotación, no trabajo',()=>{cons
 test('fecha futura, detención posterior y falta de sistema se rechazan',()=>{assert.throws(()=>validateEvent(event({fecha:'2026-09-28'}),now),/futura/);assert.throws(()=>validateEvent(event({metadata:{seguimiento:{location:'Boulogne',detentionStart:'2026-09-25'}}}),now),/detenida/);});
 test('aliases y exportación segura para Excel',()=>{assert.equal(normalizeUnit('EMO2'),'EM02');assert.equal(normalizeUnit('701'),'E701');assert.ok(csv([['=1+1','a;b']]).includes("'=1+1"));});
 test('importación repetida omite y potencial duplicado requiere revisión',()=>{const s=toRegister([event({actualizaciones:[update('2026-09-24'),update('2026-09-25')]})]);let rows=preparePilotImport(s,[],now);assert.equal(rows[0].issues.length,0);rows=preparePilotImport(s,[event()],now);assert.match(rows[0].issues.join(' '),/duplicado/);rows=preparePilotImport(s,[event({metadata:{pilotSourceId:'piloto:example'}})],now);assert.equal(rows[0].skipped,true);});
+
+test('jornada confirmada permite 50% hoy sin cerrar el mantenimiento',()=>{
+ const e=event({fecha:now,fechaCierre:null,estadoMantenimiento:'en_curso'});
+ e.metadata.seguimiento.detentionStart=now;
+ const a=update(now,{activity:'mixto',cause:'CAP',usefulFraction:.5,allocationNote:'Mitad de trabajo y mitad de espera'},{tipoActualizacion:'avance'});
+ assert.throws(()=>validateUpdate(e,a,now),/terminar el día/);
+ a.metadata.seguimiento.dayComplete=true;
+ validateUpdate(e,a,now); e.actualizaciones=[a];
+ const result=efficiency(e);assert.equal(result.percent,50);assert.equal(result.rows.length,1);assert.equal(result.closed,false);
+});

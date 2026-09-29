@@ -13,6 +13,10 @@ test('semana, detalle, eficiencia, corrección y CSV',async({page})=>{
  await expect(page.getByRole('button',{name:'Actualizar',exact:true})).toHaveCount(0);
  await bar.click();await expect(page.getByRole('heading',{name:'Eficiencia del mantenimiento'})).toBeVisible();
  await expect(page.getByText('75 %',{exact:true})).toBeVisible();
+ await expect(page.locator('.maintenance-delays, .maintenance-questions')).toHaveCount(0);
+ await page.locator('.maintenance-journal-entry').first().getByRole('button',{name:/Completar/}).click();
+ await expect(page.getByLabel('Fecha',{exact:true})).toHaveValue('2026-09-24');
+ await page.getByRole('button',{name:'Cerrar',exact:true}).click();
  await expect(page.getByRole('img',{name:'1,5 días útiles, 0,5 perdidos y 0 sin información'})).toBeVisible();
  await page.screenshot({path:'/workspace/scratch/7ec95ebdf471/mantenimiento-detalle.png',fullPage:true});
  await page.locator('.maintenance-efficiency').scrollIntoViewIfNeeded();

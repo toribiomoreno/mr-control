@@ -30,3 +30,12 @@ test('una confirmación manual persiste como estado de la misma unidad, pero no 
   const laterJob = { ...job, id: 'later', fecha: '2026-09-27', metadata: { seguimiento: { detentionStart: '2026-09-27' } } };
   assert.equal(fleetState(loco, [confirmation, laterJob], '2026-09-27').estado, 'correctivo');
 });
+
+test('un parte del mismo día no pisa un avance de un mantenimiento anterior',()=>{
+ const current={...job,actualizaciones:[{fecha:'2026-09-29',metadata:{seguimiento:{activity:'trabajo',outcome:'continua'}}}]};
+ const state=fleetState({...loco,fechaParte:'2026-09-29'},[current],'2026-09-29');
+ assert.equal(state.estado,'correctivo');assert.equal(state.conflictoEstado,true);
+ const newer=fleetState({...loco,fechaParte:'2026-09-30'},[current],'2026-09-30');
+ assert.equal(newer.estado,'operativa');assert.equal(newer.conflictoEstado,true);
+ assert.equal(current.estadoMantenimiento,'en_curso');
+});

@@ -24,6 +24,7 @@ test('migración, permisos, importación atómica y cierre estable', async()=>{
  await db.exec(migration); // repeatable
  await db.exec(await readFile('supabase/migrations/20260927_cerrar_ejecucion_anonima_funciones.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/20260927_permitir_recalculo_interno.sql','utf8'));
+ await db.exec(await readFile('supabase/migrations/20260929194849_jornada_confirmada.sql','utf8'));
  assert.equal((await db.query("select has_function_privilege('anon','public.mr_access(boolean)','EXECUTE') as allowed")).rows[0].allowed,false);
  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${supervisor}';`);
  const e={locomotoraCodigo:'E701',fecha:'2020-01-06',hora:'06:00',tipo:'correctivo',titulo:'Prueba sintética',descripcion:'Ejemplo de validación',responsable:'Turno fijo',especialidad:'Mecanica',estadoMantenimiento:'finalizado',fechaCierre:'2020-01-07',horaCierre:'14:00',metadata:{pilotSourceId:'test-one',seguimiento:{location:'Boulogne',detentionStart:'2020-01-06',system:'Bogie',component:'Prueba'}}};
@@ -36,8 +37,15 @@ test('migración, permisos, importación atómica y cierre estable', async()=>{
  assert.equal(rows.length,1);assert.equal(rows[0].estado_mantenimiento,'finalizado');assert.equal(rows[0].fecha_cierre.toISOString().slice(0,10),'2020-01-07');
  const malformed=structuredClone(payload);malformed[0].event.metadata.pilotSourceId='test-two';malformed[0].event.locomotoraCodigo='E702';malformed[0].actualizaciones[0].metadata.seguimiento.period='Tarde';
  await assert.rejects(call(malformed),/Turno fijo/);assert.equal((await db.query('select count(*) as n from eventos_historial')).rows[0].n,1);
+ const day=(await db.query("select to_char(now() at time zone 'America/Argentina/Buenos_Aires','YYYY-MM-DD') as day")).rows[0].day;
+ const openEvent={...e,fecha:day,estadoMantenimiento:'en_curso',fechaCierre:null,metadata:{pilotSourceId:'today-open',seguimiento:{...e.metadata.seguimiento,detentionStart:day}}};
+ const mixed={...a,fecha:day,metadata:{seguimiento:{activity:'mixto',period:'Mañana',cause:'CAP',usefulFraction:.5,allocationNote:'Mitad trabajo, mitad espera'}}};
+ await assert.rejects(call([{event:openEvent,actualizaciones:[mixed]}]),/día sigue/);
+ mixed.metadata.seguimiento.dayComplete=true;
+ await call([{event:openEvent,actualizaciones:[mixed]}]);
+ assert.equal((await db.query("select estado_mantenimiento from eventos_historial where metadata->>'pilotSourceId'='today-open'")).rows[0].estado_mantenimiento,'en_curso');
  await db.exec(`set request.jwt.claim.sub = '${observer}';`);
- assert.equal((await db.query('select count(*) as n from eventos_historial')).rows[0].n,1);
+ assert.equal((await db.query('select count(*) as n from eventos_historial')).rows[0].n,2);
  await assert.rejects(call([{event:{...e,metadata:{...e.metadata,pilotSourceId:'third'}},actualizaciones:[]}]),/permisos/);
  await db.exec('reset role; set role anon;');
  await assert.rejects(db.query('select * from eventos_historial'),/permission denied/);
