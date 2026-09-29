@@ -4,12 +4,12 @@ export const outcomeLabels = {
   continua: 'Continúa el mantenimiento', operativa: 'Operativa',
   prueba: 'Pendiente de prueba', detenida: 'Detenida por otro motivo', pendiente: 'Por confirmar',
 };
-export const workDurationLabel = tracking => tracking.workDurationDays === 1 ? 'Jornada completa' : tracking.workDurationDays === 0.5 ? 'Media jornada' : tracking.confirmedUnknownDuration ? 'Duración por confirmar' : '';
+export const workDurationLabel = tracking => tracking.workDurationShifts ? `${tracking.workDurationShifts} turno${tracking.workDurationShifts > 1 ? 's' : ''}` : tracking.workDurationDays === 1 ? 'Jornada completa' : tracking.workDurationDays === 0.5 ? 'Media jornada' : tracking.confirmedUnknownDuration ? 'Duración por confirmar' : '';
 export const isVisibleMaintenance = event => ['preventivo', 'correctivo'].includes(event.tipo) && !event.anulado && event.estadoMantenimiento !== 'cancelado';
 export const maintenanceLabel = event => event.tipo === 'preventivo' ? `Preventivo ${event.preventivoCodigo || 'sin tipo'}` : (event.metadata?.seguimiento?.detentionReason || event.descripcion || event.titulo || 'Correctivo').split('\n')[0];
 export const detentionReason = event => event.metadata?.seguimiento?.detentionReason || (event.tipo === 'preventivo' ? 'Kilometraje' : event.descripcion?.split('\n')[0]) || 'Por confirmar';
 export function orderedUpdates(event) {
-  return [...(event.actualizaciones || [])].sort((a, b) => `${a.fecha} ${a.hora || ''} ${a.createdAt || ''}`.localeCompare(`${b.fecha} ${b.hora || ''} ${b.createdAt || ''}`));
+  return [...(event.actualizaciones || [])].sort((a, b) => `${a.fecha} ${a.hora || ({ Mañana: '06:00', Tarde: '14:00', 'Mañana y tarde': '06:00' }[a.metadata?.seguimiento?.period] || '')} ${a.createdAt || ''}`.localeCompare(`${b.fecha} ${b.hora || ({ Mañana: '06:00', Tarde: '14:00', 'Mañana y tarde': '06:00' }[b.metadata?.seguimiento?.period] || '')} ${b.createdAt || ''}`));
 }
 // Un avance describe el estado de ese momento, aunque el mantenimiento haya cerrado después.
 export function beforeMaintenanceClosure(event, update) {
@@ -87,11 +87,12 @@ export function evidenceQuestions(event) {
   if (!(event.actualizaciones || []).length) questions.push({ field: 'activity', text: '¿Se intervino? Indicá fecha, turno y personal, o el motivo por el que no se trabajó.' });
   for (const update of orderedUpdates(event)) {
     const t = update.metadata?.seguimiento || {};
-    const add = text => questions.push({ update, text: `${update.fecha}: ${text}` });
+    const add = text => questions.push({ update, text });
     if (!t.activity || t.activity === 'sin_dato') add('¿Se trabajó ese día?');
     if (['trabajo', 'mixto'].includes(t.activity) && missing(update.responsable)) add('¿Quién intervino?');
-    if (['trabajo', 'mixto'].includes(t.activity) && t.workDurationDays == null) add('¿Fue jornada completa o media jornada? La duración todavía no está confirmada.');
+    if (['trabajo', 'mixto'].includes(t.activity) && t.workDurationDays == null && !(event.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(event.preventivoCodigo))) add('¿Fue jornada completa o media jornada? La duración todavía no está confirmada.');
     if (['trabajo', 'mixto'].includes(t.activity) && event.tipo === 'correctivo' && (missing(t.system || meta.system) || missing(t.component || meta.component))) add('¿Qué parte se trabajó?');
+    if (t.activity === 'mixto' && t.usefulFraction == null) add('¿Qué parte del día se trabajó y qué parte se perdió?');
     if (['espera', 'mixto'].includes(t.activity) && (!t.cause || t.cause === 'PENDIENTE')) add('¿Por qué no se pudo trabajar?');
   }
   if (outcomeAtEnd(event).code === 'pendiente') questions.push({ field: 'outcome', text: '¿Quedó operativa o continúa el mantenimiento?' });

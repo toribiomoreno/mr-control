@@ -34,7 +34,8 @@ export function maintenanceEfficiency(s, m, range, now = today()) {
     const start = first ? (ep?.start || m.start) : m.start;
     const unknownStart = !m.start || (first && !ep?.start);
     const closed = m.status === 'finalizado' && !!m.end;
-    const cutoff = closed ? m.end : shiftDay(now, -1);
+    const dayComplete = events.some(o => o.date === now && o.dayComplete === true && (o.usefulFraction !== undefined || o.fullDay));
+    const cutoff = closed ? m.end : dayComplete ? now : shiftDay(now, -1);
     const from = [start || events[0]?.date || range?.from || now, range?.from || ''].sort().at(-1);
     const to = [cutoff, range?.to || cutoff].sort()[0];
     const rows = [];
@@ -83,7 +84,7 @@ export function maintenanceEfficiency(s, m, range, now = today()) {
         }
         rows.push({ date: d, state, reason, events: ev, useful, lost, lossCause });
     }
-    if (!closed && (!range || range.from <= now && range.to >= now) && (!m.start || m.start <= now))
+    if (!closed && !dayComplete && (!range || range.from <= now && range.to >= now) && (!m.start || m.start <= now))
         rows.push({ date: now, state: 'open', reason: 'Día en curso. Se incorpora al terminar el día o cerrar el mantenimiento.', events: events.filter(o => o.date === now), useful: 0, lost: 0, lossCause: '' });
     const worked = rows.reduce((n, r) => n + r.useful, 0), waited = rows.reduce((n, r) => n + r.lost, 0), missing = rows.filter(r => r.state === 'unknown').length, excluded = rows.filter(r => r.state === 'excluded').length;
     const losses = rows.reduce((a, r) => { if (r.lost)

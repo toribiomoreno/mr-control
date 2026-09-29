@@ -11,7 +11,7 @@ export function toRegister(events) {
     const id = event.id;
     const observations = (event.actualizaciones || []).map(a => {
       const tracking = a.metadata?.seguimiento || {};
-      return { id: a.id, maintenanceId: id, date: a.fecha, period: tracking.period || 'Período por confirmar', activity: tracking.activity || 'sin_dato', task: a.descripcion || '', cause: tracking.cause || '', staff: a.responsable || event.responsable || 'Por confirmar', system: tracking.system || meta.system || (light ? wholeLocomotive.system : 'Por confirmar'), component: tracking.component || meta.component || (light ? wholeLocomotive.component : 'Por confirmar'), fullDay: !!tracking.fullDay, workDurationDays: tracking.workDurationDays ?? null, confirmedUnknownDuration: !!tracking.confirmedUnknownDuration, staffSpecialty: tracking.staffSpecialty || '', ...(tracking.usefulFraction != null ? { usefulFraction: Number(tracking.usefulFraction) } : {}), allocationNote: tracking.allocationNote || '', weekendEligible: !!tracking.weekendEligible, createdAt: a.createdAt || '', updatedAt: a.updatedAt || '', source: 'Archivo Histórico' };
+      return { id: a.id, maintenanceId: id, date: a.fecha, period: tracking.period || 'Período por confirmar', activity: tracking.activity || 'sin_dato', task: a.descripcion || '', cause: tracking.cause || '', staff: a.responsable || event.responsable || 'Por confirmar', system: tracking.system || meta.system || (light ? wholeLocomotive.system : 'Por confirmar'), component: tracking.component || meta.component || (light ? wholeLocomotive.component : 'Por confirmar'), fullDay: !!tracking.fullDay, dayComplete: tracking.dayComplete === true, workDurationDays: tracking.workDurationDays ?? null, confirmedUnknownDuration: !!tracking.confirmedUnknownDuration, staffSpecialty: tracking.staffSpecialty || '', ...(tracking.usefulFraction != null ? { usefulFraction: Number(tracking.usefulFraction) } : {}), allocationNote: tracking.allocationNote || '', weekendEligible: !!tracking.weekendEligible, createdAt: a.createdAt || '', updatedAt: a.updatedAt || '', source: 'Archivo Histórico' };
     });
     const confirmed = [meta.detentionStart || '', meta.confirmedThrough || '', ...observations.filter(o => o.activity !== 'sin_dato').map(o => o.date)].sort().at(-1);
     register.episodes.push({ id, unit: normalizeUnit(event.locomotoraCodigo), start: meta.detentionStart || '', end: event.estadoMantenimiento === 'finalizado' ? event.fechaCierre || meta.availableDate || event.fecha : '', confirmedThrough: confirmed, scope: meta.location === 'Boulogne' ? 'Boulogne' : 'Externo', notes: '' });
@@ -83,17 +83,17 @@ export function validateUpdate(event, update, now = today()) {
     if (update.responsable === 'Turno fijo' && ['trabajo', 'mixto'].includes(t.activity)) assert(t.period === 'Mañana', 'El turno fijo se registra por la mañana.');
     if (isLight(event) && ['trabajo', 'mixto'].includes(t.activity)) assert(update.responsable === 'Turno rotativo', 'El preventivo liviano lo interviene el turno rotativo.');
   }
-  if (t.captureVersion >= 3 && ['trabajo', 'mixto'].includes(t.activity)) assert([0.5, 1].includes(t.workDurationDays) || (t.workDurationDays == null && t.confirmedUnknownDuration), 'Confirmá la duración del trabajo o indicá que aún no se conoce.');
+  if (t.captureVersion >= 3 && !isLight(event) && ['trabajo', 'mixto'].includes(t.activity)) assert([0.5, 1].includes(t.workDurationDays) || (t.workDurationDays == null && t.confirmedUnknownDuration), 'Confirmá la duración del trabajo o indicá que aún no se conoce.');
   if (['espera', 'mixto'].includes(t.activity)) assert(['MO', 'MAT', 'Acc', 'CAP', 'GES'].includes(t.cause), '¿Por qué no se pudo trabajar? Elegí una causa.');
   if (t.usefulFraction != null) {
     assert([0, .5, 1].includes(t.usefulFraction), 'El reparto del día debe ser 0, 50 o 100 %.');
     assert(t.allocationNote?.trim(), 'Explicá el reparto del día.');
-    assert(update.fecha < now || update.tipoActualizacion === 'cierre' || event.estadoMantenimiento === 'finalizado', 'El reparto se confirma al terminar el día o cerrar el mantenimiento.');
+    assert(update.fecha < now || update.tipoActualizacion === 'cierre' || event.estadoMantenimiento === 'finalizado' || t.dayComplete === true, 'El reparto se confirma al terminar el día o cerrar el mantenimiento.');
     assert(t.activity === 'mixto' ? t.usefulFraction === .5 : t.activity === 'trabajo' ? t.usefulFraction === 1 : t.activity === 'espera' && t.usefulFraction === 0, 'El reparto no coincide con la actividad.');
   }
   if (t.fullDay) {
     assert(t.activity === 'espera' && t.period === 'Día completo', 'Una espera de día completo requiere ese período.');
-    assert(update.fecha < now || update.tipoActualizacion === 'cierre' || event.estadoMantenimiento === 'finalizado', 'Hoy sigue en curso; registrá solo el período observado.');
+    assert(update.fecha < now || update.tipoActualizacion === 'cierre' || event.estadoMantenimiento === 'finalizado' || t.dayComplete === true, 'Hoy sigue en curso; registrá solo el período observado.');
   }
   const peers = (event.actualizaciones || []).filter(a => a.id !== update.id && a.fecha === update.fecha).map(a => a.metadata?.seguimiento || {});
   assert(!(t.usefulFraction != null && peers.some(p => p.usefulFraction != null)), 'Ya hay un reparto para este día: corregí el registro existente.');
