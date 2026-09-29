@@ -5,8 +5,9 @@ import { crearActualizacion, editarActualizacion } from '../services/actualizaci
 import { toRegister } from '../domain/maintenance/adapter.js';
 import { today, monday, shiftDay, dateLabel } from '../domain/maintenance/types.js';
 import { maintenanceEfficiency, formatDays, causeName } from '../domain/maintenance/presentation.js';
-import { dailyMaintenance, detentionReason, evidenceQuestions, isoWeek, maintenanceBars, maintenanceLabel, orderedUpdates, outcomeAtEnd, updateOutcomeLabel } from '../domain/maintenance/view.js';
+import { dailyMaintenance, detentionReason, evidenceQuestions, isoWeek, maintenanceBars, maintenanceLabel, orderedUpdates, outcomeAtEnd, updateOutcomeLabel, workDurationLabel } from '../domain/maintenance/view.js';
 import { registerCsv, efficiencyCsv } from '../domain/maintenance/export.js';
+import CargaDatosModal from './CargaDatosModal.jsx';
 import RegistroEventoModal from './RegistroEventoModal.jsx';
 import ActualizacionEventoModal from './ActualizacionEventoModal.jsx';
 import SeguimientoFields from './SeguimientoFields.jsx';
@@ -42,7 +43,8 @@ function UpdateEntry({ update, event }) {
   return <article className="maintenance-journal-entry">
     <div className="maintenance-journal-date"><strong>{dateLabel(update.fecha)}</strong><small>{data.period || 'Turno por confirmar'}</small></div>
     <div>{event.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(event.preventivoCodigo) && <span className="journal-preventive">Preventivo {event.preventivoCodigo} · locomotora completa</span>}<span className={`journal-activity ${data.activity || 'sin_dato'}`}>{activityNames[data.activity] || 'Actividad por confirmar'}</span><p>{update.descripcion}</p>
-      <p className="journal-outcome">Al terminar el día: <strong>{updateOutcomeLabel(event, update)}</strong></p>
+      <p>{[update.responsable, data.staffSpecialty, workDurationLabel(data)].filter(Boolean).join(' · ')}</p>
+      <p className="journal-outcome">Estado informado: <strong>{updateOutcomeLabel(event, update)}</strong></p>
     </div>
   </article>;
 }
@@ -50,7 +52,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
   const [events, setEvents] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [week, setWeek] = useState(() => monday(initialSelection?.fecha || today()));
   const [unit, setUnit] = useState(initialSelection?.codigo || '');
-  const [updateTargetId, setUpdateTargetId] = useState('');
+  const [entryOpen, setEntryOpen] = useState(false);
   const [day, setDay] = useState(''), [selectedId, setSelectedId] = useState(initialSelection?.id || '');
   const [creating, setCreating] = useState(false), [update, setUpdate] = useState(null), [editingMeta, setEditingMeta] = useState(false), [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -71,8 +73,8 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
   const daily = day ? dailyMaintenance(filteredEvents, day) : [];
   const selected = register.maintenances.find(item => item.id === selectedId), event = events.find(item => item.id === selectedId);
   const selectedLoco = event ? locomotoras.find(item => item.codigo === event.locomotoraCodigo) : null;
-  const updateEvent = update?.eventId ? events.find(item => item.id === update.eventId) : event;
-  const writableJobs = events.filter(item => item.origen !== 'vista-previa-privada' && item.estadoMantenimiento !== 'finalizado').sort((a,b) => a.locomotoraCodigo.localeCompare(b.locomotoraCodigo));
+  const updateEvent = update?.event || (update?.eventId ? events.find(item => item.id === update.eventId) : event);
+
   const canEdit = canManage && event?.origen !== 'vista-previa-privada';
   const result = selected ? maintenanceEfficiency(register, selected) : null;
   const updates = event ? orderedUpdates(event) : [];
@@ -85,12 +87,17 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
   async function create(payload, files) {
     if (!canManage) throw new Error('No tenés permisos para cargar mantenimientos.');
     const saved = await createHistorialEvent(payload, files, locomotoras);
-    setCreating(false); await load(); onChanged?.(); setSelectedId(saved.id);
+    setCreating(false); setSelectedId(saved.id);
+    if (['preventivo', 'correctivo'].includes(saved.tipo)) setUpdate({ event: saved, newEntry: true, initialUpdate: {
+      fecha: saved.fechaCierre || saved.fecha, hora: '', descripcion: saved.descripcion, responsable: saved.responsable,
+      metadata: { seguimiento: { outcome: saved.metadata?.seguimiento?.outcome || '' } },
+    } });
+    await load(); onChanged?.();
   }
   async function saveUpdate(parent, payload, files) {
     if (!canManage || parent.origen === 'vista-previa-privada') throw new Error('Este mantenimiento es de solo lectura.');
     if (payload.id) await editarActualizacion(payload, files, parent); else await crearActualizacion(payload, files, parent);
-    await load(); onChanged?.(); setUpdateTargetId(payload.estadoResultante === 'finalizado' ? '' : parent.id);
+    await load(); onChanged?.(); setUpdate(null);
   }
   async function saveMeta(e) {
     e.preventDefault(); if (!canEdit) return;
@@ -101,11 +108,11 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   }
   return <main className="tracking-page maintenance-page">
-    <header className="maintenance-heading"><div><p className="eyebrow">Mantenimientos · {weekInfo.year}</p><h2>Semana {weekInfo.number}</h2></div><p className="maintenance-week-range">Del {dateLabel(week)} al {dateLabel(range.to)}</p>{canManage && <button className="primary-action" onClick={() => setCreating(true)}>+ Registrar mantenimiento</button>}</header>
+    <header className="maintenance-heading"><div><p className="eyebrow">Mantenimientos · {weekInfo.year}</p><h2>Semana {weekInfo.number}</h2></div><p className="maintenance-week-range">Del {dateLabel(week)} al {dateLabel(range.to)}</p>{canManage && <button className="primary-action" onClick={() => setEntryOpen(true)}>+ Cargar datos</button>}</header>
     <div className="tracking-toolbar maintenance-toolbar">
       <div className="week-navigation"><button onClick={() => changeWeek(shiftDay(week, -7))} aria-label="Semana anterior">‹</button><label>Semana del<input type="date" value={week} onChange={e => e.target.value && changeWeek(e.target.value)} /></label><button onClick={() => changeWeek(shiftDay(week, 7))} aria-label="Semana siguiente">›</button></div>
       <label>Locomotora<select value={unit} onChange={e => setUnit(e.target.value)}><option value="">Todas</option>{locomotoras.map(l => <option key={l.codigo}>{l.codigo}</option>)}</select></label>
-      {canManage && <div className="maintenance-entry"><label>Registrar avance en<select aria-label="Mantenimiento para registrar avance" value={updateTargetId} onChange={e => setUpdateTargetId(e.target.value)}><option value="">Elegir mantenimiento abierto</option>{writableJobs.map(item => <option value={item.id} key={item.id}>{item.locomotoraCodigo} · {maintenanceLabel(item)}</option>)}</select></label><button type="button" disabled={!updateTargetId} onClick={() => setUpdate({ eventId: updateTargetId })}>+ Cargar novedad</button></div>}
+
       <details className="maintenance-export"><summary>Datos</summary><button onClick={() => download(`mantenimientos-${week}.csv`, registerCsv(subset))}>CSV de la semana</button><button onClick={() => download('mantenimientos-completos.csv', registerCsv(register))}>CSV completo</button><button onClick={() => download(`eficiencia-${week}.csv`, efficiencyCsv(register, jobs.filter(m => m.location === 'Boulogne'), range))}>Indicadores CSV</button>{canManage && <button onClick={() => setImporting(true)}>Importar respaldo JSON</button>}</details>
     </div>
     <div className="maintenance-key"><span><i className="preventivo" />Preventivos</span><span><i className="correctivo" />Correctivos</span><small>Tocá una barra para ver el mantenimiento o una fecha para revisar ese día.</small></div>
@@ -138,6 +145,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
       <Efficiency result={result} location={selected.location} onComplete={canEdit ? date => setUpdate({ initialDate: date }) : null} />
       {error && <p role="alert" className="tracking-error">{error}</p>}
     </section></div>}
+    {entryOpen && <CargaDatosModal events={events} unit={unit} onClose={() => setEntryOpen(false)} onNew={() => { setEntryOpen(false); setCreating(true); }} onUpdate={(eventId, initialUpdate) => { setEntryOpen(false); setUpdate({ eventId, initialUpdate }); }} />}
     {creating && <RegistroEventoModal locomotoras={locomotoras} selectedLoco={locomotoras.find(l => l.codigo === unit) || locomotoras[0]} onClose={() => setCreating(false)} onSave={create} />}
     {update && updateEvent && <ActualizacionEventoModal key={update.initialUpdate?.id || update.initialDate || updateEvent.id} event={updateEvent} mode={updateEvent.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} {...update} onClose={() => setUpdate(null)} onSave={saveUpdate} />}
     {importing && <ImportarPilotoModal events={events} onClose={() => setImporting(false)} onImported={async () => { await load(); onChanged?.(); }} />}

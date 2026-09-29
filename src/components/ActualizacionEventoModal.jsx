@@ -1,6 +1,6 @@
 import { causes, systems, today } from '../domain/maintenance/types.js';
 import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
-import { outcomeLabels } from '../domain/maintenance/view.js';
+import { beforeMaintenanceClosure, outcomeLabels } from '../domain/maintenance/view.js';
 import { useState } from 'react';
 import VoiceTextarea from './VoiceTextarea.jsx';
 
@@ -15,12 +15,7 @@ const updateTypes = [
   { value: 'cierre', label: 'Cierre' },
 ];
 
-const responsibleOptions = ['Turno fijo', 'Turno rotativo'];
-
-
-function currentTimeValue() {
-  return new Date().toTimeString().slice(0, 5);
-}
+const responsibleOptions = ['Turno fijo', 'Turno rotativo', 'Otro sector', 'Personal externo'];
 
 function defaultStateForType(type) {
   if (type === 'pausa') return 'pausado';
@@ -34,6 +29,7 @@ export default function ActualizacionEventoModal({
   mode = 'avance',
   initialUpdate = null,
   initialDate = '',
+  newEntry = false,
   onClose,
   onSave,
 }) {
@@ -45,6 +41,7 @@ export default function ActualizacionEventoModal({
   const [staff, setStaff] = useState(initialUpdate?.responsable || (isLight(event) ? 'Turno rotativo' : ''));
   const [fraction, setFraction] = useState(saved.usefulFraction == null ? '' : String(saved.usefulFraction));
   const [outcome, setOutcome] = useState(saved.outcome || '');
+  const [date, setDate] = useState(initialUpdate?.fecha || initialDate || today());
   const [errorMessage, setErrorMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const isPause = tipo === 'pausa';
@@ -59,7 +56,7 @@ export default function ActualizacionEventoModal({
 
     setErrorMessage('');
 
-    if (!isValidTimeValue(hora)) {
+    if (hora && !isValidTimeValue(hora)) {
       setErrorMessage('La hora debe tener formato HH:mm.');
       return;
     }
@@ -68,7 +65,7 @@ export default function ActualizacionEventoModal({
       ...(initialUpdate?.id ? { id: initialUpdate.id, updatedAt: initialUpdate.updatedAt } : {}),
       eventoId: event.id,
       fecha: form.get('fecha'),
-      hora,
+      hora: hora || null,
       tipoActualizacion: event.estadoMantenimiento !== 'finalizado' && outcome === 'operativa' ? 'cierre' : tipo,
       descripcion: descriptionValue,
       responsable,
@@ -80,7 +77,10 @@ export default function ActualizacionEventoModal({
       estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : outcome === 'prueba' ? 'pendiente_de_prueba' : null,
       pendientes: null,
       metadata: { ...initialUpdate?.metadata, seguimiento: {
-        captureVersion: 2,
+        ...saved,
+        usefulFraction: undefined,
+        workDurationDays: undefined,
+        captureVersion: 3,
         confirmedUnknownOutcome: outcome === 'pendiente' && form.get('confirmUnknownOutcome') === 'on',
         confirmedUnknownActivity: activity === 'sin_dato' && form.get('confirmActivity') === 'on',
         ...(outcome ? { outcome } : {}),
@@ -90,6 +90,7 @@ export default function ActualizacionEventoModal({
         weekendEligible: form.get('weekendEligible') === 'on',
         ...(fraction !== '' ? { usefulFraction: Number(fraction) } : {}),
         allocationNote: form.get('allocationNote') || '',
+        ...(['trabajo', 'mixto'].includes(activity) ? { workDurationDays: form.get('workDurationDays') === 'unknown' ? null : Number(form.get('workDurationDays')), confirmedUnknownDuration: form.get('workDurationDays') === 'unknown', staffSpecialty: form.get('staffSpecialty') || '' } : {}),
       } },
     };
     const files = form.getAll('adjuntos').filter((file) => file && file.name);
@@ -113,10 +114,11 @@ export default function ActualizacionEventoModal({
         <div className="modal-heading">
           <div>
             <span className="panel-kicker">{event.titulo || 'Mantenimiento'}</span>
-            <h2>{isObservationOnly ? 'Agregar observacion' : 'Registrar avance'}</h2>
+            <h2>{newEntry ? 'Completar actividad del registro creado' : initialUpdate?.id ? 'Corregir avance' : isObservationOnly ? 'Agregar observación' : 'Registrar avance'}</h2>
           </div>
           <button className="modal-close" onClick={onClose} type="button" aria-label="Cerrar">x</button>
         </div>
+        {newEntry && <p className="history-modal-note">El ingreso ya está guardado. Confirmá qué ocurrió durante este día para completar sus avances y el indicador de eficiencia.</p>}
 
         {!isObservationOnly && (
           <label>
@@ -129,14 +131,14 @@ export default function ActualizacionEventoModal({
 
         <label>
           Fecha
-          <input name="fecha" type="date" defaultValue={initialUpdate?.fecha || initialDate || today()} min={event.fecha} max={today()} required />
+          <input name="fecha" type="date" value={date} onChange={e => setDate(e.target.value)} min={event.fecha} max={today()} required />
         </label>
 
-        <TimeSelect defaultValue={initialUpdate?.hora || currentTimeValue()} />
+        <TimeSelect defaultValue={initialUpdate?.metadata?.horaEstimada ? '' : initialUpdate?.hora} required={false} label="Hora de la novedad (si se conoce)" />
 
         <label>
           ¿Quién intervino o informó la espera?
-          <select name="responsable" value={staff} onChange={e => setStaff(e.target.value)} required>
+          <select name="responsable" value={staff} onChange={e => setStaff(e.target.value)} required={activity !== 'sin_dato'}>
             <option value="" disabled>Seleccionar turno</option>
             {responsibleOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
@@ -150,6 +152,11 @@ export default function ActualizacionEventoModal({
         <fieldset className="tracking-fields"><legend>¿Qué ocurrió durante el período relevado?</legend>
           <div className="tracking-choices">{[['trabajo', 'Se trabajó'], ['espera', 'No se pudo trabajar'], ['mixto', 'Trabajo y demora'], ['sin_dato', 'Solo anotación / sin información']].map(([value, label]) => <button type="button" key={value} aria-pressed={activity === value} onClick={() => { setActivity(value); setFraction(''); }}>{label}</button>)}</div>
           {activity && activity !== 'sin_dato' && <>
+            {['trabajo', 'mixto'].includes(activity) && <>
+              <label>Especialidad del personal (si se conoce)<input name="staffSpecialty" defaultValue={saved.staffSpecialty || ''} placeholder="Ej.: eléctrico, mecánico" /></label>
+              <label>¿Cuánto tiempo se trabajó?<select name="workDurationDays" defaultValue={saved.workDurationDays ?? (saved.confirmedUnknownDuration ? 'unknown' : '')} required><option value="">Confirmar duración</option><option value="1">Jornada completa</option><option value="0.5">Media jornada</option><option value="unknown">Duración por confirmar</option></select></label>
+              <p className="tracking-hint">Media jornada de trabajo no implica media jornada de demora. Si quedó operativa, el tiempo posterior no se registra como pérdida.</p>
+            </>}
             {event.tipo === 'correctivo' && ['trabajo', 'mixto'].includes(activity) && <>
               <label>¿De qué sistema hablamos?<select name="system" defaultValue={saved.system || event.metadata?.seguimiento?.system || ''} required><option value="">Seleccionar sistema</option>{systems.filter(x => x !== 'Por confirmar').map(x => <option key={x}>{x}</option>)}</select></label>
               <label>¿Qué parte se trabajó en esta novedad?<input name="component" defaultValue={saved.component || event.metadata?.seguimiento?.component || ''} required /></label>
@@ -168,7 +175,7 @@ export default function ActualizacionEventoModal({
         <fieldset className="tracking-fields"><legend>¿Cómo quedó la máquina después de este día?</legend>
           <select aria-label="Estado posterior de la máquina" value={outcome} onChange={e => setOutcome(e.target.value)} required={activity !== 'sin_dato' || tipo === 'cierre' || Boolean(saved.outcome)}>
             <option value="">Confirmar estado posterior</option>
-            {Object.entries(outcomeLabels).filter(([key]) => !(key === 'continua' && event.estadoMantenimiento === 'finalizado')).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            {Object.entries(outcomeLabels).filter(([key]) => !(key === 'continua' && event.estadoMantenimiento === 'finalizado' && !beforeMaintenanceClosure(event, { ...initialUpdate, fecha: date, tipoActualizacion: tipo }))).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>
           {outcome === 'operativa' && event.estadoMantenimiento !== 'finalizado' && <p>Este registro cerrará el mantenimiento en la fecha indicada.</p>}
           {outcome === 'pendiente' && <label className="tracking-confirm"><input name="confirmUnknownOutcome" type="checkbox" required /> Elijo dejar el estado posterior sin confirmar.</label>}

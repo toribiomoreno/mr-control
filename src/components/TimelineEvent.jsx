@@ -1,192 +1,62 @@
 import { useState } from 'react';
-
-import ActualizacionEventoModal from './ActualizacionEventoModal.jsx';
 import { createSignedAttachmentUrl } from '../services/adjuntosSupabaseService.js';
+import { isMaintenance } from '../domain/maintenance/adapter.js';
+import { historyStaff } from '../domain/maintenance/history.js';
+import { orderedUpdates, updateOutcomeLabel, workDurationLabel } from '../domain/maintenance/view.js';
+import { dateLabel, causes } from '../domain/maintenance/types.js';
 
-const typeLabels = {
-  preventivo: 'Preventivo',
-  correctivo: 'Correctivo',
-  libro: 'Libro de novedades',
-  alistamiento: 'Alistamiento nocturno',
-  campana: 'Campana',
-  numeral: 'Numeral',
-  lavado: 'Lavado',
-  otro: 'Otro',
-};
+const states = { abierto: 'EN CURSO', en_curso: 'EN CURSO', pausado: 'PAUSADO', finalizado: 'FINALIZADO', cancelado: 'CANCELADO' };
+const activities = { trabajo: 'Se trabajó', espera: 'Sin intervención', mixto: 'Trabajo y demora', sin_dato: 'Observación' };
+const types = { preventivo: 'Preventivo', correctivo: 'Correctivo', libro: 'Libro de novedades', alistamiento: 'Alistamiento', lavado: 'Lavado', otro: 'Ajuste', campana: 'Campaña' };
+const sameText = (a, b) => String(a || '').trim().toLocaleLowerCase('es') === String(b || '').trim().toLocaleLowerCase('es');
 
-const estadoLabels = {
-  abierto: 'EN CURSO',
-  en_curso: 'EN CURSO',
-  pausado: 'PAUSADO',
-  finalizado: 'FINALIZADO',
-  cancelado: 'CANCELADO',
-};
-
-const updateLabels = {
-  avance: 'Avance',
-  pausa: 'Pausa',
-  reanudacion: 'Reanudacion',
-  observacion: 'Observacion',
-  cierre: 'Cierre',
-};
-
-function isMaintenanceEvent(type) {
-  return ['preventivo', 'correctivo'].includes(type);
+function Icon({ person = false }) {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">{person ? <><circle cx="12" cy="7" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></> : <path d="M14 5a5 5 0 0 0-6 6L2 17a3 3 0 0 0 5 5l6-6a5 5 0 0 0 6-6l-3 3-4-4 3-3Z" />}</svg>;
 }
 
-function normalizeMaintenanceState(state) {
-  if (!state || state === 'abierto') return 'en_curso';
-  return state;
-}
-
-function formatTime(value) {
-  return value ? String(value).slice(0, 5) : '';
-}
-
-function updateDescription(actualizacion) {
-  if (actualizacion.tipoActualizacion === 'pausa') {
-    return actualizacion.motivoPausa || actualizacion.descripcion;
-  }
-
-  return actualizacion.descripcion;
-}
-
-function sameText(left, right) {
-  return String(left || '').trim().toLocaleLowerCase('es') === String(right || '').trim().toLocaleLowerCase('es');
-}
-
-function summaryParts(event) {
-  const tracking = event.metadata?.seguimiento;
-  if (!tracking) return [];
-  const parts = [];
-  if (tracking.system && !sameText(tracking.system, event.especialidad)) parts.push(tracking.system);
-  if (tracking.component && !String(event.titulo || '').toLocaleLowerCase('es').includes(tracking.component.toLocaleLowerCase('es'))) parts.push(tracking.component);
-  if (tracking.detentionStart) parts.push(`Detenida desde ${tracking.detentionStart.split('-').reverse().join('/')}`);
-  return parts;
-}
-
-export default function TimelineEvent({ canManage = false, event, onCreateActualizacion, onForbidden }) {
-  const [showUpdates, setShowUpdates] = useState(false);
-  const [modalMode, setModalMode] = useState('');
-  const actualizaciones = event.actualizaciones || [];
-  const isMaintenance = isMaintenanceEvent(event.tipo);
-  const estadoMantenimiento = isMaintenance ? normalizeMaintenanceState(event.estadoMantenimiento) : '';
-  const isFinished = estadoMantenimiento === 'finalizado';
-
-  const openAttachment = async (adjunto) => {
+export default function TimelineEvent({ event }) {
+  const [expanded, setExpanded] = useState(false);
+  const updates = orderedUpdates(event);
+  const maintenance = isMaintenance(event);
+  const state = event.estadoMantenimiento || 'en_curso';
+  const system = event.metadata?.seguimiento?.system || event.especialidad || types[event.tipo];
+  const description = event.descripcion && !sameText(event.descripcion, event.titulo) && !updates.some(a => sameText(a.descripcion, event.descripcion)) ? event.descripcion : '';
+  const detailId = `history-details-${event.id}`;
+  async function openAttachment(attachment) {
     try {
-      const url = adjunto.storagePath ? await createSignedAttachmentUrl(adjunto.storagePath) : adjunto.url;
-      if (url && url !== '#') window.open(url, '_blank');
-    } catch {
-      window.alert('No fue posible abrir el adjunto.');
-    }
-  };
-
-  const openUpdateModal = (mode) => {
-    if (!canManage) {
-      onForbidden?.();
-      return;
-    }
-
-    setModalMode(mode);
-  };
-
-  return (
-    <>
-      <article className={`timeline-event-card ${event.tipo} ${event.criticidad === 'alta' ? 'is-critical' : ''}`}>
-        <time>{formatTime(event.hora)}</time>
-
-        <div className="timeline-event-marker" />
-
-        <div className="timeline-event-body">
-          <div className="timeline-event-topline">
-            <strong>{event.titulo || typeLabels[event.tipo] || event.tipo}</strong>
-            {event.metadata?.fleetConfirmation && <span>Estado de flota</span>}
-            {event.especialidad && !sameText(event.especialidad, event.titulo) && <span>{event.especialidad}</span>}
-            {event.automatico && <em>Automatico</em>}
-            {isMaintenance && (
-              <em className={`maintenance-state-badge ${estadoMantenimiento}`}>
-                {estadoLabels[estadoMantenimiento] || estadoMantenimiento}
-              </em>
-            )}
+      const url = attachment.storagePath ? await createSignedAttachmentUrl(attachment.storagePath) : attachment.url;
+      if (url && url !== '#') window.open(url, '_blank', 'noopener,noreferrer');
+    } catch { window.alert('No fue posible abrir el adjunto.'); }
+  }
+  const attachments = items => items?.length > 0 && <div className="timeline-event-meta">{items.map(a => <button key={a.id || a.storagePath || a.nombre} onClick={() => openAttachment(a)} type="button">{a.nombre || a.nombreArchivo || a.tipo || 'Ver adjunto'}</button>)}</div>;
+  return <article className={`timeline-event-card ${event.tipo} ${event.criticidad === 'alta' ? 'is-critical' : ''}`}>
+    <div className="timeline-event-marker" />
+    <div className="timeline-event-body">
+      <div className="history-event-summary">
+        <span className="history-event-icon"><Icon /></span>
+        <div className="history-event-copy">
+          <div className="timeline-event-topline"><strong>{event.titulo || types[event.tipo] || event.tipo}</strong>
+            {maintenance && <em className={`maintenance-state-badge ${state}`}>{states[state] || state}</em>}
           </div>
-
-          {event.descripcion && !sameText(event.descripcion, event.titulo) && <p>{event.descripcion}</p>}
-          {summaryParts(event).length > 0 && <p className="history-modal-note">{summaryParts(event).join(' · ')}</p>}
-
-          <div className="timeline-event-meta">
-            {event.responsable && <span>Responsable: {event.responsable}</span>}
-            {(event.origen === 'sistema-ferrovias' || event.origen === 'libro-novedades-ferrovias') && <span>SINCRONIZADO</span>}
-            {event.origen === 'calendario' && <span>CALENDARIO</span>}
-            {(event.adjuntos || []).map((adjunto) => (
-              <button key={`${event.id}-${adjunto.tipo}-${adjunto.nombre}`} onDoubleClick={() => openAttachment(adjunto)} type="button">{adjunto.tipo}</button>
-            ))}
-          </div>
-
-          {isMaintenance && (
-            <div className="maintenance-update-panel">
-              <div className="maintenance-update-summary">
-                <span>{actualizaciones.length} {isFinished ? 'actualizaciones' : 'avances'}</span>
-                {event.fechaCierre && <span>Cierre: {event.fechaCierre} {formatTime(event.horaCierre)}</span>}
-                {isFinished && <strong>Mantenimiento finalizado</strong>}
-              </div>
-
-              <div className="maintenance-update-actions">
-                {!isFinished && canManage && (
-                  <button className="secondary-action" onClick={() => openUpdateModal('avance')} type="button">
-                    Agregar avance
-                  </button>
-                )}
-                {isFinished && canManage && (
-                  <button className="secondary-action" onClick={() => openUpdateModal('observacion')} type="button">
-                    Agregar observacion
-                  </button>
-                )}
-                {(isFinished || actualizaciones.length > 0) && (
-                  <button className="secondary-action" onClick={() => setShowUpdates((current) => !current)} type="button">
-                    {isFinished ? `Ver actualizaciones (${actualizaciones.length})` : `Ver avances (${actualizaciones.length})`}
-                  </button>
-                )}
-              </div>
-
-              {showUpdates && (
-                <div className="maintenance-update-list">
-                  {actualizaciones.length === 0 && (
-                    <span className="maintenance-update-empty">
-                      {isFinished ? 'Sin actualizaciones registradas.' : 'Sin avances registrados.'}
-                    </span>
-                  )}
-
-                  {actualizaciones.map((actualizacion) => (
-                    <div className="maintenance-update-item" key={actualizacion.id}>
-                      <div className="maintenance-update-item-heading">
-                        <strong>{updateLabels[actualizacion.tipoActualizacion] || actualizacion.tipoActualizacion}</strong>
-                        <span>{actualizacion.fecha} {formatTime(actualizacion.hora)}</span>
-                        {actualizacion.tipoActualizacion === 'cierre' && <em>FINALIZADO</em>}
-                      </div>
-
-                      <p>{updateDescription(actualizacion)}</p>
-
-                      <div className="maintenance-update-data">
-                        {actualizacion.responsable && <span>Responsable: {actualizacion.responsable}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          <div className="timeline-event-meta"><span className="history-system">{system}</span><span className="history-staff"><Icon person />{historyStaff(event)}</span></div>
         </div>
-      </article>
-
-      {modalMode && (
-        <ActualizacionEventoModal
-          event={event}
-          mode={modalMode}
-          onClose={() => setModalMode('')}
-          onSave={onCreateActualizacion}
-        />
-      )}
-    </>
-  );
+        <button className="history-expand-button" aria-expanded={expanded} aria-controls={detailId} onClick={() => setExpanded(value => !value)} type="button">{expanded ? 'Ocultar' : 'Ver'} {maintenance ? `avances (${updates.length})` : 'detalle'} <span aria-hidden="true">{expanded ? '⌃' : '⌄'}</span></button>
+      </div>
+      {expanded && <div id={detailId} className="maintenance-update-list history-expanded-details">
+        {description && (updates.length ? <details className="maintenance-update-item"><summary>Anotaciones del ingreso</summary><p>{description}</p></details> : <div className="maintenance-update-item"><strong>Anotaciones del registro</strong><p>{description}</p></div>)}
+        {attachments(event.adjuntos)}
+        {maintenance && !updates.length && <p className="maintenance-update-empty">Sin avances registrados. El ingreso no confirma que se haya trabajado.</p>}
+        {updates.map(update => {
+          const tracking = update.metadata?.seguimiento || {};
+          return <div className="maintenance-update-item" key={update.id}>
+            <div className="maintenance-update-item-heading"><strong>{dateLabel(update.fecha)}</strong><span>{tracking.period || 'Turno por confirmar'}{update.hora && !update.metadata?.horaEstimada ? ` · ${update.hora.slice(0, 5)}` : ''}</span><em>{activities[tracking.activity] || 'Avance'}</em></div>
+            <p>{update.descripcion || update.motivoPausa}</p>
+            {workDurationLabel(tracking) && <p>{workDurationLabel(tracking)}</p>}
+            <div className="maintenance-update-data"><span>{[update.responsable || 'Personal por confirmar', tracking.staffSpecialty].filter(Boolean).join(' · ')}</span>{tracking.cause && <span>Demora: {causes[tracking.cause] || tracking.cause}</span>}<span>{updateOutcomeLabel(event, update)}</span></div>
+            {attachments(update.adjuntos)}
+          </div>;
+        })}
+      </div>}
+    </div>
+  </article>;
 }
