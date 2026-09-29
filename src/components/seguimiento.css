@@ -116,3 +116,7 @@
 .voice-field button { border: 1px solid #b8c9c2; border-radius: .55rem; padding: .45rem .75rem; background: #eef8f3; color: #15513c; cursor: pointer; font: inherit; }
 .voice-field button:focus-visible { outline: 2px solid #176b50; outline-offset: 2px; }
 .voice-field small { color: #cbd5e1; }
+
+.journal-missing button { color: #714600; background: #fff6dd; border: 1px solid #d7b675; border-radius: 6px; padding: 8px 12px; text-align: left; cursor: pointer; }
+.journal-edit { margin-top: 8px; }
+.tracking-facts dd button { display: block; margin-top: 6px; }

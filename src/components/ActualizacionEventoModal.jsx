@@ -86,11 +86,12 @@ export default function ActualizacionEventoModal({
         ...(outcome ? { outcome } : {}),
         activity, system: form.get('system') || event.metadata?.seguimiento?.system || '', component: form.get('component') || event.metadata?.seguimiento?.component || '', period: staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? 'Mañana' : form.get('period') || '',
         cause: ['espera', 'mixto'].includes(activity) ? form.get('cause') : '',
+        dayComplete: form.get('dayComplete') === 'on',
         fullDay: activity === 'espera' && form.get('fullDay') === 'on',
         weekendEligible: form.get('weekendEligible') === 'on',
         ...(fraction !== '' ? { usefulFraction: Number(fraction) } : {}),
         allocationNote: form.get('allocationNote') || '',
-        ...(['trabajo', 'mixto'].includes(activity) ? { workDurationDays: form.get('workDurationDays') === 'unknown' ? null : Number(form.get('workDurationDays')), confirmedUnknownDuration: form.get('workDurationDays') === 'unknown', staffSpecialty: form.get('staffSpecialty') || '' } : {}),
+        ...(['trabajo', 'mixto'].includes(activity) ? { workDurationDays: isLight(event) || form.get('workDurationDays') === 'unknown' ? null : Number(form.get('workDurationDays')), confirmedUnknownDuration: form.get('workDurationDays') === 'unknown', staffSpecialty: form.get('staffSpecialty') || '' } : {}),
       } },
     };
     const files = form.getAll('adjuntos').filter((file) => file && file.name);
@@ -154,7 +155,7 @@ export default function ActualizacionEventoModal({
           {activity && activity !== 'sin_dato' && <>
             {['trabajo', 'mixto'].includes(activity) && <>
               <label>Especialidad del personal (si se conoce)<input name="staffSpecialty" defaultValue={saved.staffSpecialty || ''} placeholder="Ej.: eléctrico, mecánico" /></label>
-              <label>¿Cuánto tiempo se trabajó?<select name="workDurationDays" defaultValue={saved.workDurationDays ?? (saved.confirmedUnknownDuration ? 'unknown' : '')} required><option value="">Confirmar duración</option><option value="1">Jornada completa</option><option value="0.5">Media jornada</option><option value="unknown">Duración por confirmar</option></select></label>
+              {!isLight(event) && <label>¿Cuánto tiempo se trabajó?<select name="workDurationDays" defaultValue={saved.workDurationDays ?? (saved.confirmedUnknownDuration ? 'unknown' : '')} required><option value="">Confirmar duración</option><option value="1">Jornada completa</option><option value="0.5">Media jornada</option><option value="unknown">Duración por confirmar</option></select></label>}
               <p className="tracking-hint">Media jornada de trabajo no implica media jornada de demora. Si quedó operativa, el tiempo posterior no se registra como pérdida.</p>
             </>}
             {event.tipo === 'correctivo' && ['trabajo', 'mixto'].includes(activity) && <>
@@ -166,6 +167,7 @@ export default function ActualizacionEventoModal({
             {activity === 'espera' && <label className="tracking-confirm"><input type="checkbox" name="fullDay" defaultChecked={saved.fullDay} /> Confirmo que no se trabajó en todo el día</label>}
             <label className="tracking-confirm"><input type="checkbox" name="weekendEligible" defaultChecked={saved.weekendEligible} /> Trabajo excepcional previsto para este fin de semana</label>
             <label>Evaluación del día completo<select value={fraction} onChange={e => setFraction(e.target.value)}><option value="">Sin reparto adicional</option>{activity === 'mixto' ? <option value="0.5">50 % útil / 50 % pérdida</option> : activity === 'trabajo' ? <option value="1">100 % útil</option> : <option value="0">100 % pérdida</option>}</select></label>
+            {date === today() && event.estadoMantenimiento !== 'finalizado' && <label className="tracking-confirm"><input key={date + activity} type="checkbox" name="dayComplete" defaultChecked={saved.dayComplete === true} /> Confirmo que terminó la jornada informada; el mantenimiento puede continuar.</label>}
             {fraction !== '' && <label>¿Qué justifica ese reparto?<input name="allocationNote" defaultValue={saved.allocationNote || ''} required /></label>}
             {activity === 'mixto' && fraction === '' && <p>La eficiencia quedará sin calcular hasta confirmar el reparto. Podés volver a este registro y corregirlo.</p>}
           </>}
