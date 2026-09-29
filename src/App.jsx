@@ -8,19 +8,15 @@ import ConfirmarEstadoModal from './components/ConfirmarEstadoModal.jsx';
 import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.jsx';
 import Login from './components/Login.jsx';
 import Patio from './components/Patio.jsx';
-import RegistroEventoModal from './components/RegistroEventoModal.jsx';
 import ReportesGestion from './components/ReportesGestion.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import locoAzul from './assets/loco_azul.webp';
 import locoRoja from './assets/loco_roja.webp';
 import { useAuth } from './context/useAuth.js';
 import initialLocomotoras from './data/locomotoras.js';
-import { previewPilotEvents } from './domain/maintenance/import.js';
 import { fleetFromTracking } from './domain/maintenance/fleetState.js';
 import { permisoDenegadoMensaje, puedeGestionarArchivoHistorico, puedeGestionarPatioCalendario } from './lib/permissions.js';
-import { crearActualizacion } from './services/actualizacionesEventoSupabaseService.js';
-import { createHistorialEvent, fetchHistorialByLocomotora } from './services/historialSupabaseService.js';
-import { importarLibroNovedades } from './services/importacionLibroSupabaseService.js';
+import { fetchHistorialByLocomotora } from './services/historialSupabaseService.js';
 import { fetchSeguimiento } from './services/seguimientoService.js';
 import { fetchFleetConfirmations, saveFleetConfirmation } from './services/fleetConfirmationService.js';
 
@@ -124,13 +120,9 @@ export default function App() {
   const [locomotoras, setLocomotoras] = useState(initialLocomotoras);
   const [tab, setTab] = useState('inicio');
   const [trackingSelection, setTrackingSelection] = useState(null);
-  const [privatePreviewEvents, setPrivatePreviewEvents] = useState([]);
-  const [privatePreviewMessage, setPrivatePreviewMessage] = useState('');
-  const [privatePreviewNotes, setPrivatePreviewNotes] = useState([]);
+  const [privatePreviewEvents] = useState([]);
   const [selected, setSelected] = useState(null);
   const [historyTarget, setHistoryTarget] = useState(null);
-  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-  const [eventModalSource, setEventModalSource] = useState('archivo');
   const [permissionMessage, setPermissionMessage] = useState('');
   const [isFleetImportOpen, setIsFleetImportOpen] = useState(false);
   const [, setFleetStatusHistory] = useState([]);
@@ -230,91 +222,10 @@ export default function App() {
     if (historyLoco?.codigo === data.codigo) await loadHistoryEvents(historyLoco);
   };
 
-  const loadPrivatePreview = async (file) => {
-    if (!file) return;
-    try {
-      if (file.size > 8 * 1024 * 1024) throw new Error('El archivo supera 8 MB.');
-      const parsed = JSON.parse(await file.text());
-      const next = previewPilotEvents(parsed);
-      setPrivatePreviewEvents(next);
-      setPrivatePreviewNotes(Array.isArray(parsed.notasPendientes) ? parsed.notasPendientes : []);
-      setPrivatePreviewMessage(`Vista temporal: ${next.length} mantenimientos del archivo ${file.name}. Los datos se borran al cerrar esta pestaña.`);
-    } catch (error) {
-      setPrivatePreviewNotes([]);
-      setPrivatePreviewMessage(error.message || 'No se pudo abrir el archivo privado.');
-    }
-  };
-
   const denyPermission = useCallback(() => {
     setPermissionMessage(permisoDenegadoMensaje);
     window.setTimeout(() => setPermissionMessage(''), 3200);
   }, []);
-
-  const hasEventPermission = useCallback((source) => (
-    source === 'patio' ? canManagePatioCalendar : canManageHistory
-  ), [canManageHistory, canManagePatioCalendar]);
-
-  const openEventModal = (loco = defaultHistoryLoco, source = 'archivo') => {
-    if (!hasEventPermission(source)) {
-      denyPermission();
-      return;
-    }
-
-    setSelected(loco);
-    setHistoryTarget(loco);
-    setEventModalSource(source);
-    setIsEventModalOpen(true);
-  };
-
-  const saveHistoryEvent = async (event, files = []) => {
-    if (!hasEventPermission(eventModalSource)) {
-      denyPermission();
-      throw new Error(permisoDenegadoMensaje);
-    }
-
-
-    const next = locomotoras.find((loco) => loco.codigo === event.locomotoraCodigo);
-    const savedEvent = await createHistorialEvent(event, files, locomotoras);
-    setTrackingRevision(value => value + 1);
-    setHistoryEvents((current) => {
-      const withoutDuplicate = current.filter((item) => item.id !== savedEvent.id);
-      return [savedEvent, ...withoutDuplicate];
-    });
-
-    if (next) {
-      setSelected(next);
-      setHistoryTarget(next);
-    }
-
-    setIsEventModalOpen(false);
-  };
-
-  const importLibroNovedades = async (file) => {
-    if (!canManageHistory) {
-      denyPermission();
-      throw new Error(permisoDenegadoMensaje);
-    }
-
-    const csvText = await file.text();
-    const result = await importarLibroNovedades({
-      csvText,
-      archivoOrigen: file.name,
-      locomotoras,
-    });
-
-    await loadHistoryEvents(defaultHistoryLoco);
-    return result;
-  };
-
-  const saveActualizacionEvento = async (event, actualizacion, files = []) => {
-    if (!canManageHistory) {
-      denyPermission();
-      throw new Error(permisoDenegadoMensaje);
-    }
-
-    await crearActualizacion(actualizacion, files, event);
-    await loadHistoryEvents(defaultHistoryLoco);
-  };
 
   const openFleetImport = () => {
     if (!canManagePatioCalendar) {
@@ -491,8 +402,7 @@ export default function App() {
       <Sidebar active={sidebarActive} onNavigate={(nextTab) => { setTrackingSelection(null); setTab(nextTab); }} onSignOut={signOut} perfil={perfil} />
 
       <div className="app-content">
-        {privatePreviewMessage && <div className="history-modal-note" role="status">{privatePreviewMessage}{privatePreviewNotes.length > 0 && <details><summary>{privatePreviewNotes.length} datos por confirmar</summary><ul>{privatePreviewNotes.map((note) => <li key={note}>{note}</li>)}</ul></details>}</div>}
-        {trackingError && <div className="history-modal-note" role="status">Base de seguimiento pendiente: {trackingError} Podés revisar un archivo privado temporalmente.</div>}
+        {trackingError && <div className="history-modal-note" role="status">Base de seguimiento pendiente: {trackingError}</div>}
         {permissionMessage && (
           <div className="permission-toast" role="alert">
             {permissionMessage}
@@ -632,11 +542,7 @@ export default function App() {
           loco={parqueHistoryTarget || parqueSelected || parque.find(loco => loco.codigo === defaultHistoryLoco.codigo)}
           locomotoras={parque}
           locomotiveImage={imagenLocomotora}
-          onCreateActualizacion={saveActualizacionEvento}
           onForbidden={denyPermission}
-          onImportLibro={importLibroNovedades}
-          onPreviewFile={loadPrivatePreview}
-          onRegisterEvent={(loco) => openEventModal(loco, 'archivo')}
           onRetry={() => loadHistoryEvents(defaultHistoryLoco)}
           onOpenMaintenance={(id, codigo, fecha, place) => {
             setTrackingSelection({ id, codigo, fecha, place });
@@ -647,15 +553,6 @@ export default function App() {
             setHistoryTarget(next || null);
             if (next) setSelected(next);
           }}
-        />
-      )}
-
-      {isEventModalOpen && (
-        <RegistroEventoModal
-          locomotoras={locomotoras}
-          onClose={() => setIsEventModalOpen(false)}
-          onSave={saveHistoryEvent}
-          selectedLoco={defaultHistoryLoco}
         />
       )}
 

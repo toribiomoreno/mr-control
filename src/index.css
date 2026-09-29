@@ -5558,3 +5558,50 @@ button {
 .yard-pending-item { display:flex; gap:8px; align-items:center; padding:9px 10px; border:1px solid #36465a; border-radius:8px; background:#172b43; }
 .yard-pending-item small { flex:1; color:#b8c5d4; }.yard-pending-item button { border:1px solid #92a9bc; border-radius:7px; background:#e8f5ee; color:#174b37; font:inherit; cursor:pointer; padding:5px 9px; }
 .yard-pending-item button:focus-visible { outline:2px solid #86efac; outline-offset:2px; }
+
+/* Archivo histórico: resumen compacto y avances desplegables. */
+.history-events-heading { margin: 0 0 2px; font-size: 17px; }
+.history-timeline { gap: 12px; }
+.timeline-day { grid-template-columns: 132px minmax(0, 1fr); gap: 12px; }
+.timeline-date { padding-top: 21px; color: #d6deeb; font-size: 12px; font-weight: 750; line-height: 1.6; }
+.timeline-day-events::before { left: 8px; top: 0; bottom: -14px; }
+.timeline-day:last-child .timeline-day-events::before { bottom: 30px; }
+.timeline-event-card { grid-template-columns: 18px minmax(0, 1fr); gap: 16px; }
+.timeline-event-marker { margin-top: 23px; }
+.timeline-event-card .timeline-event-body { display: block; min-width: 0; padding: 14px 16px; border: 1px solid #263149; border-left: 3px solid #64748b; border-radius: 8px; background: #101728; }
+.timeline-event-card.correctivo .timeline-event-body { border-left-color: #ef4444; background: linear-gradient(100deg, #211823, #171324); }
+.timeline-event-card.preventivo .timeline-event-body { border-left-color: #facc15; }
+.history-event-summary { display: flex; align-items: center; gap: 14px; }
+.history-event-icon { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border-radius: 7px; color: #f6a4a9; background: #462332; }
+.history-event-icon svg { width: 23px; height: 23px; }
+.preventivo .history-event-icon { color: #fde68a; background: #463b23; }
+.history-event-copy { min-width: 0; flex: 1; }
+.history-event-copy .timeline-event-topline { margin-bottom: 7px; }
+.history-event-copy .timeline-event-topline strong { font-size: 15px; overflow-wrap: anywhere; }
+.history-event-copy .timeline-event-meta span { font-size: 12px; font-weight: 400; color: #d3dbe9; }
+.history-event-copy .history-staff { display: inline-flex; align-items: center; gap: 7px; border-left: 1px solid #4c4153; padding-left: 12px; margin-left: 4px; }
+.history-expand-button { display: flex; align-items: center; justify-content: center; gap: 12px; border: 1px solid #374259; border-radius: 5px; background: #192033; color: #e1e8f4; padding: 9px 13px; font-size: 12px; cursor: pointer; flex-shrink: 0; }
+.history-expand-button:hover { background: #253048; }
+.history-expanded-details { margin-top: 15px; border-top: 1px solid #394055; padding-top: 15px; }
+.history-expanded-details .maintenance-update-item { padding: 12px; }
+.history-expanded-details .maintenance-update-item p { margin: 10px 0; font-size: 14px; }
+.history-filter-heading span { display: none; }
+.history-filter-tabs button { display: inline-flex; gap: 7px; align-items: center; }
+.history-filter-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--filter-color); }
+@media (max-width: 720px) {
+  .timeline-day { grid-template-columns: 1fr; gap: 5px; }
+  .timeline-date { padding: 0 0 0 34px; }
+  .timeline-day-events::before { display: block; }
+  .history-event-summary { flex-wrap: wrap; gap: 10px; }
+  .history-event-copy { flex-basis: calc(100% - 56px); }
+  .history-expand-button { margin-left: 52px; }
+  .timeline-event-card .timeline-event-body { padding: 12px; }
+  .history-event-copy .history-staff { margin-left: 0; border-left: 0; padding-left: 0; }
+}
+.timeline-event-card { background: transparent; }
+body:has(.history-workspace) { min-width: 320px; }
+@media (max-width: 720px) {
+  .app-shell:has(.history-workspace) { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:has(.history-workspace) .history-sidebar { position: static; width: 100%; min-height: auto; height: auto; }
+  .history-file-header, .history-main-panel, .history-event-filters { min-width: 0; }
+}
