@@ -1,3 +1,4 @@
+import RailwayLoader from './RailwayLoader.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchSeguimiento, saveTracking } from '../services/seguimientoService.js';
 import { createHistorialEvent } from '../services/historialSupabaseService.js';
@@ -120,7 +121,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
     </div>
     <div className="maintenance-key"><span><i className="preventivo" />Preventivos</span><span><i className="correctivo" />Correctivos</span><small>Tocá una barra para ver el mantenimiento o una fecha para revisar ese día.</small></div>
     {error && <p role="alert" className="tracking-error">{error}</p>}
-    {loading && <p role="status">Cargando mantenimientos…</p>}
+    {loading && <RailwayLoader label="Cargando mantenimientos…" />}
     {!loading && <>
       <div className="tracking-table-wrap"><div className="tracking-week"><div className="tracking-week-head"><strong>Unidad</strong><div>{days.map(date => <button key={date} aria-label={`Ver día ${dateLabel(date)}`} aria-pressed={day === date} onClick={() => setDay(day === date ? '' : date)}>{shortDay(date)}</button>)}</div></div>
         {[...new Set(bars.map(bar => bar.event.locomotoraCodigo))].sort().map(code => {

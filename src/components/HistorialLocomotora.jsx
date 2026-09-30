@@ -1,3 +1,4 @@
+import RailwayLoader from './RailwayLoader.jsx';
 import { useState } from 'react';
 
 import EventFilters from './EventFilters.jsx';
@@ -134,7 +135,7 @@ export default function HistorialLocomotora({
 
           {loading && (
             <div className="history-empty large">
-              <strong>Cargando historial...</strong>
+              <RailwayLoader label="Cargando historial…" />
             </div>
           )}
 
