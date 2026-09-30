@@ -5,10 +5,14 @@ import { createHistorialEvent, mapEventRow } from './historialSupabaseService.js
 
 export async function fetchFleetConfirmations() {
   assertSupabaseConfig();
-  const { data, error } = await supabase.from('eventos_historial').select('*')
-    .eq('tipo', 'otro').eq('anulado', false).order('fecha', { ascending: false }).order('hora', { ascending: false });
-  if (error) throw error;
-  return (data || []).filter(row => row.metadata?.fleetConfirmation).map(mapEventRow);
+  const rows = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await supabase.from('eventos_historial').select('*')
+      .eq('tipo', 'otro').eq('anulado', false).order('fecha', { ascending: false }).order('hora', { ascending: false }).order('id').range(offset, offset + 499);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (data.length < 500) return rows.filter(row => row.metadata?.fleetConfirmation || row.metadata?.dailyState || row.metadata?.followUpResult).map(mapEventRow);
+  }
 }
 
 export async function saveFleetConfirmation({ codigo, estado, fecha, hora, fuente }, locomotoras, responsable, maintenanceEvents = []) {
