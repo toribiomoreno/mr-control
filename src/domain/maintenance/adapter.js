@@ -1,5 +1,5 @@
 import { fleet, normalizeUnit, today, wholeLocomotive } from './types.js';
-import { beforeMaintenanceClosure, detentionReason, outcomeLabels } from './view.js';
+import { beforeMaintenanceClosure, detentionReason, operationalOutcomes, outcomeLabels } from './view.js';
 
 export const isMaintenance = e => ['preventivo', 'correctivo'].includes(e.tipo);
 export const isLight = e => e.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(e.preventivoCodigo);
@@ -38,8 +38,8 @@ export function validateEvent(event, now = today()) {
   }
   if (meta.outcome) {
     assert(Object.hasOwn(outcomeLabels, meta.outcome) || meta.outcome === 'disponible', 'Confirmá cómo quedó la máquina.');
-    assert(!(event.estadoMantenimiento === 'finalizado' && !['operativa', 'disponible'].includes(meta.outcome)), 'Si finaliza el mantenimiento, la máquina queda operativa. Revisá el estado.');
-    assert(!(['disponible', 'operativa'].includes(meta.outcome) && event.estadoMantenimiento !== 'finalizado'), 'Si la máquina queda operativa, marcá este mantenimiento como finalizado.');
+    assert(!(event.estadoMantenimiento === 'finalizado' && !operationalOutcomes.includes(meta.outcome)), 'Si finaliza el mantenimiento, la máquina queda operativa. Revisá el estado.');
+    assert(!(operationalOutcomes.includes(meta.outcome) && event.estadoMantenimiento !== 'finalizado'), 'Si la máquina queda operativa, marcá este mantenimiento como finalizado.');
   }
   assert(['Boulogne', 'Externo'].includes(meta.location), 'Confirmá dónde se realiza el mantenimiento.');
   assert(validDate(meta.detentionStart) && meta.detentionStart <= event.fecha, 'Confirmá desde cuándo está detenida; debe ser anterior o igual al inicio.');
@@ -63,9 +63,9 @@ export function validateUpdate(event, update, now = today()) {
   }
   if (t.outcome) {
     assert(Object.hasOwn(outcomeLabels, t.outcome) || t.outcome === 'disponible', 'Confirmá cómo quedó la máquina.');
-    assert(!(update.tipoActualizacion === 'cierre' && !['operativa', 'disponible'].includes(t.outcome)), 'Un cierre deja la locomotora operativa. Confirmá el resultado.');
+    assert(!(update.tipoActualizacion === 'cierre' && !operationalOutcomes.includes(t.outcome)), 'Un cierre deja la locomotora operativa. Confirmá el resultado.');
     assert(!(t.outcome === 'continua' && event.estadoMantenimiento === 'finalizado' && !beforeMaintenanceClosure(event, update)), 'El cierre no puede indicar que continúa el mantenimiento. Para un avance anterior, confirmá su fecha.');
-    assert(!(['disponible', 'operativa'].includes(t.outcome) && event.estadoMantenimiento !== 'finalizado' && update.tipoActualizacion !== 'cierre'), 'El estado operativo requiere cerrar el mantenimiento.');
+    assert(!(operationalOutcomes.includes(t.outcome) && event.estadoMantenimiento !== 'finalizado' && update.tipoActualizacion !== 'cierre'), 'El estado operativo requiere cerrar el mantenimiento.');
   }
   if (event.estadoMantenimiento === 'finalizado') {
     assert(update.tipoActualizacion === 'observacion' || (update.id && event.actualizaciones?.some(a => a.id === update.id && a.tipoActualizacion === update.tipoActualizacion)), 'El mantenimiento está cerrado; solo admite observaciones.');

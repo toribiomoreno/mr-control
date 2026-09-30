@@ -2,8 +2,10 @@ import { today, shiftDay } from './types.js';
 
 export const outcomeLabels = {
   continua: 'Continúa el mantenimiento', operativa: 'Operativa',
+  acompanada: 'Operativa · sale acompañada', operativa_prueba: 'Operativa · prueba pendiente',
   prueba: 'Pendiente de prueba', detenida: 'Detenida por otro motivo', pendiente: 'Por confirmar',
 };
+export const operationalOutcomes = ['operativa', 'disponible', 'acompanada', 'operativa_prueba'];
 export const workDurationLabel = tracking => tracking.workDurationShifts ? `${tracking.workDurationShifts} turno${tracking.workDurationShifts > 1 ? 's' : ''}` : tracking.workDurationDays === 1 ? 'Jornada completa' : tracking.workDurationDays === 0.5 ? 'Media jornada' : tracking.confirmedUnknownDuration ? 'Duración por confirmar' : '';
 export const isVisibleMaintenance = event => ['preventivo', 'correctivo'].includes(event.tipo) && !event.anulado && event.estadoMantenimiento !== 'cancelado';
 export const maintenanceLabel = event => event.tipo === 'preventivo' ? `Preventivo ${event.preventivoCodigo || 'sin tipo'}` : (event.metadata?.seguimiento?.detentionReason || event.descripcion || event.titulo || 'Correctivo').split('\n')[0];
@@ -26,15 +28,22 @@ export function beforeMaintenanceClosure(event, update) {
 
 export function trackingForCurrentState(event, tracking = event.metadata?.seguimiento || {}) {
   if (event.estadoMantenimiento !== 'finalizado') return tracking;
-  return { ...tracking, outcome: 'operativa', availableDate: event.fechaCierre || tracking.availableDate || event.fecha };
+  const closure = orderedUpdates(event).filter(update => update.tipoActualizacion === 'cierre').at(-1);
+  const saved = closure?.metadata?.seguimiento?.outcome || tracking.outcome;
+  return { ...tracking, outcome: operationalOutcomes.includes(saved) ? saved : 'operativa', availableDate: event.fechaCierre || tracking.availableDate || event.fecha };
 }
 export function outcomeAtEnd(event) {
   if (event.estadoMantenimiento === 'finalizado') {
-    return { code: 'operativa', label: 'Operativa', date: event.fechaCierre || event.metadata?.seguimiento?.availableDate || event.fecha };
+    const latestResult = orderedUpdates(event).filter(update => update.metadata?.followUpResult).at(-1);
+    const resolution = latestResult?.metadata.followUpResult.result;
+    const closure = orderedUpdates(event).filter(update => update.tipoActualizacion === 'cierre').at(-1);
+    const saved = closure?.metadata?.seguimiento?.outcome || event.metadata?.seguimiento?.outcome;
+    const code = resolution === 'sin_novedades' ? 'operativa' : resolution === 'nueva_falla' ? 'detenida' : resolution === 'pendiente' ? latestResult.metadata.followUpResult.kind === 'acompanada' ? 'acompanada' : 'operativa_prueba' : operationalOutcomes.includes(saved) && saved !== 'disponible' ? saved : event.estadoUnidadResultante === 'pendiente_de_prueba' ? 'operativa_prueba' : 'operativa';
+    return { code, label: outcomeLabels[code], date: latestResult?.fecha || event.fechaCierre || event.metadata?.seguimiento?.availableDate || event.fecha, time: latestResult?.hora || event.horaCierre || '' };
   }
   const latest = orderedUpdates(event).filter(a => a.metadata?.seguimiento?.outcome || ['cierre', 'reapertura'].includes(a.tipoActualizacion)).at(-1);
   let code = latest ? latest.metadata?.seguimiento?.outcome || (latest.estadoUnidadResultante === 'servicio' ? 'operativa' : latest.estadoUnidadResultante === 'pendiente_de_prueba' ? 'prueba' : latest.tipoActualizacion === 'reapertura' ? 'continua' : 'pendiente') : event.metadata?.seguimiento?.outcome;
-  if (event.estadoMantenimiento !== 'finalizado' && ['disponible', 'operativa'].includes(code)) code = 'pendiente';
+  if (event.estadoMantenimiento !== 'finalizado' && operationalOutcomes.includes(code)) code = 'pendiente';
   if (code === 'disponible') code = 'operativa';
   if (code) return { code, label: outcomeLabels[code] || 'Por confirmar', date: latest?.fecha || event.fechaCierre || event.fecha };
   if (event.estadoUnidadResultante === 'servicio') return { code: 'operativa', label: 'Operativa', date: event.fechaCierre };
@@ -42,6 +51,8 @@ export function outcomeAtEnd(event) {
   return { code: 'pendiente', label: 'Abierto · continuidad por confirmar', date: '' };
 }
 export function updateOutcomeLabel(event, update) {
+  const result = update.metadata?.followUpResult?.result;
+  if (result) return result === 'sin_novedades' ? 'Operativa · validación sin novedades' : result === 'nueva_falla' ? 'Detenida · nueva falla informada' : 'Validación pendiente';
   const explicit = update.metadata?.seguimiento?.outcome;
   if (explicit) return explicit === 'disponible' ? 'Operativa' : outcomeLabels[explicit] || 'Estado por confirmar';
   const final = outcomeAtEnd(event);
@@ -104,7 +115,8 @@ export function operatingSegments(events, from, to) {
   const windows = active.map(event => maintenanceWindow(event, to));
   const markers = [
     ...active.filter(event => event.estadoMantenimiento === 'finalizado').map(event => ({ date: shiftDay(event.fechaCierre || event.fecha, 1), time: '', manual: false, state: 'operativa', source: `Mantenimiento finalizado el ${event.fechaCierre || event.fecha}`, id: event.id })),
-    ...events.filter(event => !event.anulado && event.metadata?.fleetConfirmation?.state).map(event => ({ date: event.fecha, time: event.hora || '', manual: true, state: event.metadata.fleetConfirmation.state, source: `Confirmación manual del ${event.fecha}`, id: event.id })),
+    ...active.flatMap(event => orderedUpdates(event).filter(update => update.metadata?.followUpResult?.result === 'nueva_falla').map(update => ({ date: update.fecha, time: update.hora || '', manual: true, state: 'detenida', source: `Nueva falla del ${update.fecha}`, id: update.id }))),
+    ...events.filter(event => !event.anulado && (event.metadata?.fleetConfirmation?.state || event.metadata?.dailyState?.state)).map(event => ({ date: event.fecha, time: event.hora || '', manual: true, state: event.metadata.dailyState?.state || event.metadata.fleetConfirmation.state, source: `${event.metadata.dailyState ? 'Parte diario' : 'Confirmación manual'} del ${event.fecha}`, id: event.id })),
   ].sort((a, b) => a.date.localeCompare(b.date) || Number(a.manual) - Number(b.manual) || a.time.localeCompare(b.time) || String(a.id).localeCompare(String(b.id)));
   const result = [];
   for (let day = from; day <= to; day = shiftDay(day, 1)) {
