@@ -16,3 +16,9 @@
 @media (prefers-reduced-motion: reduce) {
   .railway-loader *, .railway-loader *::before { animation: none !important; }
 }
+@media (prefers-reduced-motion: no-preference) {
+  .railway-loader-headlight { animation: railway-light 2.4s ease-in-out infinite; }
+  .railway-loader-signal { animation: railway-signal 1.8s ease-in-out infinite; }
+  @keyframes railway-light { 50% { opacity: .4; } }
+  @keyframes railway-signal { 50% { opacity: .5; } }
+}
