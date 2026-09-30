@@ -20,7 +20,7 @@ export default function ConfirmarEstadoModal({ loco, onClose, onSave }) {
   return <div className="modal-backdrop" role="presentation"><form className="intervention-modal fleet-confirm-modal" onSubmit={submit} onInvalidCapture={event => setError(`Falta completar: ${event.target.closest('label')?.firstChild?.textContent?.trim() || 'un dato obligatorio'}.`)}>
     <div className="modal-heading"><div><span className="panel-kicker">Parque · {loco.codigo}</span><h2>Confirmar estado</h2></div><button className="modal-close" type="button" onClick={onClose} aria-label="Cerrar">×</button></div>
     <p>Registrá el estado que verificaste y la fuente. Esta confirmación queda en el historial de la locomotora.</p>
-    <label>Estado confirmado<select name="estado" defaultValue="" required><option value="" disabled>Elegir estado</option><option value="operativa">Operativa</option><option value="reserva">Reserva</option><option value="uso_excepcional">Uso excepcional</option></select></label>
+    <label>Estado confirmado<select name="estado" defaultValue="" required><option value="" disabled>Elegir estado</option><option value="operativa">Operativa</option><option value="reserva">Reserva</option><option value="uso_excepcional">Uso condicional</option></select></label>
     <label>Fecha de la verificación<input type="date" name="fecha" defaultValue={today()} max={today()} required /></label>
     <label>Hora de la verificación<input type="time" name="hora" defaultValue={currentTime()} required /></label>
     <label>¿Cómo confirmaste el estado?<VoiceTextarea name="fuente" rows={3} placeholder="Ej.: verificado en el taller y en el parte diario" required /></label>

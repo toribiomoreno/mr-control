@@ -8,20 +8,22 @@ import {
 
 export default function ImportarEstadoDiarioModal({
   locomotoras,
+  maintenanceEvents = [],
   onClose,
   onConfirm,
   onForbidden,
   canManage = false,
 }) {
   const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+  const [time, setTime] = useState('06:00');
   const [text, setText] = useState('');
   const [preview, setPreview] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const processText = () => {
-    const nextPreview = buildFleetImportPreview({ date, time, text, locomotoras });
+    const nextPreview = buildFleetImportPreview({ date, time, text, locomotoras, maintenanceEvents });
     if (!date && nextPreview.date) setDate(nextPreview.date);
-    if (!time && nextPreview.time) setTime(nextPreview.time);
     setPreview(nextPreview);
   };
 
@@ -29,17 +31,20 @@ export default function ImportarEstadoDiarioModal({
     setText(value);
     const detected = extractFleetReportDateTime(value);
     if (!date && detected.date) setDate(detected.date);
-    if (!time && detected.time) setTime(detected.time);
+    if (detected.time) setTime(detected.time);
+    setPreview(null);
   };
 
-  const confirm = () => {
+  const confirm = async () => {
     if (!canManage) {
       onForbidden?.();
       return;
     }
     if (!preview?.canConfirm) return;
-    onConfirm(preview, text);
-    onClose();
+    setSaving(true); setError('');
+    try { await onConfirm(preview, text); onClose(); }
+    catch (cause) { setError(cause.message || 'No se pudo guardar el parte.'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -139,12 +144,13 @@ export default function ImportarEstadoDiarioModal({
         )}
 
         <div className="modal-actions">
-          <button className="secondary-action" onClick={onClose} type="button">Cancelar</button>
-          <button className="secondary-action" onClick={processText} type="button">Procesar</button>
-          <button className="primary-action fleet-import-confirm" disabled={!preview?.canConfirm} onClick={confirm} type="button">
-            Confirmar actualizacion
+          <button className="secondary-action" disabled={saving} onClick={onClose} type="button">Cancelar</button>
+          <button className="secondary-action" disabled={saving} onClick={processText} type="button">Procesar</button>
+          <button className="primary-action fleet-import-confirm" disabled={saving || !preview?.canConfirm || date !== preview.date || time !== preview.time} onClick={confirm} type="button">
+            {saving ? 'Guardando parte e histórico…' : 'Confirmar actualización'}
           </button>
         </div>
+        {error && <p role="alert" className="tracking-error">{error}</p>}
       </section>
     </div>
   );

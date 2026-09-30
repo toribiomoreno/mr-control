@@ -80,7 +80,7 @@ function getStatusText(loco) {
   if (loco.lavadoProgramado) return 'Lavado';
   if (['servicio', 'operativa'].includes(loco.estado)) return 'Operativa';
   if (loco.estado === 'reserva') return 'Reserva';
-  if (loco.estado === 'uso_excepcional') return 'Uso excepcional';
+  if (loco.estado === 'uso_excepcional') return 'Uso condicional';
   if (loco.estado === 'detenida') return 'Detenida';
   if (loco.estado === 'preventivo') return 'Preventivo';
   return 'Correctivo';

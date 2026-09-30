@@ -10,7 +10,8 @@ function eventMatchesFilter(event, filter) {
   if (filter === 'todo') return true;
   if (filter === 'adjuntos') return (event.adjuntos || []).length > 0 || (event.actualizaciones || []).some(a => a.adjuntos?.length);
   if (filter === 'campana') return isCampaignType(event.tipo);
-  if (filter === 'operativa') return event.metadata?.fleetConfirmation?.state === 'operativa' || event.metadata?.fleetConfirmation?.state === 'servicio';
+  if (filter === 'estado_diario') return Boolean(event.metadata?.dailyState);
+  if (filter === 'operativa') return event.metadata?.dailyState?.state === 'operativa' || event.metadata?.fleetConfirmation?.state === 'operativa' || event.metadata?.fleetConfirmation?.state === 'servicio';
   return event.tipo === filter;
 }
 
@@ -23,7 +24,7 @@ function displayState(loco) {
   const observation = String(loco.observacion || '').toLowerCase();
   if (loco.estado === 'detenida') return { icon: '!', key: 'detenida', label: 'Detenida' };
   if (loco.estado === 'operativa') return { icon: 'OK', key: 'servicio', label: 'Operativa' };
-  if (loco.estado === 'uso_excepcional') return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
+  if (loco.estado === 'uso_excepcional') return { icon: '!', key: 'uso-excepcional', label: 'Uso condicional' };
   if (observation.includes('uso excepcional')) return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
   if (loco.estado === 'reserva') return { icon: 'II', key: 'reserva', label: 'Reserva' };
   if (loco.estado === 'servicio') return { icon: 'OK', key: 'servicio', label: 'En servicio' };

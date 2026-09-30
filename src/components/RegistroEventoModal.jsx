@@ -1,6 +1,6 @@
 import SeguimientoFields from './SeguimientoFields.jsx';
 import { today, wholeLocomotive } from '../domain/maintenance/types.js';
-import { outcomeLabels } from '../domain/maintenance/view.js';
+import { operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
 import { validateEvent } from '../domain/maintenance/adapter.js';
 import { useState } from 'react';
 import VoiceTextarea from './VoiceTextarea.jsx';
@@ -56,7 +56,7 @@ function isMaintenanceType(tipo) {
   return ['preventivo', 'correctivo'].includes(tipo);
 }
 
-export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose, onSave }) {
+export default function RegistroEventoModal({ locomotoras, selectedLoco, initialDate = '', onClose, onSave }) {
   const [tipo, setTipo] = useState('');
   const [preventivoCodigo, setPreventivoCodigo] = useState('E');
   const [errorMessage, setErrorMessage] = useState('');
@@ -72,7 +72,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
     const currentType = form.get('tipo');
     const fecha = form.get('fecha');
     const hora = String(form.get('hora') || '').slice(0, 5);
-    const estadoMantenimiento = isMaintenanceType(currentType) ? (outcome === 'operativa' ? 'finalizado' : 'en_curso') : null;
+    const estadoMantenimiento = isMaintenanceType(currentType) ? (operationalOutcomes.includes(outcome) ? 'finalizado' : 'en_curso') : null;
     const fechaCierre = estadoMantenimiento === 'finalizado' ? form.get('fechaCierre') : null;
     const adjuntos = form.getAll('adjuntos').filter((file) => file && file.name);
     setErrorMessage('');
@@ -109,7 +109,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
         tags: currentType === 'alistamiento' ? ['alistamiento-con-novedad'] : [],
         criticidad: form.get('criticidad'),
         estadoMantenimiento,
-        estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : outcome === 'prueba' ? 'pendiente_de_prueba' : null,
+        estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : ['prueba', 'operativa_prueba'].includes(outcome) ? 'pendiente_de_prueba' : outcome === 'acompanada' ? 'disponible_con_observaciones' : null,
         fechaCierre,
         horaCierre: null,
       };
@@ -142,7 +142,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
 
         <label>
           Fecha
-          <input name="fecha" type="date" defaultValue={today()} max={today()} required />
+          <input name="fecha" type="date" defaultValue={initialDate || today()} max={today()} required />
         </label>
 
         <TimeSelect required={false} label="Hora de ingreso (si se conoce)" />
@@ -275,7 +275,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, onClose
         {isMaintenanceType(tipo) && <label>¿Cómo queda la máquina después de este registro?
           <select name="outcome" value={outcome} onChange={e => setOutcome(e.target.value)} required><option value="">Confirmar estado</option>{Object.entries(outcomeLabels).filter(([key]) => key !== 'pendiente').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
         </label>}
-        {isMaintenanceType(tipo) && outcome === 'operativa' && <label>Fecha en que quedó operativa<input name="fechaCierre" type="date" max={today()} required /></label>}
+        {isMaintenanceType(tipo) && operationalOutcomes.includes(outcome) && <label>Fecha en que quedó operativa<input name="fechaCierre" type="date" max={today()} required /></label>}
         {isMaintenanceType(tipo) && <p className="tracking-hint">Primero guardamos el ingreso. A continuación vas a confirmar la actividad del día, el personal y las posibles demoras. El ingreso por sí solo no cuenta como un día trabajado.</p>}
         <label className="tracking-confirm"><input type="checkbox" required /> Confirmo la locomotora, fechas, tipo y responsable que estoy cargando.</label>
         <div className="history-file-drop">

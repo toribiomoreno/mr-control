@@ -1,6 +1,6 @@
 import { causes, systems, today } from '../domain/maintenance/types.js';
 import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
-import { beforeMaintenanceClosure, outcomeLabels } from '../domain/maintenance/view.js';
+import { beforeMaintenanceClosure, operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
 import { useState } from 'react';
 import VoiceTextarea from './VoiceTextarea.jsx';
 
@@ -66,15 +66,15 @@ export default function ActualizacionEventoModal({
       eventoId: event.id,
       fecha: form.get('fecha'),
       hora: hora || null,
-      tipoActualizacion: event.estadoMantenimiento !== 'finalizado' && outcome === 'operativa' ? 'cierre' : tipo,
+      tipoActualizacion: event.estadoMantenimiento !== 'finalizado' && operationalOutcomes.includes(outcome) ? 'cierre' : tipo,
       descripcion: descriptionValue,
       responsable,
       porcentajeAvance: null,
-      estadoResultante: event.estadoMantenimiento !== 'finalizado' && outcome === 'operativa' ? 'finalizado' : defaultStateForType(tipo),
+      estadoResultante: event.estadoMantenimiento !== 'finalizado' && operationalOutcomes.includes(outcome) ? 'finalizado' : defaultStateForType(tipo),
       motivoPausa: isPause ? descriptionValue : null,
       motivoReapertura: null,
       resultadoPrueba: null,
-      estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : outcome === 'prueba' ? 'pendiente_de_prueba' : null,
+      estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : ['prueba', 'operativa_prueba'].includes(outcome) ? 'pendiente_de_prueba' : outcome === 'acompanada' ? 'disponible_con_observaciones' : null,
       pendientes: null,
       metadata: { ...initialUpdate?.metadata, seguimiento: {
         ...saved,
@@ -172,14 +172,14 @@ export default function ActualizacionEventoModal({
             {activity === 'mixto' && fraction === '' && <p>La eficiencia quedará sin calcular hasta confirmar el reparto. Podés volver a este registro y corregirlo.</p>}
           </>}
           <label className="tracking-confirm"><input name="confirmActivity" type="checkbox" required /> Confirmo esta información{activity === 'sin_dato' ? ' y elijo dejar la actividad sin confirmar' : ''}.</label>
-          <p className="tracking-hint">No se crean tareas pendientes automáticamente. Mañana: 6–14 h · tarde: 14–22 h.</p>
+          <p className="tracking-hint">Mañana: 6–14 h · tarde: 14–22 h. Una salida acompañada o prueba pendiente genera una consulta de seguimiento, no trabajo supuesto.</p>
         </fieldset>
         <fieldset className="tracking-fields"><legend>¿Cómo quedó la máquina después de este día?</legend>
           <select aria-label="Estado posterior de la máquina" value={outcome} onChange={e => setOutcome(e.target.value)} required={activity !== 'sin_dato' || tipo === 'cierre' || Boolean(saved.outcome)}>
             <option value="">Confirmar estado posterior</option>
             {Object.entries(outcomeLabels).filter(([key]) => !(key === 'continua' && event.estadoMantenimiento === 'finalizado' && !beforeMaintenanceClosure(event, { ...initialUpdate, fecha: date, tipoActualizacion: tipo }))).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>
-          {outcome === 'operativa' && event.estadoMantenimiento !== 'finalizado' && <p>Este registro cerrará el mantenimiento en la fecha indicada.</p>}
+          {operationalOutcomes.includes(outcome) && event.estadoMantenimiento !== 'finalizado' && <p>Este registro cerrará el trabajo de mantenimiento en la fecha indicada.{outcome !== 'operativa' && ' La validación queda pendiente y se consultará al día siguiente desde las 9.'}</p>}
           {outcome === 'pendiente' && <label className="tracking-confirm"><input name="confirmUnknownOutcome" type="checkbox" required /> Elijo dejar el estado posterior sin confirmar.</label>}
         </fieldset>
         <div className="history-file-drop">

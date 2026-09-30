@@ -1,10 +1,11 @@
 const filterTabs = [
   { id: 'todo', label: 'Todos' },
   { id: 'operativa', label: 'Operativa', color: '#22c55e' },
+  { id: 'estado_diario', label: 'Estados diarios', color: '#22c55e' },
   { id: 'correctivo', label: 'Correctivos', color: '#ef4444' },
   { id: 'preventivo', label: 'Preventivos', color: '#facc15' },
   { id: 'lavado', label: 'Lavados', color: '#7dd3fc' },
-  { id: 'libro', label: 'Libro de novedades', color: '#a78bfa' },
+  { id: 'libro', label: 'Libro de turno', color: '#a78bfa' },
   { id: 'alistamiento', label: 'Alistamientos' },
   { id: 'campana', label: 'Campañas' },
   { id: 'otro', label: 'Ajustes' },
