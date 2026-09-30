@@ -36,6 +36,6 @@ test('un parte del mismo día no pisa un avance de un mantenimiento anterior',()
  const state=fleetState({...loco,fechaParte:'2026-09-29'},[current],'2026-09-29');
  assert.equal(state.estado,'correctivo');assert.equal(state.conflictoEstado,true);
  const newer=fleetState({...loco,fechaParte:'2026-09-30'},[current],'2026-09-30');
- assert.equal(newer.estado,'operativa');assert.equal(newer.conflictoEstado,true);
+ assert.equal(newer.estado,'correctivo');assert.equal(newer.conflictoEstado,true);
  assert.equal(current.estadoMantenimiento,'en_curso');
 });

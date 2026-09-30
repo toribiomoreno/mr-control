@@ -1,0 +1,10 @@
+import { createRoot } from 'react-dom/client';
+import HistorialLocomotora from '../src/components/HistorialLocomotora.jsx';
+import ImportarEstadoDiarioModal from '../src/components/ImportarEstadoDiarioModal.jsx';
+import SeguimientoPendientes from '../src/components/SeguimientoPendientes.jsx';
+import { fleet } from '../src/domain/maintenance/types.js';
+import '../src/index.css';
+const loco={codigo:'E701',estado:'operativa'};
+const events=[{id:'daily1',tipo:'otro',locomotoraCodigo:'E701',fecha:'2020-01-07',hora:'06:00',descripcion:'Sale acompañada',metadata:{dailyState:{state:'operativa',reportedState:'operativa',observation:'Sale acompañada'}}},{id:'book',tipo:'libro',locomotoraCodigo:'E701',fecha:'2020-01-06',hora:'14:00',descripcion:'Se revisó la novedad del eje.',nroLibro:'12',metadata:{}}];
+const view=new URLSearchParams(location.search).get('view');
+createRoot(document.getElementById('root')).render(view==='import' ? <ImportarEstadoDiarioModal canManage locomotoras={fleet.map(codigo=>({codigo}))} onClose={()=>{}} onConfirm={async()=>{throw new Error('Falla de guardado de prueba');}} /> : view==='pending' ? <SeguimientoPendientes events={events} canManage onSaved={()=>{}} /> : <HistorialLocomotora events={events} loco={loco} locomotoras={[loco]} locomotiveImage={()=>'/ferrovias-f.png'} onLocomotiveChange={()=>{}} onOpenMaintenance={()=>{}} />);

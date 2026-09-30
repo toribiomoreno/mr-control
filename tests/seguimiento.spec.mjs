@@ -14,6 +14,8 @@ test('semana, detalle, eficiencia, corrección y CSV',async({page})=>{
  await bar.click();await expect(page.getByRole('heading',{name:'Eficiencia del mantenimiento'})).toBeVisible();
  await expect(page.getByText('75 %',{exact:true})).toBeVisible();
  await expect(page.locator('.maintenance-delays, .maintenance-questions')).toHaveCount(0);
+ await expect(page.getByText('Estado actual de la locomotora',{exact:true})).toHaveCount(0);
+ await expect(page.locator('.maintenance-journal-entry').getByText(/Demora:|50% útil/)).toHaveCount(0);
  await page.locator('.maintenance-journal-entry').first().getByRole('button',{name:/Completar/}).click();
  await expect(page.getByLabel('Fecha',{exact:true})).toHaveValue('2026-09-24');
  await page.getByRole('button',{name:'Cerrar',exact:true}).click();
