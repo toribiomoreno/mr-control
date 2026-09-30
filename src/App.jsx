@@ -1,3 +1,4 @@
+import RailwayLoader from './components/RailwayLoader.jsx';
 import { useCallback, useEffect, useState } from 'react';
 
 import AreasMaterialRodante from './components/AreasMaterialRodante.jsx';
@@ -362,7 +363,7 @@ export default function App() {
       <main className="auth-screen">
         <section className="auth-status-panel">
           <span className="panel-kicker">MR Control</span>
-          <h1>Cargando sesión...</h1>
+          <RailwayLoader label="Cargando sesión…" />
         </section>
       </main>
     );

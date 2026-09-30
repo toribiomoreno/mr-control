@@ -5605,3 +5605,25 @@ body:has(.history-workspace) { min-width: 320px; }
   .app-shell:has(.history-workspace) .history-sidebar { position: static; width: 100%; min-height: auto; height: auto; }
   .history-file-header, .history-main-panel, .history-event-filters { min-width: 0; }
 }
+
+/* Railway detailing preserves native scrolling, keyboard and touch gestures. */
+@supports selector(::-webkit-scrollbar) {
+  * { scrollbar-width: auto; scrollbar-color: auto; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: linear-gradient(90deg, transparent 2px, #708199 2px 3px, transparent 3px 9px, #708199 9px 10px, transparent 10px), repeating-linear-gradient(0deg, #172337 0 9px, #594c43 9px 12px, #172337 12px 20px); }
+  ::-webkit-scrollbar-track:horizontal { background: linear-gradient(0deg, transparent 2px, #708199 2px 3px, transparent 3px 9px, #708199 9px 10px, transparent 10px), repeating-linear-gradient(90deg, #172337 0 9px, #594c43 9px 12px, #172337 12px 20px); }
+  ::-webkit-scrollbar-thumb { background: #d72c3a; border: 3px solid #182437; border-radius: 5px; min-height: 36px; }
+  ::-webkit-scrollbar-thumb:hover { background: #f04851; }
+  ::-webkit-scrollbar-corner { background: #172337; }
+}
+@supports not selector(::-webkit-scrollbar) { * { scrollbar-color: #d72c3a #182437; scrollbar-width: auto; } }
+@media (prefers-reduced-motion: no-preference) {
+  .intervention-modal { animation: railway-panel-enter 160ms ease-out; }
+  @keyframes railway-panel-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .primary-action, .history-expand-button { transition: transform 140ms ease-out, box-shadow 140ms ease-out; }
+  .primary-action:hover, .history-expand-button:hover { transform: translateY(-2px); box-shadow: 0 4px 14px #e52f3d30; }
+  .primary-action:active, .history-expand-button:active { transform: translateY(0); }
+  .history-expanded-details { animation: railway-panel-enter 160ms ease-out; }
+}
