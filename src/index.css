@@ -5627,3 +5627,12 @@ body:has(.history-workspace) { min-width: 320px; }
   .primary-action:active, .history-expand-button:active { transform: translateY(0); }
   .history-expanded-details { animation: railway-panel-enter 160ms ease-out; }
 }
+.followup-notice { margin: 12px 20px; padding: 12px 16px; background: #fff6dd; color: #4d3908; border: 1px solid #e1bf59; border-radius: 12px; }
+.followup-notice > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.followup-notice button { padding: 7px 12px; border-radius: 8px; background: #fff; border: 1px solid #c6a03a; color: inherit; cursor: pointer; }
+.history-source-note { white-space: pre-line; margin: 8px 0 0; line-height: 1.5; color: #d7e1ee; }
+.timeline-event-card.daily-state { --daily-color: #f59e0b; }
+.timeline-event-card.daily-state.state-operativa { --daily-color: #16a34a; }
+.timeline-event-card.daily-state.state-detenida { --daily-color: #dc2626; }
+.timeline-event-card.daily-state .timeline-event-body { border-left-color: var(--daily-color); }
+.timeline-event-card.daily-state .timeline-event-marker { background: var(--daily-color); }

@@ -15,6 +15,8 @@ import locoAzul from './assets/loco_azul.webp';
 import locoRoja from './assets/loco_roja.webp';
 import { useAuth } from './context/useAuth.js';
 import initialLocomotoras from './data/locomotoras.js';
+import SeguimientoPendientes from './components/SeguimientoPendientes.jsx';
+import { guardarEstadoDiario } from './services/estadoDiarioSupabaseService.js';
 import { fleetFromTracking } from './domain/maintenance/fleetState.js';
 import { permisoDenegadoMensaje, puedeGestionarArchivoHistorico, puedeGestionarPatioCalendario } from './lib/permissions.js';
 import { fetchHistorialByLocomotora } from './services/historialSupabaseService.js';
@@ -52,7 +54,7 @@ function estadoEtiqueta(loco) {
   if (loco.lavadoProgramado) return 'Programada para Lavado';
   if (['servicio', 'operativa'].includes(loco.estado)) return 'Operativa';
   if (loco.estado === 'reserva') return 'Reserva';
-  if (loco.estado === 'uso_excepcional') return 'Uso excepcional';
+  if (loco.estado === 'uso_excepcional') return 'Uso condicional';
   if (loco.estado === 'detenida') return 'Detenida';
   if (loco.estado === 'preventivo') {
     if (loco.tipoPreventivo && loco.modalidad) return `Preventivo ${loco.tipoPreventivo} - ${loco.modalidad}`;
@@ -68,7 +70,7 @@ function estadoOperativo(loco) {
   if (loco.estado === 'sin_confirmar') return 'Sin estado confirmado';
   if (loco.lavadoProgramado) return 'Operativa';
   if (loco.estado === 'reserva') return 'Reserva';
-  if (loco.estado === 'uso_excepcional') return 'Uso excepcional';
+  if (loco.estado === 'uso_excepcional') return 'Uso condicional';
   if (['detenida', 'preventivo', 'correctivo'].includes(loco.estado)) return 'Detenida';
   return 'Operativa';
 }
@@ -77,7 +79,7 @@ function estadoOperativoClase(loco) {
   const estado = estadoOperativo(loco);
   if (estado === 'Operativa') return 'is-service';
   if (estado === 'Reserva') return 'is-reserve';
-  if (estado === 'Uso excepcional') return 'is-exceptional';
+  if (estado === 'Uso condicional') return 'is-exceptional';
   if (estado === 'Sin estado confirmado') return 'is-reserve';
   return 'is-corrective';
 }
@@ -109,7 +111,7 @@ function dotClase(area) {
 }
 
 function sortHistoryDescending(items) {
-  return [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.id || 0) - (a.id || 0));
+  return [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id || '').localeCompare(String(a.id || '')));
 }
 
 export default function App() {
@@ -118,7 +120,7 @@ export default function App() {
   const canManagePatioCalendar = puedeGestionarPatioCalendario(perfil);
 
   // Navegacion y seleccion de locomotoras.
-  const [locomotoras, setLocomotoras] = useState(initialLocomotoras);
+  const [locomotoras] = useState(initialLocomotoras);
   const [tab, setTab] = useState('inicio');
   const [trackingSelection, setTrackingSelection] = useState(null);
   const [privatePreviewEvents] = useState([]);
@@ -126,9 +128,6 @@ export default function App() {
   const [historyTarget, setHistoryTarget] = useState(null);
   const [permissionMessage, setPermissionMessage] = useState('');
   const [isFleetImportOpen, setIsFleetImportOpen] = useState(false);
-  const [, setFleetStatusHistory] = useState([]);
-  const [, setFleetImports] = useState([]);
-  const [, setPatioCalendarActivities] = useState([]);
 
   // Archivo historico y estado del parque comparten el seguimiento.
   const [historyEvents, setHistoryEvents] = useState([]);
@@ -191,13 +190,12 @@ export default function App() {
     { servicio: 0, operativa: 0, reserva: 0, uso_excepcional: 0, preventivo: 0, correctivo: 0, detenida: 0, sin_confirmar: 0, lavado: 0 },
   );
   const normalizedSelectedHistory = selected
-    ? sortHistoryDescending(combinedTracking.filter(item => item.locomotoraCodigo === selected.codigo).map(item => ({
+    ? sortHistoryDescending(combinedTracking.filter(item => item.locomotoraCodigo === selected.codigo && !item.anulado && item.estadoMantenimiento !== 'cancelado').map(item => ({
       id: item.id, date: item.fecha, type: item.titulo, interventionClass: item.tipo,
       preventiveCode: item.preventivoCodigo, area: item.especialidad,
       technician: item.responsable || 'Por confirmar', detail: item.descripcion,
     })))
     : [];
-  const latestPreventiveIntervention = normalizedSelectedHistory.find((item) => item.interventionClass === 'preventivo');
 
   const openHistory = (loco) => {
     setSelected(loco);
@@ -206,7 +204,7 @@ export default function App() {
   };
 
   const resolvePendingFleet = (loco) => {
-    const open = combinedTracking.filter(item => item.locomotoraCodigo === loco.codigo && ['preventivo', 'correctivo'].includes(item.tipo) && !item.anulado && item.estadoMantenimiento !== 'finalizado')
+    const open = combinedTracking.filter(item => item.locomotoraCodigo === loco.codigo && ['preventivo', 'correctivo'].includes(item.tipo) && !item.anulado && !['finalizado', 'cancelado'].includes(item.estadoMantenimiento))
       .sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
     if (open) {
       setTrackingSelection({ id: open.id, codigo: loco.codigo, fecha: open.fecha });
@@ -236,116 +234,16 @@ export default function App() {
     setIsFleetImportOpen(true);
   };
 
-  const activityTypeFromImportRow = (row) => {
-    if (row.classification === 'preventivo') {
-      return String(row.preventiveCode || '').toLowerCase().includes('numeral') ? 'numeral' : 'preventivo';
-    }
-    if (row.classification === 'correctivo') return 'correctivo';
-    return 'detenida';
+  const applyFleetImport = async (preview) => {
+    if (!canManagePatioCalendar) throw new Error(permisoDenegadoMensaje);
+    await guardarEstadoDiario(preview);
+    setTrackingRevision(value => value + 1);
+    if (tab === 'historial') await loadHistoryEvents(historyLoco);
   };
 
-  const applyFleetImport = (preview, originalText) => {
-    if (!canManagePatioCalendar) {
-      denyPermission();
-      return;
-    }
-
-    const importId = `fleet-import-${Date.now()}`;
-    const partDateTime = `${preview.date}T${preview.time}`;
-    const rowsByUnit = new Map(preview.rows.filter((row) => row.valid).map((row) => [row.unit, row]));
-
-    const nextLocomotoras = locomotoras.map((loco) => {
-      const row = rowsByUnit.get(loco.codigo);
-      if (!row) return loco;
-
-      return {
-        ...loco,
-        estado: row.newState,
-        observacion: row.reason,
-        motivoEstado: row.reason,
-        clasificacionDetencion: row.classification || '',
-        tipoPreventivo: row.classification === 'preventivo' ? row.preventiveCode || loco.tipoPreventivo || '' : '',
-        fechaHoraParte: partDateTime,
-        fechaParte: preview.date,
-        horaParte: preview.time,
-        ultimaImportacionEstadoId: importId,
-      };
-    });
-
-    const nextSelected = selected ? nextLocomotoras.find((loco) => loco.id === selected.id) : null;
-    const nextHistoryTarget = historyTarget ? nextLocomotoras.find((loco) => loco.id === historyTarget.id) : null;
-
-    setLocomotoras(nextLocomotoras);
-    if (nextSelected) setSelected(nextSelected);
-    if (nextHistoryTarget) setHistoryTarget(nextHistoryTarget);
-
-    setFleetImports((current) => [{
-      id: importId,
-      fechaHoraParte: partDateTime,
-      contenidoOriginal: originalText,
-      cantidadFilas: preview.summary.processedRows,
-      cantidadValidas: preview.summary.validRows,
-      cantidadErrores: preview.summary.invalidRows,
-      creadoEn: new Date().toISOString(),
-    }, ...current]);
-
-    setFleetStatusHistory((current) => [
-      ...preview.rows.filter((row) => row.valid).map((row) => ({
-        id: `${importId}-${row.unit}`,
-        importacionId: importId,
-        locomotoraCodigo: row.unit,
-        estadoAnterior: row.previousState,
-        estadoNuevo: row.newState,
-        motivo: row.reason,
-        clasificacionDetencion: row.classification || '',
-        fechaHoraParte: partDateTime,
-        creadoEn: new Date().toISOString(),
-      })),
-      ...current,
-    ]);
-
-    setPatioCalendarActivities((current) => {
-      let next = current.map((activity) => ({ ...activity }));
-
-      preview.rows.filter((row) => row.valid).forEach((row) => {
-        const activeIndex = next.findIndex((activity) => activity.origin === 'patio' && activity.unit === row.unit && activity.active);
-
-        if (row.newState !== 'detenida') {
-          if (activeIndex !== -1) {
-            next[activeIndex] = {
-              ...next[activeIndex],
-              active: false,
-              endDate: preview.date,
-              lastReportedAt: partDateTime,
-            };
-          }
-          return;
-        }
-
-        const existing = activeIndex === -1 ? null : next[activeIndex];
-        const activity = {
-          ...(existing || {}),
-          id: existing?.id || `patio-${row.unit}-${Date.now()}`,
-          type: activityTypeFromImportRow(row),
-          origin: 'patio',
-          readOnly: true,
-          active: true,
-          unit: row.unit,
-          startDate: existing?.startDate || preview.date,
-          endDate: preview.date,
-          lastReportedAt: partDateTime,
-          description: row.reason || 'Detenida sin clasificar',
-          classification: row.classification || 'sin_clasificar',
-          preventiveCode: row.preventiveCode || '',
-          numeral: String(row.preventiveCode || '').toLowerCase().includes('numeral') ? row.preventiveCode : '',
-        };
-
-        if (existing) next[activeIndex] = activity;
-        else next = [activity, ...next];
-      });
-
-      return next;
-    });
+  const beginMaintenance = (loco, fecha = loco.fechaParte) => {
+    setTrackingSelection({ newMaintenance: true, codigo: loco.codigo, fecha });
+    setTab('calendario');
   };
 
   const sidebarActive = (() => {
@@ -410,6 +308,8 @@ export default function App() {
           </div>
         )}
 
+        <SeguimientoPendientes events={[...combinedTracking, ...fleetConfirmations]} canManage={canManageHistory} onSaved={() => { setTrackingRevision(value => value + 1); if (tab === 'historial') loadHistoryEvents(historyLoco); }} onNewMaintenance={(codigo, fecha) => beginMaintenance(parque.find(loco => loco.codigo === codigo), fecha)} />
+
         {tab === 'inicio' && <Home onNavigate={setTab} />}
 
         {tab === 'areas' && <AreasMaterialRodante onNavigate={setTab} />}
@@ -450,40 +350,19 @@ export default function App() {
                 <div className="panel-section">
                   <h3>Estado actual</h3>
 
-                  {['correctivo', 'detenida'].includes(parqueSelected.estado) && (
-                    <>
-                      <p><strong>Estado:</strong><br />Detenida</p>
-                      <p><strong>Motivo:</strong><br />{parqueSelected.observacion || 'Sin clasificar'}</p>
-                    </>
-                  )}
-
-                  {parqueSelected.estado === 'preventivo' && (
-                    <>
-                      <p><strong>Estado:</strong><br />Mantenimiento preventivo</p>
-                      <p><strong>Tipo preventivo:</strong><br />{parqueSelected.tipoPreventivo || 'Pendiente de carga'}</p>
-                    </>
-                  )}
-
-                  {(['servicio', 'operativa', 'reserva', 'uso_excepcional'].includes(parqueSelected.estado) || parqueSelected.lavadoProgramado) && (
-                    <>
-                      <p><strong>Estado:</strong><br />{estadoOperativo(parqueSelected)}</p>
-                      <p><strong>Ultima intervencion preventiva:</strong><br />{latestPreventiveIntervention ? `${formatDateDisplay(latestPreventiveIntervention.date)} - ${interventionTitle(latestPreventiveIntervention)}` : 'Pendiente de carga'}</p>
-                    </>
-                  )}
-
-                  {parqueSelected.fechaHoraParte && (
-                    <p><strong>Último parte:</strong><br />{parqueSelected.fechaParte} {parqueSelected.horaParte}</p>
-                  )}
-                  <p><strong>Estado registrado:</strong><br />{parqueSelected.fuenteEstado}</p>
+                  <p><strong>Estado actual:</strong><br />{estadoOperativo(parqueSelected)}</p>
+                  <p><strong>Último parte:</strong><br />{parqueSelected.fechaParte ? `${formatDateDisplay(parqueSelected.fechaParte)} ${parqueSelected.horaParte || ''}` : 'Sin parte diario cargado'}</p>
                   <p><strong>Observaciones:</strong><br />{parqueSelected.observacion || 'Sin observaciones'}</p>
-                  {(parqueSelected.estado === 'sin_confirmar' || parqueSelected.estadoConfirmado === false) && canManageHistory && <button className="primary-action" type="button" onClick={() => resolvePendingFleet(parqueSelected)}>Completar estado pendiente</button>}
+                  {parqueSelected.conflictoEstado && <p className="tracking-hint">El parte y el mantenimiento abierto no coinciden. Se conserva detenida hasta confirmar el cierre.</p>}
+                  {parqueSelected.needsMaintenance && canManageHistory && <button className="primary-action" type="button" onClick={() => beginMaintenance(parqueSelected)}>Iniciar nuevo mantenimiento</button>}
+                  {(parqueSelected.estado === 'sin_confirmar' || parqueSelected.estadoConfirmado === false || parqueSelected.conflictoEstado) && canManageHistory && <button className="secondary-action" type="button" onClick={() => resolvePendingFleet(parqueSelected)}>Revisar estado pendiente</button>}
                 </div>
 
                 <div className="panel-section timeline">
                   <h3>Historial reciente</h3>
 
                   {normalizedSelectedHistory.length > 0 ? (
-                    normalizedSelectedHistory.slice(0, 5).map((item) => (
+                    normalizedSelectedHistory.slice(0, 1).map((item) => (
                       <article key={item.id}>
                         <b className={`dot ${dotClase(item.area)}`} />
                         <span>
@@ -495,19 +374,7 @@ export default function App() {
                       </article>
                     ))
                   ) : (
-                    <>
-                      <article>
-                        <b className="dot service" />
-                        <span>Estado actualizado</span>
-                        <small>Registro inicial</small>
-                      </article>
-
-                      <article>
-                        <b className="dot preventive" />
-                        <span>Datos cargados desde planilla</span>
-                        <small>Estado actual</small>
-                      </article>
-                    </>
+                    <p>Sin mantenimiento registrado.</p>
                   )}
                 </div>
 
@@ -569,6 +436,7 @@ export default function App() {
 
       {tab === 'calendario' && (
         <SeguimientoMantenimiento
+          key={`${trackingSelection?.id || ''}:${trackingSelection?.codigo || ''}:${trackingSelection?.newMaintenance || ''}`}
           initialSelection={trackingSelection}
           privatePreviewEvents={privatePreviewEvents}
           onChanged={() => setTrackingRevision(value => value + 1)}
@@ -587,7 +455,7 @@ export default function App() {
           </div>
 
           <div className="list-grid">
-            {locomotoras.map((loco) => (
+            {parque.map((loco) => (
               <article className={`inventory-card ${loco.lavadoProgramado ? 'is-wash' : estadoClase(loco.estado)}`} key={loco.id}>
                 <img alt={`Locomotora ${loco.codigo}`} src={imagenLocomotora(loco)} />
                 <div>
@@ -603,7 +471,8 @@ export default function App() {
       {isFleetImportOpen && (
         <ImportarEstadoDiarioModal
           canManage={canManagePatioCalendar}
-          locomotoras={locomotoras}
+          maintenanceEvents={combinedTracking}
+          locomotoras={parque}
           onClose={() => setIsFleetImportOpen(false)}
           onConfirm={applyFleetImport}
           onForbidden={denyPermission}
