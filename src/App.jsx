@@ -5,7 +5,6 @@ import AreasMaterialRodante from './components/AreasMaterialRodante.jsx';
 import SeguimientoMantenimiento from './components/SeguimientoMantenimiento.jsx';
 import Home from './components/Home.jsx';
 import HistorialLocomotora from './components/HistorialLocomotora.jsx';
-import ConfirmarEstadoModal from './components/ConfirmarEstadoModal.jsx';
 import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.jsx';
 import Login from './components/Login.jsx';
 import Patio from './components/Patio.jsx';
@@ -21,7 +20,7 @@ import { fleetFromTracking } from './domain/maintenance/fleetState.js';
 import { permisoDenegadoMensaje, puedeGestionarArchivoHistorico, puedeGestionarPatioCalendario } from './lib/permissions.js';
 import { fetchHistorialByLocomotora } from './services/historialSupabaseService.js';
 import { fetchSeguimiento } from './services/seguimientoService.js';
-import { fetchFleetConfirmations, saveFleetConfirmation } from './services/fleetConfirmationService.js';
+import { fetchFleetConfirmations } from './services/fleetConfirmationService.js';
 
 const interventionLabels = {
   correctivo: 'Correctivo',
@@ -133,7 +132,6 @@ export default function App() {
   const [historyEvents, setHistoryEvents] = useState([]);
   const [trackingEvents, setTrackingEvents] = useState([]);
   const [fleetConfirmations, setFleetConfirmations] = useState([]);
-  const [confirmationTarget, setConfirmationTarget] = useState(null);
   const [trackingError, setTrackingError] = useState('');
   const [trackingRevision, setTrackingRevision] = useState(0);
   const [historyStatus, setHistoryStatus] = useState('idle');
@@ -201,24 +199,6 @@ export default function App() {
     setSelected(loco);
     setHistoryTarget(loco);
     setTab('historial');
-  };
-
-  const resolvePendingFleet = (loco) => {
-    const open = combinedTracking.filter(item => item.locomotoraCodigo === loco.codigo && ['preventivo', 'correctivo'].includes(item.tipo) && !item.anulado && !['finalizado', 'cancelado'].includes(item.estadoMantenimiento))
-      .sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
-    if (open) {
-      setTrackingSelection({ id: open.id, codigo: loco.codigo, fecha: open.fecha });
-      setTab('calendario');
-      return;
-    }
-    setConfirmationTarget(loco);
-  };
-
-  const confirmFleet = async (data) => {
-    if (!canManageHistory) throw new Error(permisoDenegadoMensaje);
-    const saved = await saveFleetConfirmation(data, locomotoras, perfil?.nombre || perfil?.email, combinedTracking);
-    setFleetConfirmations(current => [saved, ...current]);
-    if (historyLoco?.codigo === data.codigo) await loadHistoryEvents(historyLoco);
   };
 
   const denyPermission = useCallback(() => {
@@ -308,7 +288,7 @@ export default function App() {
           </div>
         )}
 
-        <SeguimientoPendientes events={[...combinedTracking, ...fleetConfirmations]} canManage={canManageHistory} onSaved={() => { setTrackingRevision(value => value + 1); if (tab === 'historial') loadHistoryEvents(historyLoco); }} onNewMaintenance={(codigo, fecha) => beginMaintenance(parque.find(loco => loco.codigo === codigo), fecha)} />
+        {tab !== 'patio' && <SeguimientoPendientes events={[...combinedTracking, ...fleetConfirmations]} canManage={canManageHistory} onSaved={() => { setTrackingRevision(value => value + 1); if (tab === 'historial') loadHistoryEvents(historyLoco); }} onNewMaintenance={(codigo, fecha) => beginMaintenance(parque.find(loco => loco.codigo === codigo), fecha)} />}
 
         {tab === 'inicio' && <Home onNavigate={setTab} />}
 
@@ -320,11 +300,9 @@ export default function App() {
         <main className="operations-layout">
           <Patio
             canManage={canManagePatioCalendar}
-            canConfirm={canManageHistory}
             locomotoras={parque}
             onImportDailyState={openFleetImport}
             onOpenHistory={openHistory}
-            onResolvePending={resolvePendingFleet}
             selected={parqueSelected}
             setSelected={setSelected}
           />
@@ -354,8 +332,6 @@ export default function App() {
                   <p><strong>Último parte:</strong><br />{parqueSelected.fechaParte ? `${formatDateDisplay(parqueSelected.fechaParte)} ${parqueSelected.horaParte || ''}` : 'Sin parte diario cargado'}</p>
                   <p><strong>Observaciones:</strong><br />{parqueSelected.observacion || 'Sin observaciones'}</p>
                   {parqueSelected.conflictoEstado && <p className="tracking-hint">El parte y el mantenimiento abierto no coinciden. Se conserva detenida hasta confirmar el cierre.</p>}
-                  {parqueSelected.needsMaintenance && canManageHistory && <button className="primary-action" type="button" onClick={() => beginMaintenance(parqueSelected)}>Iniciar nuevo mantenimiento</button>}
-                  {(parqueSelected.estado === 'sin_confirmar' || parqueSelected.estadoConfirmado === false || parqueSelected.conflictoEstado) && canManageHistory && <button className="secondary-action" type="button" onClick={() => resolvePendingFleet(parqueSelected)}>Revisar estado pendiente</button>}
                 </div>
 
                 <div className="panel-section timeline">
@@ -398,8 +374,6 @@ export default function App() {
           </aside>
         </main>
       )}
-
-      {confirmationTarget && <ConfirmarEstadoModal loco={confirmationTarget} onClose={() => setConfirmationTarget(null)} onSave={confirmFleet} />}
 
         {tab === 'historial' && (
         <HistorialLocomotora

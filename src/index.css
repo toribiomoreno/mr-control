@@ -5572,9 +5572,12 @@ button {
 .timeline-event-card.correctivo .timeline-event-body { border-left-color: #ef4444; background: linear-gradient(100deg, #211823, #171324); }
 .timeline-event-card.preventivo .timeline-event-body { border-left-color: #facc15; }
 .history-event-summary { display: flex; align-items: center; gap: 14px; }
-.history-event-icon { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border-radius: 7px; color: #f6a4a9; background: #462332; }
+.history-event-icon { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border-radius: 7px; color: #cbd5e1; background: #273145; }
 .history-event-icon svg { width: 23px; height: 23px; }
-.preventivo .history-event-icon { color: #fde68a; background: #463b23; }
+.timeline-event-card.correctivo .history-event-icon { color: #ef4444; background: #462332; }
+.timeline-event-card.preventivo .history-event-icon { color: #facc15; background: #463b23; }
+.timeline-event-card.libro .history-event-icon { color: #a78bfa; background: #302542; }
+.timeline-event-card.libro .timeline-event-body { border-left-color: #a78bfa; }
 .history-event-copy { min-width: 0; flex: 1; }
 .history-event-copy .timeline-event-topline { margin-bottom: 7px; }
 .history-event-copy .timeline-event-topline strong { font-size: 15px; overflow-wrap: anywhere; }
@@ -5631,8 +5634,7 @@ body:has(.history-workspace) { min-width: 320px; }
 .followup-notice > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
 .followup-notice button { padding: 7px 12px; border-radius: 8px; background: #fff; border: 1px solid #c6a03a; color: inherit; cursor: pointer; }
 .history-source-note { white-space: pre-line; margin: 8px 0 0; line-height: 1.5; color: #d7e1ee; }
-.timeline-event-card.daily-state { --daily-color: #f59e0b; }
-.timeline-event-card.daily-state.state-operativa { --daily-color: #16a34a; }
-.timeline-event-card.daily-state.state-detenida { --daily-color: #dc2626; }
+.timeline-event-card.daily-state { --daily-color: #e7e5df; }
+.timeline-event-card.daily-state .history-event-icon { color: var(--daily-color); background: #33363c; }
 .timeline-event-card.daily-state .timeline-event-body { border-left-color: var(--daily-color); }
 .timeline-event-card.daily-state .timeline-event-marker { background: var(--daily-color); }
