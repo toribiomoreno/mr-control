@@ -4,7 +4,7 @@ import { useState } from 'react';
 import EventFilters from './EventFilters.jsx';
 import LocomotiveLifeLine from './LocomotiveLifeLine.jsx';
 import TimelineEvent from './TimelineEvent.jsx';
-import { historyDates, historyMatchesDates, historyMatchesSearch } from '../domain/maintenance/history.js';
+import { compareHistoryEvents, historyDates, historyMatchesDates, historyMatchesSearch } from '../domain/maintenance/history.js';
 
 function eventMatchesFilter(event, filter) {
   if (filter === 'todo') return true;
@@ -54,7 +54,7 @@ export default function HistorialLocomotora({
   const dateRangeError = dateRangeInvalid ? 'La fecha desde no puede ser posterior a la fecha hasta.' : '';
   const locomotiveEvents = events
     .filter((event) => event.locomotoraCodigo === targetLoco.codigo)
-    .sort((a, b) => `${b.metadata?.seguimiento?.detentionStart || b.fecha} ${b.hora || ''}`.localeCompare(`${a.metadata?.seguimiento?.detentionStart || a.fecha} ${a.hora || ''}`));
+    .sort(compareHistoryEvents);
   const filteredEvents = dateRangeInvalid
     ? []
     : locomotiveEvents.filter((event) => (

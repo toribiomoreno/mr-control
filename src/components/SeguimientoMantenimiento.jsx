@@ -104,7 +104,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
     e.preventDefault(); if (!canEdit) return;
     const form = new FormData(e.currentTarget); setSaving(true); setError('');
     try {
-      await saveTracking(event, { ...event.metadata?.seguimiento, detentionStart: form.get('detentionStart'), detentionReason: form.get('detentionReason') || detentionReason(event), location: form.get('location'), system: form.get('system') || 'Varios sistemas', component: form.get('component') || 'Locomotora completa' });
+      await saveTracking(event, { ...event.metadata?.seguimiento, ...(event.metadata?.seguimiento?.intake ? { intake: { ...event.metadata.seguimiento.intake, pendingStart: false, pendingLocation: false, pendingSystem: false } } : {}), detentionStart: form.get('detentionStart'), detentionReason: form.get('detentionReason') || detentionReason(event), location: form.get('location'), system: form.get('system') || 'Varios sistemas', component: form.get('component') || 'Locomotora completa' });
       setEditingMeta(false); await load(); onChanged?.();
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   }
@@ -145,7 +145,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
       <Efficiency result={result} location={selected.location} onComplete={canEdit ? date => setUpdate({ initialDate: date }) : null} />
       {error && <p role="alert" className="tracking-error">{error}</p>}
     </section></div>}
-    {entryOpen && <CargaDatosModal events={events} unit={unit} onClose={() => setEntryOpen(false)} onNew={() => { setEntryOpen(false); setCreating(true); }} onUpdate={(eventId, initialUpdate) => { setEntryOpen(false); setUpdate({ eventId, initialUpdate }); }} />}
+    {entryOpen && <CargaDatosModal events={events} unit={unit} onClose={() => setEntryOpen(false)} onNew={() => { setEntryOpen(false); setCreating(true); }} onReview={eventId => { setEntryOpen(false); setSelectedId(eventId); setEditingMeta(true); }} onUpdate={(eventId, initialUpdate) => { setEntryOpen(false); setUpdate({ eventId, initialUpdate }); }} />}
     {creating && <RegistroEventoModal locomotoras={locomotoras} initialDate={initialSelection?.newMaintenance ? initialSelection.fecha : ''} selectedLoco={locomotoras.find(l => l.codigo === unit) || locomotoras[0]} onClose={() => setCreating(false)} onSave={create} />}
     {update && updateEvent && <ActualizacionEventoModal key={update.initialUpdate?.id || update.initialDate || updateEvent.id} event={updateEvent} mode={updateEvent.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} {...update} onClose={() => setUpdate(null)} onSave={saveUpdate} />}
     {importing && <ImportarPilotoModal events={events} onClose={() => setImporting(false)} onImported={async () => { await load(); onChanged?.(); }} />}

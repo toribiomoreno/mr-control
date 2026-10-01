@@ -122,7 +122,7 @@ function buildYardSlots(locomotoras) {
   });
 }
 
-export default function Patio({ canManage = false, canConfirm = false, locomotoras, selected, setSelected, onImportDailyState, onOpenHistory, onResolvePending }) {
+export default function Patio({ canManage = false, locomotoras, selected, setSelected, onImportDailyState, onOpenHistory }) {
   const viewportRef = useRef(null);
   const locoRefs = useRef({});
   const dragState = useRef(null);
@@ -162,7 +162,6 @@ export default function Patio({ canManage = false, canConfirm = false, locomotor
     unknown: locomotoras.filter(loco => loco.estado === 'sin_confirmar' || loco.estadoConfirmado === false).length,
     wash: statusTotals.lavado,
   };
-  const pendingAvailability = locomotoras.filter(loco => loco.estado === 'sin_confirmar' || loco.estadoConfirmado === false);
 
   const selectLocomotive = (loco, shouldCenter = false) => {
     setSelected(loco);
@@ -268,11 +267,6 @@ export default function Patio({ canManage = false, canConfirm = false, locomotor
           </div>
         </div>
       </div>
-
-      <section className="yard-pending" aria-label="Disponibilidad por confirmar">
-        <div><p className="eyebrow">Revisión manual</p><h3>Disponibilidad por confirmar <span>{pendingAvailability.length}</span></h3><p>Confirmá el estado con el parte o con el taller. Si hay un mantenimiento abierto, completá su avance y cierre.</p></div>
-        {pendingAvailability.length ? <div className="yard-pending-list">{pendingAvailability.map(loco => <div className="yard-pending-item" key={loco.codigo}><strong>{loco.codigo}</strong><small>{loco.estado === 'sin_confirmar' ? 'Sin estado actualizado' : `${getStatusText(loco)} · continuidad por confirmar`}</small>{canConfirm && <button type="button" onClick={() => onResolvePending(loco)}>Completar</button>}</div>)}</div> : <p>Todos los estados de disponibilidad tienen una confirmación.</p>}
-      </section>
 
       <div
         className={`yard-viewport ${isDragging ? 'is-dragging' : ''}`}

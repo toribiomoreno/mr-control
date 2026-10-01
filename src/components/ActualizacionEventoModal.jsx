@@ -159,8 +159,8 @@ export default function ActualizacionEventoModal({
               <p className="tracking-hint">Media jornada de trabajo no implica media jornada de demora. Si quedó operativa, el tiempo posterior no se registra como pérdida.</p>
             </>}
             {event.tipo === 'correctivo' && ['trabajo', 'mixto'].includes(activity) && <>
-              <label>¿De qué sistema hablamos?<select name="system" defaultValue={saved.system || event.metadata?.seguimiento?.system || ''} required><option value="">Seleccionar sistema</option>{systems.filter(x => x !== 'Por confirmar').map(x => <option key={x}>{x}</option>)}</select></label>
-              <label>¿Qué parte se trabajó en esta novedad?<input name="component" defaultValue={saved.component || event.metadata?.seguimiento?.component || ''} required /></label>
+              <label>¿De qué sistema hablamos?<select name="system" defaultValue={saved.system || (event.metadata?.seguimiento?.intake?.pendingSystem ? '' : event.metadata?.seguimiento?.system) || ''} required><option value="">Seleccionar sistema</option>{systems.filter(x => x !== 'Por confirmar').map(x => <option key={x}>{x}</option>)}</select></label>
+              <label>¿Qué parte se trabajó en esta novedad?<input name="component" defaultValue={saved.component || (event.metadata?.seguimiento?.intake?.pendingSystem ? '' : event.metadata?.seguimiento?.component) || ''} required /></label>
             </>}
             <label>¿En qué turno? {staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? <input value="Mañana · turno fijo" readOnly /> : <select name="period" defaultValue={saved.period || ''} required><option value="">Seleccionar</option><option>Mañana</option><option>Tarde</option><option>Mañana y tarde</option><option>Día completo</option></select>}</label>
             {['espera', 'mixto'].includes(activity) && <label>¿Por qué no se pudo trabajar?<select name="cause" defaultValue={saved.cause || ''} required><option value="">Seleccionar causa</option>{Object.entries(causes).filter(([c]) => c !== 'PENDIENTE').map(([c, label]) => <option key={c} value={c}>{c} · {label}</option>)}</select></label>}
