@@ -1,5 +1,5 @@
 import { assertSupabaseConfig, supabase } from '../lib/supabase.js';
-import { dailyStateRecord } from '../domain/maintenance/dailyState.js';
+import { dailyImportBatch } from '../domain/maintenance/dailyIntake.js';
 import { fleet, today } from '../domain/maintenance/types.js';
 import { validDate, validateUpdate, isMaintenance } from '../domain/maintenance/adapter.js';
 import { pendingFollowUps } from '../domain/maintenance/followUp.js';
@@ -21,28 +21,14 @@ export async function guardarEstadoDiario(preview) {
     fail('Revisá las 27 unidades, la fecha y la hora del parte antes de guardar.');
   }
   const events = await evidence();
-  const fresh = [];
-  for (const row of preview.rows) {
-    const existing = events.find(event => event.locomotoraCodigo === row.unit && event.fecha === preview.date
-      && event.hora?.slice(0, 5) === preview.time && event.metadata?.dailyState);
-    if (existing) {
-      if (existing.metadata.dailyState.reportedState !== row.newState || existing.metadata.dailyState.observation !== (row.reason || '')) {
-        fail(`Ya existe un parte distinto para ${row.unit} en esa fecha y hora. Revisalo antes de corregirlo.`);
-      }
-      continue;
-    }
-    fresh.push({ locomotora_codigo: row.unit, fecha: preview.date, hora: preview.time, tipo: 'otro',
-      titulo: 'Estado diario de la máquina', descripcion: row.reason || '', origen: 'parte-diario',
-      responsable: 'Parte diario', automatico: true, criticidad: 'baja',
-      clave_importacion: `estado-diario|${preview.date}|${preview.time}|${row.unit}`,
-      metadata: { dailyState: { ...dailyStateRecord({ ...row, reportDate: preview.date, reportTime: preview.time }, events), rawLine: row.raw, source: 'parte-diario' } } });
-  }
+  const batch = dailyImportBatch(preview, events);
+  const fresh = batch.rows;
   if (fresh.length) {
     // Una única inserción por lote y la clave única existente evitan cargas parciales o repetidas.
-    const { error } = await supabase.from('eventos_historial').insert(fresh);
+    const { error } = await supabase.from('eventos_historial').insert(fresh, { defaultToNull: false });
     if (error) throw new Error(error.code === '23505' ? 'Este parte se guardó desde otra sesión. Actualizá y verificá los datos.' : error.message);
   }
-  return { created: fresh.length, unchanged: fleet.length - fresh.length };
+  return { created: batch.created, unchanged: batch.unchanged, maintenancesCreated: batch.intakes.length };
 }
 
 async function responseId(key) {

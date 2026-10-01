@@ -372,10 +372,12 @@ export function buildFleetImportPreview({ date, time, text, locomotoras, mainten
     if (duplicate) rowErrors.push('unidad_duplicada');
     if (stateResult.error) rowErrors.push(stateResult.error);
     if (row.unit && !duplicate) seen.set(row.unit, row);
-    if (stateResult.state === 'detenida' && classification.classification === 'sin_clasificar') warnings.push('Detencion sin clasificar.');
+    if (stateResult.state === 'detenida' && classification.classification === 'sin_clasificar' && !row.reason?.trim()) warnings.push('Falta el motivo de la detención. Completalo al cargar datos en Mantenimientos.');
     const snapshot = dailyStateRecord({ unit: row.unit, reportDate: effectiveDate, reportTime: effectiveTime, newState: stateResult.state, reason: row.reason }, maintenanceEvents);
     if (snapshot.conflict) warnings.push(`El parte informa ${stateResult.label}, pero hay un mantenimiento abierto en esa fecha y hora: se conserva Detenida hasta confirmar el cierre.`);
-    if (snapshot.needsMaintenance) warnings.push('Ingreso a nuevo mantenimiento por completar. El parte no confirma que se haya trabajado.');
+    if (snapshot.needsMaintenance && row.reason?.trim()) warnings.push(classification.classification === 'preventivo' && !/^(E|A|AB|ABC|Numeral ([1-9]|1[0-2]))$/.test(classification.preventiveCode)
+      ? 'Falta el código preventivo; completalo en Mantenimientos.'
+      : 'Se abrirá el mantenimiento con este motivo. Trabajo, turno y personal se completan en Mantenimientos.');
 
     return {
       ...row,
