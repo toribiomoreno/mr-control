@@ -74,8 +74,8 @@ export function validateUpdate(event, update, now = today()) {
   if (update.tipoActualizacion === 'cierre') assert(!(event.actualizaciones || []).some(a => a.id !== update.id && a.fecha > update.fecha && a.metadata?.seguimiento?.activity !== 'sin_dato'), 'Hay actividad posterior a la fecha de cierre.');
   if (t.activity !== 'sin_dato') {
     if (event.tipo === 'correctivo' && ['trabajo', 'mixto'].includes(t.activity)) {
-      const system = t.system || event.metadata?.seguimiento?.system;
-      const component = t.component || event.metadata?.seguimiento?.component;
+      const system = t.system || (!event.metadata?.seguimiento?.intake?.pendingSystem && event.metadata?.seguimiento?.system);
+      const component = t.component || (!event.metadata?.seguimiento?.intake?.pendingSystem && event.metadata?.seguimiento?.component);
       assert(system && system !== 'Por confirmar' && component?.trim(), 'Confirmá sistema y parte atacada en esta novedad.');
     }
     assert(update.responsable?.trim() && (!(t.captureVersion >= 2) || update.responsable !== 'Por confirmar'), '¿Quién intervino o informó la espera?');

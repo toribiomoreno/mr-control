@@ -92,14 +92,15 @@ export function evidenceQuestions(event) {
   const questions = [];
   const meta = event.metadata?.seguimiento || {};
   const missing = value => !value || /por confirmar/i.test(value);
-  if (!meta.detentionStart) questions.push({ field: 'meta', text: '¿Desde cuándo quedó detenida?' });
+  if (!meta.detentionStart || meta.intake?.pendingStart) questions.push({ field: 'meta', text: '¿Desde cuándo quedó detenida? El parte confirma la detención, no su inicio exacto.' });
+  if (meta.intake?.pendingLocation) questions.push({ field: 'meta', text: '¿El mantenimiento se realiza en Boulogne o en un taller externo?' });
   if (detentionReason(event) === 'Por confirmar') questions.push({ field: 'meta', text: '¿Por qué quedó detenida?' });
-  if (event.tipo === 'correctivo' && (missing(meta.system) || missing(meta.component))) questions.push({ field: 'meta', text: '¿Qué sistema y parte se intervinieron?' });
+  if (event.tipo === 'correctivo' && (meta.intake?.pendingSystem || missing(meta.system) || missing(meta.component))) questions.push({ field: 'meta', text: '¿Qué sistema y parte se intervinieron?' });
   if (!(event.actualizaciones || []).length) questions.push({ field: 'activity', text: '¿Se intervino? Indicá fecha, turno y personal, o el motivo por el que no se trabajó.' });
   for (const update of orderedUpdates(event)) {
     const t = update.metadata?.seguimiento || {};
     const add = text => questions.push({ update, text });
-    if (!t.activity || t.activity === 'sin_dato') add('¿Se trabajó ese día?');
+    if ((!t.activity || t.activity === 'sin_dato') && !update.metadata?.evidenceOnly && !update.metadata?.followUpResult) add('¿Se trabajó ese día?');
     if (['trabajo', 'mixto'].includes(t.activity) && missing(update.responsable)) add('¿Quién intervino?');
     if (['trabajo', 'mixto'].includes(t.activity) && t.workDurationDays == null && !(event.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(event.preventivoCodigo))) add('¿Fue jornada completa o media jornada? La duración todavía no está confirmada.');
     if (['trabajo', 'mixto'].includes(t.activity) && event.tipo === 'correctivo' && (missing(t.system || meta.system) || missing(t.component || meta.component))) add('¿Qué parte se trabajó?');

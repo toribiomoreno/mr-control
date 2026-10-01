@@ -1,6 +1,6 @@
 import { isVisibleMaintenance, maintenanceWindow, outcomeAtEnd, detentionReason } from './view.js';
 import { today } from './types.js';
-import { stateEvidence } from './dailyState.js';
+import { maintenanceAt, stateEvidence } from './dailyState.js';
 
 // Una fecha sin parte no convierte una locomotora en operativa.
 export function fleetState(loco, events, asOf = today()) {
@@ -22,11 +22,15 @@ export function fleetState(loco, events, asOf = today()) {
   if (open.length) {
     const job = open[0];
     const window = maintenanceWindow(job, asOf);
+    const reportedDetained = daily?.metadata.dailyState.reportedState === 'detenida'
+      && maintenanceAt([job], loco.codigo, daily.fecha, daily.hora?.slice(0, 5)).length > 0;
+    const confirmedThrough = reportedDetained && daily.fecha > window.confirmedThrough ? daily.fecha : window.confirmedThrough;
+    const unconfirmed = confirmedThrough < asOf;
     return { ...loco, estado: job.tipo, tipoPreventivo: job.preventivoCodigo || '',
       observacion: [detentionReason(job), daily?.metadata.dailyState.observation].filter(Boolean).join(' · '), lavadoProgramado: false,
-      conflictoEstado: Boolean((daily?.fecha >= window.start && daily.metadata.dailyState.reportedState !== 'detenida') || (reportDate >= window.confirmedThrough && ['servicio', 'operativa'].includes(loco.estado))), estadoConfirmado: !window.unconfirmed, fuenteEstado: window.unconfirmed
-        ? `Detención confirmada hasta ${window.confirmedThrough}; continuidad por confirmar`
-        : `Mantenimiento desde ${window.start}` };
+      conflictoEstado: Boolean((daily && maintenanceAt([job], loco.codigo, daily.fecha, daily.hora?.slice(0, 5)).length && daily.metadata.dailyState.reportedState !== 'detenida') || (!daily && reportDate >= window.confirmedThrough && ['servicio', 'operativa'].includes(loco.estado))), estadoConfirmado: !unconfirmed, fuenteEstado: unconfirmed
+        ? `Detención confirmada hasta ${confirmedThrough}; continuidad por confirmar`
+        : `Mantenimiento desde ${window.start}${reportedDetained ? ` · continúa según parte del ${daily.fecha}` : ''}` };
   }
   const outcome = last ? outcomeAtEnd(last) : null;
   const outcomeStamp = outcome?.date ? `${outcome.date} ${outcome.time || '23:59'}` : '';
