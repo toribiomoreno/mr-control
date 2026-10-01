@@ -1,9 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { historyDates, historyMatchesDates, historyStaff, historyMatchesSearch } from '../src/domain/maintenance/history.js';
+import { compareHistoryEvents, historyDates, historyMatchesDates, historyStaff, historyMatchesSearch } from '../src/domain/maintenance/history.js';
 import { trackingForCurrentState, evidenceQuestions, workDurationLabel } from '../src/domain/maintenance/view.js';
 import { validateEvent, validateUpdate } from '../src/domain/maintenance/adapter.js';
 const event = { locomotoraCodigo:'E721', tipo:'correctivo', fecha:'2026-09-21', fechaCierre:'2026-09-22', titulo:'Cambio de compresor', descripcion:'Revisión del equipo', responsable:'Por confirmar', estadoMantenimiento:'finalizado', metadata:{ seguimiento:{ detentionStart:'2026-09-21', location:'Boulogne', system:'Sistema neumático', component:'Compresor' } }, actualizaciones:[{ fecha:'2026-09-22', descripcion:'Disponible después del centrado', responsable:'Turno fijo', metadata:{seguimiento:{activity:'trabajo',staffSpecialty:'Mecánico'}} }] };
+test('E701: libro 03:00, parte 05:44, correctivo sin hora; días recientes primero', () => {
+ const day = '2026-09-29';
+ const items = [{id:'repair',fecha:day,tipo:'correctivo'}, {id:'daily',fecha:day,hora:'05:44:00',metadata:{dailyState:{}}}, {id:'book',fecha:day,hora:'03:00:00',tipo:'libro'}, {id:'newer',fecha:'2026-09-30',tipo:'libro',hora:'02:00'}];
+ assert.deepEqual(items.sort(compareHistoryEvents).map(e=>e.id),['newer','book','daily','repair']);
+ const intake={id:'intake',fecha:day,hora:'05:44',tipo:'correctivo'};
+ assert.deepEqual([intake,items[2]].sort(compareHistoryEvents).map(e=>e.id),['daily','intake']);
+});
 test('histórico: rango de detención, filtro por superposición y personal de los avances', () => {
  assert.equal(historyDates(event),'21 – 22 SEP 2026');
  assert.ok(historyMatchesDates(event,'2026-09-22','2026-09-22'));
