@@ -18,6 +18,8 @@ test('semana, detalle, eficiencia, corrección y CSV',async({page})=>{
  await expect(page.locator('.maintenance-journal-entry').getByText(/Demora:|50% útil/)).toHaveCount(0);
  await page.locator('.maintenance-journal-entry').first().getByRole('button',{name:/Completar/}).click();
  await expect(page.getByLabel('Fecha',{exact:true})).toHaveValue('2026-09-24');
+ await expect(page.locator('.modal-backdrop')).toHaveCount(1);
+ await expect(page.locator('.maintenance-journal-entry').first().getByRole('form',{name:'Editar avance'})).toBeVisible();
  await page.getByRole('button',{name:'Cerrar',exact:true}).click();
  await expect(page.getByRole('img',{name:'1,5 días útiles, 0,5 perdidos y 0 sin información'})).toBeVisible();
  await page.screenshot({path:'/workspace/scratch/7ec95ebdf471/mantenimiento-detalle.png',fullPage:true});
@@ -86,4 +88,38 @@ test('ingreso seguido de actividad: hora desconocida y media jornada sin pérdid
  expect(notes[0].metadata.seguimiento.cause).toBe('');
  expect(notes[0].metadata.seguimiento.usefulFraction).toBeUndefined();
  expect(rows[0].estado_mantenimiento).toBe('finalizado');
+});
+
+test('editar el avance en su ficha guarda, cancela y conserva los datos asociados', async({page})=>{
+ const current={...event,estado_mantenimiento:'en_curso',fecha_cierre:null,metadata:{seguimiento:{captureVersion:3,detentionStart:'2026-09-24',location:'Boulogne',system:'Bogie',component:'Componente de prueba',detentionReason:'Prueba',outcome:'continua'}}};
+ const note={...updates[0],tipo_actualizacion:'avance',updated_at:'2026-09-25T12:00:00Z',pendientes:'Ensayo pendiente',resultado_prueba:'Ensayo parcial',metadata:{sourceId:'synthetic-edit',seguimiento:{...updates[0].metadata.seguimiento,captureVersion:3,workDurationDays:.5,dayComplete:true}}};
+ let patches=0;
+ await page.route('http://127.0.0.1:54321/**',route=>{
+  const req=route.request(),url=req.url();
+  if(url.includes('seguimiento_version')) return route.fulfill({json:1});
+  if(url.includes('adjuntos_evento')) return route.fulfill({json:[]});
+  if(url.includes('actualizaciones_evento')) {
+   if(req.method()==='PATCH'){Object.assign(note,req.postDataJSON());patches++;}
+   return route.fulfill({json:[note]});
+  }
+  return route.fulfill({json:[current]});
+ });
+ await page.goto('/tests/seguimiento.html');
+ await page.getByLabel('Semana del').fill('2026-09-21');
+ await page.locator('.tracking-bar').click();
+ await page.getByRole('button',{name:'Editar este avance'}).click();
+ const form=page.getByRole('form',{name:'Editar avance'});
+ await expect(page.locator('.modal-backdrop')).toHaveCount(1);
+ await form.locator('textarea[name="descripcion"]').fill('Cambio sin guardar');
+ await form.getByRole('button',{name:'Cancelar',exact:true}).click();
+ expect(patches).toBe(0);
+ await expect(page.getByRole('dialog',{name:'Mantenimiento E701'})).toBeVisible();
+ await page.getByRole('button',{name:'Editar este avance'}).click();
+ await form.locator('textarea[name="descripcion"]').fill('Descripción corregida');
+ await form.locator('input[name="confirmActivity"]').check();
+ await form.getByRole('button',{name:'Guardar avance',exact:true}).click();
+ await expect(form).toHaveCount(0);
+ await expect(page.getByRole('dialog',{name:'Mantenimiento E701'})).toBeVisible();
+ await expect(page.locator('.maintenance-journal-entry').getByText('Descripción corregida',{exact:true})).toBeVisible();
+ expect(patches).toBe(1);expect(note.pendientes).toBe('Ensayo pendiente');expect(note.resultado_prueba).toBe('Ensayo parcial');expect(note.metadata.seguimiento.dayComplete).toBe(true);expect(note.metadata.seguimiento.usefulFraction).toBe(.5);expect(note.metadata.sourceId).toBe('synthetic-edit');
 });

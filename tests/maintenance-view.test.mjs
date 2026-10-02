@@ -41,3 +41,9 @@ test('la confirmación manual aparece en la línea de vida y termina ante un cor
   const segments = operatingSegments([confirmation, correction], '2026-09-21', '2026-09-27');
   assert.deepEqual(segments.map(({ start, end }) => [start, end]), [['2026-09-23', '2026-09-24']]);
 });
+
+test('un examen terminado con hallazgo no libera la locomotora ni genera un tramo operativo', () => {
+ const job={id:'exam-finding',locomotoraCodigo:'E701',tipo:'preventivo',preventivoCodigo:'E',fecha:'2026-09-24',fechaCierre:'2026-09-24',estadoMantenimiento:'finalizado',estadoUnidadResultante:'fuera_de_servicio',metadata:{seguimiento:{detentionStart:'2026-09-24',outcome:'detenida'}},actualizaciones:[{id:'exam-close',fecha:'2026-09-24',tipoActualizacion:'cierre',metadata:{seguimiento:{activity:'trabajo',period:'Tarde',outcome:'detenida'}}}]};
+ assert.equal(outcomeAtEnd(job).code,'detenida');
+ assert.deepEqual(operatingSegments([job],'2026-09-24','2026-09-27'),[]);
+});
