@@ -30,7 +30,8 @@ export function trackingForCurrentState(event, tracking = event.metadata?.seguim
   if (event.estadoMantenimiento !== 'finalizado') return tracking;
   const closure = orderedUpdates(event).filter(update => update.tipoActualizacion === 'cierre').at(-1);
   const saved = closure?.metadata?.seguimiento?.outcome || tracking.outcome;
-  return { ...tracking, outcome: operationalOutcomes.includes(saved) ? saved : 'operativa', availableDate: event.fechaCierre || tracking.availableDate || event.fecha };
+  const outcome = saved === 'detenida' ? saved : operationalOutcomes.includes(saved) ? saved : 'operativa';
+  return { ...tracking, outcome, availableDate: outcome === 'detenida' ? undefined : event.fechaCierre || tracking.availableDate || event.fecha };
 }
 export function outcomeAtEnd(event) {
   if (event.estadoMantenimiento === 'finalizado') {
@@ -38,7 +39,7 @@ export function outcomeAtEnd(event) {
     const resolution = latestResult?.metadata.followUpResult.result;
     const closure = orderedUpdates(event).filter(update => update.tipoActualizacion === 'cierre').at(-1);
     const saved = closure?.metadata?.seguimiento?.outcome || event.metadata?.seguimiento?.outcome;
-    const code = resolution === 'sin_novedades' ? 'operativa' : resolution === 'nueva_falla' ? 'detenida' : resolution === 'pendiente' ? latestResult.metadata.followUpResult.kind === 'acompanada' ? 'acompanada' : 'operativa_prueba' : operationalOutcomes.includes(saved) && saved !== 'disponible' ? saved : event.estadoUnidadResultante === 'pendiente_de_prueba' ? 'operativa_prueba' : 'operativa';
+    const code = resolution === 'sin_novedades' ? 'operativa' : resolution === 'nueva_falla' ? 'detenida' : resolution === 'pendiente' ? latestResult.metadata.followUpResult.kind === 'acompanada' ? 'acompanada' : 'operativa_prueba' : saved === 'detenida' ? 'detenida' : operationalOutcomes.includes(saved) && saved !== 'disponible' ? saved : event.estadoUnidadResultante === 'pendiente_de_prueba' ? 'operativa_prueba' : 'operativa';
     return { code, label: outcomeLabels[code], date: latestResult?.fecha || event.fechaCierre || event.metadata?.seguimiento?.availableDate || event.fecha, time: latestResult?.hora || event.horaCierre || '' };
   }
   const latest = orderedUpdates(event).filter(a => a.metadata?.seguimiento?.outcome || ['cierre', 'reapertura'].includes(a.tipoActualizacion)).at(-1);
@@ -115,7 +116,7 @@ export function operatingSegments(events, from, to) {
   const active = events.filter(isVisibleMaintenance);
   const windows = active.map(event => maintenanceWindow(event, to));
   const markers = [
-    ...active.filter(event => event.estadoMantenimiento === 'finalizado').map(event => ({ date: shiftDay(event.fechaCierre || event.fecha, 1), time: '', manual: false, state: 'operativa', source: `Mantenimiento finalizado el ${event.fechaCierre || event.fecha}`, id: event.id })),
+    ...active.filter(event => event.estadoMantenimiento === 'finalizado').map(event => ({ date: shiftDay(event.fechaCierre || event.fecha, 1), time: '', manual: false, state: outcomeAtEnd(event).code === 'detenida' ? 'detenida' : 'operativa', source: `Mantenimiento finalizado el ${event.fechaCierre || event.fecha}`, id: event.id })),
     ...active.flatMap(event => orderedUpdates(event).filter(update => update.metadata?.followUpResult?.result === 'nueva_falla').map(update => ({ date: update.fecha, time: update.hora || '', manual: true, state: 'detenida', source: `Nueva falla del ${update.fecha}`, id: update.id }))),
     ...events.filter(event => !event.anulado && (event.metadata?.fleetConfirmation?.state || event.metadata?.dailyState?.state)).map(event => ({ date: event.fecha, time: event.hora || '', manual: true, state: event.metadata.dailyState?.state || event.metadata.fleetConfirmation.state, source: `${event.metadata.dailyState ? 'Parte diario' : 'Confirmación manual'} del ${event.fecha}`, id: event.id })),
   ].sort((a, b) => a.date.localeCompare(b.date) || Number(a.manual) - Number(b.manual) || a.time.localeCompare(b.time) || String(a.id).localeCompare(String(b.id)));
