@@ -30,6 +30,7 @@ export default function ActualizacionEventoModal({
   initialUpdate = null,
   initialDate = '',
   newEntry = false,
+  embedded = false,
   onClose,
   onSave,
 }) {
@@ -73,9 +74,9 @@ export default function ActualizacionEventoModal({
       estadoResultante: event.estadoMantenimiento !== 'finalizado' && operationalOutcomes.includes(outcome) ? 'finalizado' : defaultStateForType(tipo),
       motivoPausa: isPause ? descriptionValue : null,
       motivoReapertura: null,
-      resultadoPrueba: null,
-      estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : ['prueba', 'operativa_prueba'].includes(outcome) ? 'pendiente_de_prueba' : outcome === 'acompanada' ? 'disponible_con_observaciones' : null,
-      pendientes: null,
+      resultadoPrueba: initialUpdate?.resultadoPrueba || null,
+      estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : ['prueba', 'operativa_prueba'].includes(outcome) ? 'pendiente_de_prueba' : outcome === 'acompanada' ? 'disponible_con_observaciones' : ['continua', 'detenida'].includes(outcome) ? 'fuera_de_servicio' : initialUpdate?.estadoUnidadResultante || null,
+      pendientes: initialUpdate?.pendientes || null,
       metadata: { ...initialUpdate?.metadata, seguimiento: {
         ...saved,
         usefulFraction: undefined,
@@ -86,7 +87,7 @@ export default function ActualizacionEventoModal({
         ...(outcome ? { outcome } : {}),
         activity, system: form.get('system') || event.metadata?.seguimiento?.system || '', component: form.get('component') || event.metadata?.seguimiento?.component || '', period: staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? 'Mañana' : form.get('period') || '',
         cause: ['espera', 'mixto'].includes(activity) ? form.get('cause') : '',
-        dayComplete: form.get('dayComplete') === 'on',
+        dayComplete: date === today() && event.estadoMantenimiento !== 'finalizado' ? form.get('dayComplete') === 'on' : saved.dayComplete === true,
         fullDay: activity === 'espera' && form.get('fullDay') === 'on',
         weekendEligible: form.get('weekendEligible') === 'on',
         ...(fraction !== '' ? { usefulFraction: Number(fraction) } : {}),
@@ -109,9 +110,8 @@ export default function ActualizacionEventoModal({
     }
   };
 
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <form className="intervention-modal maintenance-update-modal" onSubmit={handleSubmit} onInvalidCapture={(event) => setErrorMessage(`Falta completar: ${event.target.closest('label')?.firstChild?.textContent?.trim() || event.target.getAttribute('aria-label') || 'un dato obligatorio'}.`)}>
+  const content = (
+      <form className={embedded ? 'maintenance-inline-editor' : 'intervention-modal maintenance-update-modal'} aria-label={initialUpdate?.id ? 'Editar avance' : 'Registrar avance'} onSubmit={handleSubmit} onInvalidCapture={(event) => setErrorMessage(`Falta completar: ${event.target.closest('label')?.firstChild?.textContent?.trim() || event.target.getAttribute('aria-label') || 'un dato obligatorio'}.`)}>
         <div className="modal-heading">
           <div>
             <span className="panel-kicker">{event.titulo || 'Mantenimiento'}</span>
@@ -141,6 +141,7 @@ export default function ActualizacionEventoModal({
           ¿Quién intervino o informó la espera?
           <select name="responsable" value={staff} onChange={e => setStaff(e.target.value)} required={activity !== 'sin_dato'}>
             <option value="" disabled>Seleccionar turno</option>
+            {staff && !responsibleOptions.includes(staff) && <option>{staff}</option>}
             {responsibleOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
         </label>
@@ -203,6 +204,6 @@ export default function ActualizacionEventoModal({
           </div>
         )}
       </form>
-    </div>
   );
+  return embedded ? content : <div className="modal-backdrop" role="presentation">{content}</div>;
 }

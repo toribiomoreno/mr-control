@@ -38,15 +38,16 @@ function Efficiency({ result, location, onComplete }) {
     <details className="efficiency-days"><summary>Ver cómo cuenta cada día</summary><div className="tracking-table-wrap"><table className="tracking-table"><thead><tr><th>Día</th><th>Evaluación</th><th>Útil</th><th>Pérdida</th><th>Explicación</th></tr></thead><tbody>{result.rows.map(row => <tr key={row.date}><td>{dateLabel(row.date)}</td><td>{stateNames[row.state]}{row.state === 'unknown' && onComplete && <button onClick={() => onComplete(row.date)}>Completar</button>}</td><td>{formatDays(row.useful)}</td><td>{formatDays(row.lost)}</td><td>{row.reason}{row.lossCause && <small>{causeName(row.lossCause)}</small>}</td></tr>)}</tbody></table></div></details>
   </section>;
 }
-function UpdateEntry({ update, event, questions, onEdit }) {
+function UpdateEntry({ update, event, questions, onEdit, editor }) {
   const data = update.metadata?.seguimiento || {};
   return <article className="maintenance-journal-entry">
     <div className="maintenance-journal-date"><strong>{dateLabel(update.fecha)}</strong><small>{data.period || 'Turno por confirmar'}</small></div>
-    <div>{event.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(event.preventivoCodigo) && <span className="journal-preventive">Preventivo {event.preventivoCodigo} · locomotora completa</span>}<span className={`journal-activity ${data.activity || 'sin_dato'}`}>{activityNames[data.activity] || 'Actividad por confirmar'}</span><p>{update.descripcion}</p>
+    <div>{editor || <>{event.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(event.preventivoCodigo) && <span className="journal-preventive">Preventivo {event.preventivoCodigo} · locomotora completa</span>}<span className={`journal-activity ${data.activity || 'sin_dato'}`}>{activityNames[data.activity] || 'Actividad por confirmar'}</span><p>{update.descripcion}</p>
       <p>{[update.responsable, data.staffSpecialty, workDurationLabel(data)].filter(Boolean).join(' · ')}</p>
       {questions.map((q, i) => <p key={i} className="journal-missing">{onEdit ? <button onClick={onEdit}>{q.text} → Completar</button> : q.text}</p>)}
       {onEdit && <button className="journal-edit" onClick={onEdit}>Editar este avance</button>}
       <p className="journal-outcome">Estado informado: <strong>{updateOutcomeLabel(event, update)}</strong></p>
+    </>}
     </div>
   </article>;
 }
@@ -84,7 +85,8 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
   const jobs = register.maintenances.filter(item => bars.some(bar => bar.id === item.id));
   const subset = { ...register, maintenances: jobs, observations: register.observations.filter(o => o.date >= range.from && o.date <= range.to && jobs.some(m => m.id === o.maintenanceId)), episodes: register.episodes.filter(e => jobs.some(m => m.episodeId === e.id)) };
   function changeWeek(value) { setWeek(monday(value)); setDay(''); }
-  function select(id) { setSelectedId(id); setEditingMeta(false); }
+  function select(id) { setSelectedId(id); setEditingMeta(false); setUpdate(null); }
+  const inlineUpdate = Boolean(update?.initialUpdate?.id && updateEvent?.id === selectedId);
   async function create(payload, files) {
     if (!canManage) throw new Error('No tenés permisos para cargar mantenimientos.');
     const saved = await createHistorialEvent(payload, files, locomotoras);
@@ -136,10 +138,10 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
       <section className="maintenance-detail-section"><div className="maintenance-section-heading"><span>01</span><div><p className="eyebrow">Ingreso e intervención</p><h3>Por qué ingresó y qué se hizo</h3></div></div>
       <dl className="tracking-facts"><div><dt>Detenida desde</dt><dd>{dateLabel(event.metadata?.seguimiento?.detentionStart)}{!event.metadata?.seguimiento?.detentionStart && canEdit && <button onClick={() => setEditingMeta(true)}>Completar fecha</button>}</dd></div><div><dt>Motivo de la detención</dt><dd>{detentionReason(event)}{canEdit && <button onClick={() => setEditingMeta(true)}>Editar ingreso</button>}</dd></div><div><dt>Cuándo se intervino</dt><dd>{intervened.length ? [...new Set(intervened.map(a => dateLabel(a.fecha)))].join(' · ') : 'Sin trabajo confirmado'}</dd></div><div><dt>Sistema y parte intervenida</dt><dd>{selected.kind === 'liviano' ? 'Locomotora completa' : `${selected.system} · ${selected.component}`}{canEdit && <button onClick={() => setEditingMeta(true)}>Editar sistema y parte</button>}</dd></div><div><dt>Quién intervino</dt><dd>{intervened.length ? [...new Set(intervened.map(a => a.responsable || 'Por confirmar'))].join(' · ') : 'Sin intervención registrada'}</dd></div><div><dt>Estado al cierre de este mantenimiento</dt><dd>{outcomeAtEnd(event).label}{outcomeAtEnd(event).date ? ` · ${dateLabel(outcomeAtEnd(event).date)}` : ''}{outcomeAtEnd(event).code === 'pendiente' && canEdit && <button onClick={() => setUpdate(updates.length ? { initialUpdate: updates.at(-1) } : {})}>Confirmar estado</button>}</dd></div></dl>
       {event.origen === 'vista-previa-privada' && <p className="tracking-hint">Datos del archivo privado en vista temporal.</p>}
-      {editingMeta && <form onSubmit={saveMeta}><SeguimientoFields tipo={event.tipo} code={event.preventivoCodigo} tracking={{ ...event.metadata?.seguimiento, detentionReason: detentionReason(event) }} /><button className="primary-action" disabled={saving}>{saving ? 'Guardando…' : 'Confirmar datos'}</button></form>}
+      {editingMeta && <form onSubmit={saveMeta}><SeguimientoFields tipo={event.tipo} code={event.preventivoCodigo} tracking={{ ...event.metadata?.seguimiento, detentionReason: detentionReason(event) }} /><button className="primary-action" disabled={saving}>{saving ? 'Guardando…' : 'Confirmar datos'}</button><button type="button" disabled={saving} onClick={() => setEditingMeta(false)}>Cancelar</button></form>}
       </section>
       <section className="maintenance-detail-section"><div className="maintenance-section-heading"><span>02</span><div><p className="eyebrow">Seguimiento diario</p><h3>Avances</h3></div></div>{!updates.length && <p>No hay avances registrados. El ingreso a mantenimiento no confirma una intervención.</p>}
-      {updates.map(a => <UpdateEntry key={a.id} update={a} event={event} questions={questions.filter(q => q.update?.id === a.id)} onEdit={canEdit ? () => setUpdate({ initialUpdate: a }) : null} />)}
+      {updates.map(a => <UpdateEntry key={a.id} update={a} event={event} questions={questions.filter(q => q.update?.id === a.id)} onEdit={canEdit ? () => setUpdate({ initialUpdate: a }) : null} editor={inlineUpdate && update.initialUpdate.id === a.id ? <ActualizacionEventoModal key={a.id} event={event} mode={event.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} initialUpdate={a} embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /> : null} />)}
       {canEdit && <button onClick={() => setUpdate({})}>+ Agregar avance</button>}
       </section>
       <Efficiency result={result} location={selected.location} onComplete={canEdit ? date => setUpdate({ initialDate: date }) : null} />
@@ -147,7 +149,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
     </section></div>}
     {entryOpen && <CargaDatosModal events={events} unit={unit} onClose={() => setEntryOpen(false)} onNew={() => { setEntryOpen(false); setCreating(true); }} onReview={eventId => { setEntryOpen(false); setSelectedId(eventId); setEditingMeta(true); }} onUpdate={(eventId, initialUpdate) => { setEntryOpen(false); setUpdate({ eventId, initialUpdate }); }} />}
     {creating && <RegistroEventoModal locomotoras={locomotoras} initialDate={initialSelection?.newMaintenance ? initialSelection.fecha : ''} selectedLoco={locomotoras.find(l => l.codigo === unit) || locomotoras[0]} onClose={() => setCreating(false)} onSave={create} />}
-    {update && updateEvent && <ActualizacionEventoModal key={update.initialUpdate?.id || update.initialDate || updateEvent.id} event={updateEvent} mode={updateEvent.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} {...update} onClose={() => setUpdate(null)} onSave={saveUpdate} />}
+    {update && updateEvent && !inlineUpdate && <ActualizacionEventoModal key={update.initialUpdate?.id || update.initialDate || updateEvent.id} event={updateEvent} mode={updateEvent.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} {...update} onClose={() => setUpdate(null)} onSave={saveUpdate} />}
     {importing && <ImportarPilotoModal events={events} onClose={() => setImporting(false)} onImported={async () => { await load(); onChanged?.(); }} />}
   </main>;
 }
