@@ -5072,6 +5072,8 @@ button {
   background: rgba(239, 68, 68, 0.16);
 }
 
+.history-state-badge { gap:7px; }
+
 .history-state-badge i {
   display: inline-grid;
   place-items: center;

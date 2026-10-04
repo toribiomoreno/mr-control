@@ -9,8 +9,8 @@ import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.js
 import Login from './components/Login.jsx';
 import ReportesGestion from './components/ReportesGestion.jsx';
 import Sidebar from './components/Sidebar.jsx';
-import locoAzul from './assets/locomotoras/7774-realista.png';
-import locoRoja from './assets/home/home-hero-loc.jpeg';
+import locoAzul from './assets/loco_azul.webp';
+import locoRoja from './assets/loco_roja.webp';
 import { useAuth } from './context/useAuth.js';
 import initialLocomotoras from './data/locomotoras.js';
 import SeguimientoPendientes from './components/SeguimientoPendientes.jsx';
