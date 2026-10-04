@@ -4,6 +4,7 @@ import heroLocomotive from '../assets/home/home-hero-loc.jpeg';
 import frontLocomotive from '../assets/home/locdetrompa.png';
 import motionLocomotive from '../assets/home/home-motion-loc.jpeg';
 import coaches from '../assets/home/remolcado-reference.webp';
+import tractiveLocomotives from '../assets/home/tractivo-e710.webp';
 
 export default function Home(props) {
   return (
@@ -22,7 +23,7 @@ export default function Home(props) {
       </section>
 
       <section className="home-modules" aria-label="Material rodante">
-        <details className="fleet-accordion fleet-accordion-tractive" open><summary><img className="fleet-summary-photo" src={heroLocomotive} alt="" /><span>Tractivo<small>Parque de locomotoras</small></span><FleetMetrics locomotoras={props.locomotoras} loading={props.loading} /></summary><FleetOverview {...props} /></details>
+        <details className="fleet-accordion fleet-accordion-tractive" open><summary><span className="fleet-summary-identity"><img className="fleet-summary-photo" src={tractiveLocomotives} alt="" /><span>Tractivo<small>Parque de locomotoras</small></span></span><FleetMetrics locomotoras={props.locomotoras} loading={props.loading} /></summary><FleetOverview {...props} /></details>
         <details className="fleet-accordion fleet-accordion-coaches"><summary><img className="fleet-summary-photo" src={coaches} alt="" /><span>Remolcado<small>Parque de coches</small></span></summary><div className="fleet-placeholder">Módulo pendiente de incorporación.</div></details>
       </section>
 
