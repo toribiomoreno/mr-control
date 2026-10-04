@@ -46,6 +46,7 @@ export function mapEventRow(row) {
     anulado: Boolean(row.anulado),
     motivoAnulacion: row.motivo_anulacion,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     adjuntos: [],
     actualizaciones: [],
   };

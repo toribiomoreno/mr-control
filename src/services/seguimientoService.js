@@ -1,6 +1,7 @@
 import { supabase, assertSupabaseConfig, assertSeguimientoReady } from '../lib/supabase.js';
 import { mapEventRow } from './historialSupabaseService.js';
 import { mapActualizacionRow } from './actualizacionesEventoSupabaseService.js';
+import { editMaintenanceIntake } from '../domain/maintenance/capture.js';
 import { validateEvent } from '../domain/maintenance/adapter.js';
 import { trackingForCurrentState } from '../domain/maintenance/view.js';
 
@@ -29,6 +30,17 @@ export async function saveTracking(event, tracking) {
   const next = { ...event, metadata: { ...event.metadata, seguimiento: trackingForCurrentState(event, tracking) } };
   validateEvent(next);
   const { data, error } = await supabase.from('eventos_historial').update({ metadata: next.metadata }).eq('id', event.id).eq('metadata', JSON.stringify(event.metadata || {})).select('id');
+  if (error) throw error;
+  if (!data.length) throw new Error('Otra persona modificó este registro. Actualizá la vista antes de guardar.');
+}
+
+export async function saveMaintenanceIntake(event, values) {
+  await assertSeguimientoReady();
+  const next = editMaintenanceIntake(event, values);
+  const patch = { locomotora_codigo: next.locomotoraCodigo, tipo: next.tipo, preventivo_codigo: next.preventivoCodigo, fecha: next.fecha, hora: next.hora, metadata: next.metadata };
+  let query = supabase.from('eventos_historial').update(patch).eq('id', event.id);
+  query = event.updatedAt ? query.eq('updated_at', event.updatedAt) : query.eq('metadata', JSON.stringify(event.metadata || {}));
+  const { data, error } = await query.select('id');
   if (error) throw error;
   if (!data.length) throw new Error('Otra persona modificó este registro. Actualizá la vista antes de guardar.');
 }
