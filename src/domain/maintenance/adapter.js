@@ -91,7 +91,7 @@ export function validateUpdate(event, update, now = today()) {
     if (isLight(event) && ['trabajo', 'mixto'].includes(t.activity)) assert(update.responsable === 'Turno rotativo', 'El preventivo liviano lo interviene el turno rotativo.');
   }
   if (t.captureVersion >= 3 && !isLight(event) && ['trabajo', 'mixto'].includes(t.activity)) assert([0.5, 1].includes(t.workDurationDays) || (t.workDurationDays == null && t.confirmedUnknownDuration), 'Confirmá la duración del trabajo o indicá que aún no se conoce.');
-  if (['espera', 'mixto'].includes(t.activity)) assert(['MO', 'MAT', 'Acc', 'CAP', 'GES'].includes(t.cause), '¿Por qué no se pudo trabajar? Elegí una causa.');
+  if (['espera', 'mixto'].includes(t.activity)) assert(['MO', 'MAT', 'Acc', 'CAP', 'GES', 'Man', 'FA'].includes(t.cause), '¿Por qué no se pudo trabajar? Elegí una causa.');
   if (t.usefulFraction != null) {
     assert([0, .5, 1].includes(t.usefulFraction), 'El reparto del día debe ser 0, 50 o 100 %.');
     assert(t.allocationNote?.trim(), 'Explicá el reparto del día.');

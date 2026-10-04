@@ -55,6 +55,8 @@ export function updateOutcomeLabel(event, update) {
   const result = update.metadata?.followUpResult?.result;
   if (result) return result === 'sin_novedades' ? 'Operativa · validación sin novedades' : result === 'nueva_falla' ? 'Detenida · nueva falla informada' : 'Validación pendiente';
   const explicit = update.metadata?.seguimiento?.outcome;
+  // Trabajo posterior en el mismo mantenimiento confirma la continuidad, nunca disponibilidad.
+  if ((!explicit || explicit === 'pendiente') && !['cierre', 'reapertura'].includes(update.tipoActualizacion) && orderedUpdates(event).some(next => next.fecha > update.fecha && ['trabajo', 'mixto'].includes(next.metadata?.seguimiento?.activity))) return outcomeLabels.continua;
   if (explicit) return explicit === 'disponible' ? 'Operativa' : outcomeLabels[explicit] || 'Estado por confirmar';
   const final = outcomeAtEnd(event);
   return final.date === update.fecha ? final.label : 'Estado por confirmar';

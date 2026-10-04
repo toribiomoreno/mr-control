@@ -29,11 +29,11 @@ export function buildProgress(event, initialUpdate, values) {
   const old = initialUpdate || {}, saved = old.metadata?.seguimiento || {};
   const light = isLight(event), observation = values.observation;
   const activity = observation ? 'sin_dato' : values.noWork ? 'espera' : values.delayed ? 'mixto' : 'trabajo';
-  const outcome = values.outcome || saved.outcome || '';
+  const outcome = values.outcome || saved.outcome || 'pendiente';
   const closes = event.estadoMantenimiento !== 'finalizado' && operationalOutcomes.includes(outcome);
   const type = closes ? 'cierre' : old.id ? old.tipoActualizacion : observation ? 'observacion' : activity === 'espera' ? 'pausa' : 'avance';
   if (values.endTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.endTime)) throw new Error('La hora de fin no es válida.');
-  const metadata = { ...saved, captureVersion: 5, activity, outcome, outcomeConfirmed: values.outcomeConfirmed || (outcome === saved.outcome && saved.outcomeConfirmed) || false,
+  const metadata = { ...saved, captureVersion: 6, activity, outcome, outcomeConfirmed: values.outcomeConfirmed || (outcome === saved.outcome && saved.outcomeConfirmed) || false,
     confirmedUnknownActivity: observation, confirmedUnknownOutcome: outcome === 'pendiente',
     ...(observation ? {} : { cause: values.delayed ? values.cause : '', delayDescription: values.delayed ? (values.delayDescription || '').trim() : '', delayReported: Boolean(values.delayed),
       // Compatibilidad con los registros diarios existentes; no se solicita turno físico.

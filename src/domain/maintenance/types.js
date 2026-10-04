@@ -1,4 +1,4 @@
-export const causes = { MO: 'Mano de obra', MAT: 'Materiales', Acc: 'Accidental', CAP: 'Capacidad instalada', GES: 'Productividad', PENDIENTE: 'Por confirmar' };
+export const causes = { MO: 'Mano de obra', MAT: 'Materiales', Acc: 'Accidental', CAP: 'Capacidad instalada', GES: 'Productividad', Man: 'Maniobras', FA: 'Se encontró nueva falla', PENDIENTE: 'Por confirmar' };
 export { systems } from './taxonomy.js';
 export const staffOptions = ['Turno fijo', 'Turno rotativo', 'Otro sector', 'Por confirmar'];
 export const periods = ['Mañana', 'Tarde', 'Mañana y tarde', 'Noche (alistamiento)', 'Día completo', 'Período por confirmar'];
