@@ -22,6 +22,12 @@ test('Inicio unifica disponibilidad, filtros, histórico y dos bloques con cierr
  await page.goto('/tests/state.html?view=app');
  await expect(page.locator('.fleet-big-number strong')).toHaveText('16');
  await expect(page.locator('.fleet-unit')).toHaveCount(27);
+ await expect(page.getByRole('table',{name:'Listado del parque tractivo'})).toBeVisible();
+ await expect(page.getByRole('columnheader')).toHaveText(['Locomotora','Estado','Observación','Archivo histórico']);
+ await page.locator('.fleet-accordion-tractive > summary').click();
+ await expect(page.getByRole('table',{name:'Listado del parque tractivo'})).toBeHidden();
+ await expect(page.locator('.fleet-big-number strong')).toHaveText('16');
+ await page.locator('.fleet-accordion-tractive > summary').click();
  await expect(page.getByRole('button',{name:'Parque',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Operativas16',exact:true}).click();await expect(page.locator('.fleet-unit')).toHaveCount(16);
  await page.getByRole('button',{name:'Mantenimientos',exact:true}).click();

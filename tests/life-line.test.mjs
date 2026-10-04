@@ -19,3 +19,22 @@ test('un mantenimiento abierto indica explícitamente continuidad sin confirmar'
   assert.equal(timeline.maintenance[0].unconfirmed, true);
   assert.equal(timeline.operation.length, 0);
 });
+
+test('toda unidad tiene un único estado por día, sin operativa superpuesta al mantenimiento', () => {
+  for (const code of ['E721', 'E701', 'EM02', '7774']) {
+    const events = [
+      { id: 'report', tipo: 'otro', locomotoraCodigo: code, fecha: '2026-09-21', hora: '06:00', metadata: { dailyState: { state: 'operativa' } } },
+      { id: 'repair', tipo: 'correctivo', locomotoraCodigo: code, fecha: '2026-09-21', hora: '10:00', estadoMantenimiento: 'finalizado', fechaCierre: '2026-09-22', metadata: { seguimiento: { outcome: 'operativa' } } },
+      { id: 'same-day', tipo: 'preventivo', locomotoraCodigo: code, fecha: '2026-09-25', estadoMantenimiento: 'finalizado', fechaCierre: '2026-09-25', metadata: { seguimiento: { outcome: 'operativa' } } },
+    ];
+    const original = structuredClone(events);
+    const timeline = buildLifeLine(events, '2026-09-27');
+    for (const day of timeline.days) {
+      const states = timeline.states.filter(s => s.start <= day && day <= s.end);
+      assert.ok(states.length <= 1, `${code} tiene estados simultáneos el ${day}`);
+      if (timeline.maintenance.some(m => m.start <= day && day <= m.end)) assert.equal(states[0].kind, 'detenida');
+    }
+    assert.equal(timeline.states.at(-1).kind, 'operativa');
+    assert.deepEqual(events, original);
+  }
+});

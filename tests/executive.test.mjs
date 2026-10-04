@@ -22,7 +22,8 @@ test('parte a las 6, ingreso a las 10 y cierre a las 14 actualizan la misma unid
  assert.equal(fleetState({codigo:'E701'},[daily],date).estado,'operativa');assert.equal(fleetState({codigo:'E701'},[daily,base],date).estado,'correctivo');
  const closed={...base,estadoMantenimiento:'finalizado',fechaCierre:date,horaCierre:'14:00',actualizaciones:[{...note('close',date,{outcome:'operativa',outcomeConfirmed:true}),tipoActualizacion:'cierre'}]};
  assert.equal(fleetState({codigo:'E701'},[daily,closed],date).estado,'operativa');assert.match(fleetState({codigo:'E701'},[daily,closed],date).observacion,/Nota del parte/);
- const states=buildLifeLine([daily,closed],date).states;assert.equal(states.at(-1).kind,'operativa');
+ const states=buildLifeLine([daily,closed],date).states;assert.equal(states.at(-1).kind,'detenida');
+ assert.equal(buildLifeLine([daily,closed],'2026-09-22').states.at(-1).kind,'operativa');
 });
 test('dos bloques el mismo día conservan sistemas y cuentan solo una jornada',()=>{
  const event={...base,actualizaciones:[note('one',date),note('two',date,{system:'Bogies',subsystem:'Cojinetes'})]};const groups=journalGroups(event);assert.equal(groups.length,1);assert.equal(groups[0].updates.length,2);const register=toRegister([event]);assert.equal(maintenanceEfficiency(register,register.maintenances[0],undefined,'2026-09-22').worked,1);
