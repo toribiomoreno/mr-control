@@ -9,8 +9,8 @@ import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.js
 import Login from './components/Login.jsx';
 import ReportesGestion from './components/ReportesGestion.jsx';
 import Sidebar from './components/Sidebar.jsx';
-import locoAzul from './assets/loco_azul.webp';
-import locoRoja from './assets/loco_roja.webp';
+import locoAzul from './assets/locomotoras/7774-realista.png';
+import locoRoja from './assets/home/home-hero-loc.jpeg';
 import { useAuth } from './context/useAuth.js';
 import initialLocomotoras from './data/locomotoras.js';
 import SeguimientoPendientes from './components/SeguimientoPendientes.jsx';
@@ -229,7 +229,7 @@ export default function App() {
         <main className="module-placeholder">
           <section>
             <p className="eyebrow">Modulo pendiente</p>
-            <h2>Coches</h2>
+            <h2>Remolcado</h2>
             <p>Este apartado queda reservado para inventario, patio, intervenciones e historial de coches cuando terminemos el modulo de locomotoras.</p>
           </section>
         </main>
