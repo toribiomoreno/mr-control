@@ -18,7 +18,7 @@ async function setup(page,row,notes=[]){
 }
 test('ficha sin duplicados y edición de ingreso con lista limitada de campos',async({page})=>{
  const row=job();const writes=await setup(page,row);
- await expect(page.locator('.tracking-detail > .modal-heading')).toHaveText(/E701 · Correctivo/);
+ await expect(page.locator('.tracking-detail > .modal-heading')).toHaveText(/E701 - Correctivo/);
  await expect(page.locator('.tracking-detail').getByText('Motivo único',{exact:true})).toHaveCount(1);
  await expect(page.locator('.tracking-facts').getByText('Equipo',{exact:true})).toHaveCount(0);
  await expect(page.getByText('Fecha y hora de fin',{exact:true})).toBeVisible();
@@ -31,10 +31,10 @@ test('ficha sin duplicados y edición de ingreso con lista limitada de campos',a
 });
 test('correctivo y numeral: bloques diarios ordenados, demora condicional y mismo día implícito',async({page})=>{
  for(const [tipo,code] of [['correctivo',null],['preventivo','Numeral 3']]){
-  const notes=[{id:'first',evento_id:'job',fecha:date,tipo_actualizacion:'avance',descripcion:'Revisión anterior',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',outcome:'continua',system:'Sistema eléctrico',subsystem:'Relés y contactores',component:'Contactores',period:'Mañana',workDurationDays:1}}}];
+  const notes=[{id:'first',evento_id:'job',fecha:date,tipo_actualizacion:'avance',descripcion:'Revisión anterior',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',outcome:'continua',system:'Sistema eléctrico',subsystem:'Relés y contactores',component:'Relés y contactores',period:'Mañana',workDurationDays:1}}}];
   const writes=await setup(page,job(tipo,code),notes);
-  await page.getByRole('button',{name:'+ Otro bloque en este día'}).click();const form=page.getByRole('form',{name:'Registrar avance'});
-  await expect(form.locator('input[type="date"]')).toHaveCount(0);await expect(form.getByText(/mismo día del bloque/)).toBeVisible();
+  await expect(page.locator('.journal-day-group .maintenance-journal-date')).toHaveCount(0);await expect(page.locator('.journal-system')).toHaveText('Sistema eléctrico · Relés y contactores');await page.getByRole('button',{name:'+ Otros trabajos realizados en este día'}).click();const form=page.getByRole('form',{name:'Registrar avance'});
+  await expect(page.locator('.journal-day-group').getByRole('form',{name:'Registrar avance'})).toBeVisible();await expect(form.locator('input[type="date"]')).toHaveCount(0);await expect(form.getByText(/mismo día del bloque/)).toBeVisible();
   await expect(form.locator('[name="period"],[name="component"],[name="weekendEligible"]')).toHaveCount(0);
   expect(await form.locator('[name]').evaluateAll(n=>n.map(x=>x.name))).toEqual(['system','subsystem','responsable','workDurationDays','descripcion']);
   await form.getByLabel('¿Qué sistema estamos atacando?').selectOption('Sistema eléctrico');await form.getByLabel('Subsistema',{exact:true}).selectOption('Relés y contactores');await form.getByLabel('¿Quién la trabajó?').selectOption('Turno fijo');await form.getByRole('combobox',{name:'Jornada',exact:true}).selectOption('0.5');await form.locator('textarea[name="descripcion"]').fill('Segundo sistema atendido');await form.getByLabel('Estado posterior de la máquina').selectOption('prueba_parque');
@@ -48,4 +48,14 @@ test('AB: resultado del turno agrega extensión con motivo sin campos diarios',a
  await expect(form.locator('[name="system"],[name="subsystem"],[name="workDurationDays"],[name="responsable"]')).toHaveCount(0);
  await form.getByLabel('Fecha del turno').fill(date);await form.getByRole('combobox',{name:'Turno',exact:true}).selectOption('2');await form.getByLabel('¿Se pudo trabajar normalmente?').selectOption('no');await form.getByLabel('¿En qué turno se trabajó?').selectOption('Tarde');await form.locator('textarea[name="descripcion"]').fill('Turno trabajado');await form.getByLabel('Resultado del turno').selectOption('extend');await form.getByLabel('Motivo de la demora').selectOption('MAT');await form.locator('textarea[name="delayDescription"]').fill('Faltó material para terminar');await form.getByRole('button',{name:'Guardar avance'}).click();await expect(form).toHaveCount(0);
  expect(writes[0].metadata.seguimiento.additionalShiftRequired).toBe(true);await page.getByRole('button',{name:'+ Agregar turno o novedad'}).click();await expect(form.getByRole('combobox',{name:'Turno',exact:true})).toHaveValue('2');await expect(form.getByText('Turno adicional · extensión 1')).toBeVisible();
+});
+test('nuevo día comparte el editor y confirma continuidad anterior sin liberar la máquina',async({page})=>{
+ const notes=[{id:'old',evento_id:'job',fecha:date,tipo_actualizacion:'avance',descripcion:'Compresor revisado',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',outcome:'pendiente',system:'Sistema eléctrico',subsystem:'Relés y contactores',component:'Relés y contactores',period:'Mañana',workDurationDays:1}}}];
+ const writes=await setup(page,job(),notes);await page.getByRole('button',{name:'+ Agregar día de trabajo',exact:true}).click();const form=page.getByRole('form',{name:'Registrar avance'});
+ await expect(page.locator('.maintenance-journal-entry.grouped').getByRole('form',{name:'Registrar avance'})).toBeVisible();await form.getByLabel('Fecha de trabajo',{exact:true}).fill('2026-09-22');await form.getByLabel('¿Quién la trabajó?').selectOption('Turno fijo');await form.getByRole('combobox',{name:'Jornada',exact:true}).selectOption('1');await form.locator('textarea[name="descripcion"]').fill('Trabajo del día siguiente');await form.getByLabel('¿Tuviste alguna demora?').selectOption('no');await form.getByRole('button',{name:'Guardar avance'}).click();await expect(form).toHaveCount(0);
+ expect(writes[0].tipo_actualizacion).toBe('avance');expect(writes[0].metadata.seguimiento.outcome).toBe('pendiente');await expect(page.getByRole('region',{name:'Día 1 · 21/09/2026'}).locator('.journal-outcome')).toContainText('Continúa el mantenimiento');await expect(page.getByRole('region',{name:'Día 2 · 22/09/2026'}).locator('.journal-outcome')).toContainText('Por confirmar');
+});
+test('AB iniciado por la tarde calcula el fin y ofrece sólo los dos turnos permitidos',async({page})=>{
+ const row=job('preventivo','AB'),notes=[{id:'first',evento_id:'job',fecha:date,tipo_actualizacion:'avance',descripcion:'Primer turno',responsable:'Turno rotativo',metadata:{seguimiento:{activity:'trabajo',outcome:'continua',shiftNumber:1,shiftFinished:true,period:'Tarde',workDurationShifts:1}}}];await setup(page,row,notes);
+ await expect(page.locator('.tracking-facts').getByText('22/09/2026 · Turno tarde · 22:00',{exact:true})).toBeVisible();await page.getByRole('button',{name:'+ Agregar turno o novedad'}).click();expect(await page.locator('select[name="period"] option').allTextContents()).toEqual(['Seleccionar','Mañana','Tarde']);
 });

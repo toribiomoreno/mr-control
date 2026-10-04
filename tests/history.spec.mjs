@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 test('histórico compacto, notas desplegables, filtro por rango y vista móvil',async({page})=>{
  await page.goto('/tests/history.html');
+ await expect(page.getByRole('button',{name:/^(Campañas|Ajustes|Adjuntos)$/})).toHaveCount(0);await expect(page.locator('.history-state-badge')).not.toContainText('OK');
  await expect(page.getByText('Ver archivo privado (temporal)')).toHaveCount(0);
  await expect(page.getByText('Importar libro de novedades')).toHaveCount(0);
  await expect(page.getByRole('button',{name:/Registrar/})).toHaveCount(0);
