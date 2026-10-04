@@ -1,0 +1,15 @@
+import { createRoot } from 'react-dom/client';
+import HistorialLocomotora from '../src/components/HistorialLocomotora.jsx';
+import ImportarEstadoDiarioModal from '../src/components/ImportarEstadoDiarioModal.jsx';
+import SeguimientoPendientes from '../src/components/SeguimientoPendientes.jsx';
+import App from '../src/App.jsx';
+import { AuthContext } from '../src/context/authContext.js';
+import { guardarEstadoDiario } from '../src/services/estadoDiarioSupabaseService.js';
+import { fleet } from '../src/domain/maintenance/types.js';
+import '../src/index.css';
+const loco={codigo:'E701',estado:'operativa'};
+const events=[{id:'daily1',tipo:'otro',locomotoraCodigo:'E701',fecha:'2020-01-07',hora:'06:00',descripcion:'Sale acompañada',metadata:{dailyState:{state:'operativa',reportedState:'operativa',observation:'Sale acompañada'}}},{id:'book',tipo:'libro',locomotoraCodigo:'E701',fecha:'2020-01-06',hora:'14:00',descripcion:'Se revisó la novedad del eje.',nroLibro:'12',metadata:{}}];
+const view=new URLSearchParams(location.search).get('view');
+const chronology=[{id:'repair',tipo:'correctivo',fecha:'2026-09-29',locomotoraCodigo:'E701',titulo:'Correctivo de prueba',metadata:{seguimiento:{detentionStart:'2026-09-29'}},estadoMantenimiento:'finalizado',fechaCierre:'2026-09-29'}, {id:'report',tipo:'otro',fecha:'2026-09-29',hora:'05:44',locomotoraCodigo:'E701',metadata:{dailyState:{state:'detenida',observation:'Revisión de prueba'}}},{id:'log',tipo:'libro',fecha:'2026-09-29',hora:'03:00',locomotoraCodigo:'E701',descripcion:'Novedad sintética de prueba'},{id:'preventive',tipo:'preventivo',fecha:'2026-09-28',locomotoraCodigo:'E701',titulo:'Preventivo E',preventivoCodigo:'E',metadata:{seguimiento:{detentionStart:'2026-09-28'}},estadoMantenimiento:'finalizado',fechaCierre:'2026-09-28'}];
+const target={codigo:'E701',estado:'detenida'};
+createRoot(document.getElementById('root')).render(view==='app' ? <AuthContext.Provider value={{session:{user:{id:'synthetic-user'}},perfil:{activo:true,rol:'jefatura',nombre:'Prueba'},loading:false,signOut:()=>{}}}><App /></AuthContext.Provider> : view==='import-auto' ? <ImportarEstadoDiarioModal canManage locomotoras={fleet.map(codigo=>({codigo}))} onClose={()=>{document.getElementById('root').dataset.saved='true';}} onConfirm={guardarEstadoDiario} /> : view==='import' ? <ImportarEstadoDiarioModal canManage locomotoras={fleet.map(codigo=>({codigo}))} onClose={()=>{}} onConfirm={async()=>{throw new Error('Falla de guardado de prueba');}} /> : view==='pending' ? <SeguimientoPendientes events={events} canManage onSaved={()=>{}} /> : <HistorialLocomotora events={view==='chronology' ? chronology : events} loco={view==='chronology' ? target : loco} locomotoras={[view==='chronology' ? target : loco]} locomotiveImage={()=>'/ferrovias-f.png'} onLocomotiveChange={()=>{}} onOpenMaintenance={()=>{}} />);

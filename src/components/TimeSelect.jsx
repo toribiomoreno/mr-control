@@ -11,8 +11,8 @@ function cleanTimeInput(value) {
   return String(value || '').replace(/[^0-9:]/g, '').slice(0, 5);
 }
 
-export default function TimeSelect({ defaultValue, label = 'Hora', name = 'hora' }) {
-  const [value, setValue] = useState(normalizeInitialTime(defaultValue));
+export default function TimeSelect({ defaultValue, label = 'Hora', name = 'hora', required = true }) {
+  const [value, setValue] = useState(defaultValue || required ? normalizeInitialTime(defaultValue) : '');
 
   return (
     <label>
@@ -24,7 +24,7 @@ export default function TimeSelect({ defaultValue, label = 'Hora', name = 'hora'
         onChange={(event) => setValue(cleanTimeInput(event.target.value))}
         pattern="^([01]\d|2[0-3]):[0-5]\d$"
         placeholder="HH:mm"
-        required
+        required={required}
         title="Use formato HH:mm, por ejemplo 19:44."
         value={value}
       />

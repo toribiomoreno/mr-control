@@ -1,51 +1,8 @@
 import { assertSupabaseConfig, supabase } from '../lib/supabase.js';
 
+import { parseLibroCsv, uniqueBookLines } from '../domain/maintenance/bookImport.js';
+
 const ORIGEN_LIBRO = 'libro-novedades-ferrovias';
-
-function parseCsvLine(line) {
-  const cells = [];
-  let current = '';
-  let quoted = false;
-
-  for (const char of line) {
-    if (char === '"') {
-      quoted = !quoted;
-    } else if (char === ';' && !quoted) {
-      cells.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-
-  cells.push(current.trim());
-  return cells;
-}
-
-function normalizeDate(value) {
-  const raw = String(value || '').trim();
-  const match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
-  if (!match) return raw;
-  const [, day, month, year] = match;
-  const fullYear = year.length === 2 ? `20${year}` : year;
-  return `${fullYear.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-}
-
-function normalizeTime(value) {
-  const raw = String(value || '').trim();
-  const match = raw.match(/^(\d{1,2}):(\d{2})/);
-  if (!match) return raw;
-  return `${match[1].padStart(2, '0')}:${match[2]}`;
-}
-
-function stripLocomotivePrefix(detail, unidad) {
-  const prefix = `LOCOMOTORA:${unidad}:`;
-  return detail.startsWith(prefix) ? detail.slice(prefix.length).trim() : detail.trim();
-}
-
-function uniqueLines(lines) {
-  return [...new Set(lines.map((line) => String(line || '').trim()).filter(Boolean))];
-}
 
 function normalizeArchivoOrigen(archivoOrigen) {
   if (typeof archivoOrigen === 'string' && archivoOrigen.trim()) {
@@ -53,62 +10,6 @@ function normalizeArchivoOrigen(archivoOrigen) {
   }
 
   return archivoOrigen?.name?.trim() || 'libro_novedades.csv';
-}
-
-function parseLibroCsv(csvText, activeCodes) {
-  const rows = String(csvText || '').split(/\r?\n/).map(parseCsvLine);
-  const groups = new Map();
-  let current = { nro: '', estado: '', fecha: '', hora: '', tipoUnidad: '', unidad: '' };
-
-  for (const cells of rows) {
-    const [nro, estado, fecha, hora, tipoUnidad, unidad, detalle] = cells;
-
-    if (nro) {
-      current = {
-        nro,
-        estado: estado || '',
-        fecha: fecha || '',
-        hora: hora || '',
-        tipoUnidad: tipoUnidad || '',
-        unidad: unidad || '',
-      };
-    } else {
-      current = {
-        ...current,
-        estado: estado || current.estado,
-        fecha: fecha || current.fecha,
-        hora: hora || current.hora,
-        tipoUnidad: tipoUnidad || current.tipoUnidad,
-        unidad: unidad || current.unidad,
-      };
-    }
-
-    const cleanDetail = String(detalle || '').trim();
-    if (!/^\d+$/.test(current.nro)) continue;
-    if (current.tipoUnidad !== 'LOCOMOTORA') continue;
-    if (!activeCodes.has(current.unidad)) continue;
-    if (!cleanDetail) continue;
-
-    const normalizedDate = normalizeDate(current.fecha);
-    const normalizedTime = normalizeTime(current.hora);
-    const key = `${current.nro}|${normalizedDate}|${normalizedTime}|${current.unidad}`;
-    const item = groups.get(key) || {
-      nro: current.nro,
-      estado: current.estado,
-      fecha: normalizedDate,
-      hora: normalizedTime,
-      unidad: current.unidad,
-      detalles: [],
-    };
-
-    item.detalles.push(stripLocomotivePrefix(cleanDetail, current.unidad));
-    groups.set(key, item);
-  }
-
-  return [...groups.values()].map((item) => ({
-    ...item,
-    detalles: uniqueLines(item.detalles),
-  }));
 }
 
 async function upsertLibroEvent(item, archivoOrigen, importacionId) {
@@ -127,7 +28,7 @@ async function upsertLibroEvent(item, archivoOrigen, importacionId) {
       fecha: item.fecha,
       hora: item.hora,
       tipo: 'libro',
-      titulo: 'Libro de novedades',
+      titulo: 'Novedad · libro de turno',
       descripcion: item.detalles.join('\n'),
       detalles: item.detalles,
       origen: ORIGEN_LIBRO,
@@ -145,7 +46,7 @@ async function upsertLibroEvent(item, archivoOrigen, importacionId) {
     return { created: 1, updated: 0 };
   }
 
-  const merged = uniqueLines([...(existing.detalles || []), ...item.detalles]);
+  const merged = uniqueBookLines([...(existing.detalles || []), ...item.detalles]);
   if (merged.length === (existing.detalles || []).length) {
     return { created: 0, updated: 0 };
   }
@@ -163,6 +64,7 @@ export async function importarLibroNovedades({ csvText, archivoOrigen, locomotor
   assertSupabaseConfig();
   const activeCodes = new Set(locomotoras.map((loco) => loco.codigo));
   const groups = parseLibroCsv(csvText, activeCodes);
+  if (!groups.length) throw new Error('No hay novedades de locomotoras reconocidas para importar.');
   const nombreArchivo = normalizeArchivoOrigen(archivoOrigen);
 
   const { data: importacion, error: importError } = await supabase

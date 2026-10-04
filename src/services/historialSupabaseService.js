@@ -1,4 +1,5 @@
-import { assertSupabaseConfig, supabase } from '../lib/supabase.js';
+import { validateEvent } from '../domain/maintenance/adapter.js';
+import { assertSupabaseConfig, assertSeguimientoReady, supabase } from '../lib/supabase.js';
 import {
   deleteEventAttachmentFiles,
   mapAttachmentRows,
@@ -7,14 +8,13 @@ import {
 import {
   calcularEstadoMantenimientoEvento,
   obtenerActualizaciones,
-  sincronizarEstadoMantenimientoEvento,
 } from './actualizacionesEventoSupabaseService.js';
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function mapEventRow(row) {
+export function mapEventRow(row) {
   return {
     id: row.id,
     locomotoraCodigo: row.locomotora_codigo,
@@ -83,7 +83,7 @@ function toEventPayload(event) {
   };
 }
 
-async function attachFilesToEvents(rows, { canSyncMantenimiento = true } = {}) {
+async function attachFilesToEvents(rows) {
   const events = [];
 
   for (const row of rows || []) {
@@ -93,9 +93,7 @@ async function attachFilesToEvents(rows, { canSyncMantenimiento = true } = {}) {
       event.actualizaciones = await obtenerActualizaciones(event.id);
       Object.assign(
         event,
-        canSyncMantenimiento
-          ? await sincronizarEstadoMantenimientoEvento(event, event.actualizaciones)
-          : calcularEstadoMantenimientoEvento(event, event.actualizaciones),
+        calcularEstadoMantenimientoEvento(event, event.actualizaciones),
       );
     }
     events.push(event);
@@ -121,6 +119,8 @@ export async function fetchHistorialByLocomotora(locomotoraCodigo, options = {})
 
 export async function createHistorialEvent(event, files, locomotoras) {
   assertSupabaseConfig();
+  if (['preventivo', 'correctivo'].includes(event.tipo)) await assertSeguimientoReady();
+  validateEvent(event);
   if (!locomotoras.some((loco) => loco.codigo === event.locomotoraCodigo)) {
     throw new Error(`La locomotora ${event.locomotoraCodigo} no existe.`);
   }
@@ -147,6 +147,7 @@ export async function createHistorialEvent(event, files, locomotoras) {
 
 export async function updateHistorialEvent(event, locomotoras) {
   assertSupabaseConfig();
+  validateEvent(event);
   if (!event.id) throw new Error('El evento no tiene id de Supabase.');
   if (!locomotoras.some((loco) => loco.codigo === event.locomotoraCodigo)) {
     throw new Error(`La locomotora ${event.locomotoraCodigo} no existe.`);

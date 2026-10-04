@@ -1,0 +1,24 @@
+.railway-loader { display: grid; justify-items: center; gap: 12px; width: min(100%, 360px); margin: 22px auto; color: #dce7f3; }
+.railway-loader-scene { position: relative; width: 100%; height: 130px; overflow: hidden; isolation: isolate; border: 1px solid #35465d; border-radius: 12px; background: linear-gradient(#101e32 65%, #1e3045 65%, #18263a); }
+.railway-loader-scene::before { content: ''; position: absolute; inset: 14px 22px auto auto; width: 3px; height: 3px; background: #c4d6ea; box-shadow: -47px 12px #7694b6, -153px -2px #7694b6, -246px 18px #7694b6; }
+.railway-loader-scenery { position: absolute; inset: 48px -80px 28px; opacity: .4; background: repeating-linear-gradient(90deg, transparent 0 56px, #557087 56px 60px, transparent 60px 80px); animation: railway-scenery 4s linear infinite; }
+.railway-loader-train { position: absolute; width: 256px; max-width: 86%; bottom: 25px; left: 50%; margin-left: -128px; z-index: 2; animation: railway-ride .6s steps(2, end) infinite; }
+.railway-loader-train svg { display: block; width: 100%; overflow: visible; }
+.railway-loader-wheel { animation: railway-wheel .8s linear infinite; }
+.railway-loader-track { position: absolute; bottom: 13px; left: -32px; right: -32px; height: 14px; border-top: 3px solid #a1b1c1; border-bottom: 2px solid #62758b; background: repeating-linear-gradient(90deg, transparent 0 22px, #8a6748 22px 30px, transparent 30px 32px); animation: railway-track .65s linear infinite; }
+.railway-loader-label { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+.railway-loader-signal { width: 6px; height: 6px; background: #4ad29a; border-radius: 1px; box-shadow: 0 0 8px #4ad29a55; }
+@keyframes railway-track { to { transform: translateX(-32px); } }
+@keyframes railway-scenery { to { transform: translateX(-80px); } }
+@keyframes railway-wheel { to { transform: rotate(360deg); } }
+@keyframes railway-ride { 50% { transform: translateY(-1px); } }
+@media (max-width: 360px) { .railway-loader-train { left: 7%; margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .railway-loader *, .railway-loader *::before { animation: none !important; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .railway-loader-headlight { animation: railway-light 2.4s ease-in-out infinite; }
+  .railway-loader-signal { animation: railway-signal 1.8s ease-in-out infinite; }
+  @keyframes railway-light { 50% { opacity: .4; } }
+  @keyframes railway-signal { 50% { opacity: .5; } }
+}
