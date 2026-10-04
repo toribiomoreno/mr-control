@@ -15,9 +15,6 @@ export default function SeguimientoFields({ tipo, code, tracking = {}, legacy = 
     {tipo === 'correctivo' && <label>¿Por qué quedó detenida la máquina?
       <VoiceTextarea name="detentionReason" defaultValue={tracking.detentionReason || ''} rows={2} placeholder="Motivo de ingreso a este correctivo" required />
     </label>}
-    <label>¿Dónde se realiza?
-      <select name="location" defaultValue={tracking.intake?.pendingLocation ? '' : tracking.location || ''} required><option value="">Seleccionar</option><option>Boulogne</option><option value="Externo">Externo</option></select>
-    </label>
     {tipo === 'correctivo' ? <SystemFields tracking={tracking} legacy={legacy} /> : <p>{light ? `Locomotora completa · turno rotativo · ${durations[code]} turno(s) de 8 horas.` : 'Preventivo pesado · numeral del 1 al 12.'}</p>}
     <p className="tracking-hint">Después del ingreso, registrá cuándo se trabajó, quién intervino, las demoras y cómo quedó la máquina. Los preventivos livianos abarcan toda la locomotora.</p>
   </fieldset>;

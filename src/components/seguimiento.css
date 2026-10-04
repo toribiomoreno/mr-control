@@ -130,3 +130,11 @@
 
 .journal-day-group { margin:18px 0; border:1px solid #334155; border-radius:10px; padding:0 18px; }.journal-day-group > header { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 0; }.journal-day-group h4 { margin:0; font-size:16px; }.journal-day-group header button { font-size:12px!important; }.journal-system { font-size:13px; color:#b7c9de; }.maintenance-reason { grid-column:1/-1; }.maintenance-header-actions { display:flex; flex-wrap:wrap; gap:10px; }.availability-confirm { border:1px solid #b89640; background:#292719; }.availability-confirm legend { color:#fde68a; font-weight:700; }.shift-efficiency { border-bottom:1px solid #334155; padding-bottom:18px; margin-bottom:22px; }.shift-efficiency strong { color:#fde68a; font-size:24px; }.history-title-row h2 { margin:0; }.history-title-row { flex-wrap:wrap; gap:16px; }
 @media(max-width:600px) { .journal-day-group { padding:0 10px; }.journal-day-group > header { align-items:start; flex-direction:column; } }
+
+.maintenance-end-fact { border:1px solid #485669; border-radius:8px; background:#182535; padding:12px; }
+.maintenance-intake-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.maintenance-delay-fields { border-color:#b58338; }
+.journal-delay { color:#ead09a; font-size:13px; }
+@media(max-width:650px) { .maintenance-intake-fields { grid-template-columns:1fr; } }
+
+.tracking-detail > .modal-heading .maintenance-type { font-size:18px; font-weight:700; padding:9px 13px; }

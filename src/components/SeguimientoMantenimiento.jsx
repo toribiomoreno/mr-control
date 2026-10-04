@@ -1,6 +1,6 @@
 import RailwayLoader from './RailwayLoader.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchSeguimiento, saveTracking } from '../services/seguimientoService.js';
+import { fetchSeguimiento, saveMaintenanceIntake } from '../services/seguimientoService.js';
 import { createHistorialEvent } from '../services/historialSupabaseService.js';
 import { crearActualizacion, editarActualizacion } from '../services/actualizacionesEventoSupabaseService.js';
 import { journalGroups, shiftEfficiency } from '../domain/maintenance/journal.js';
@@ -8,12 +8,13 @@ import MaintenanceSheet from './MaintenanceSheet.jsx';
 import { toRegister } from '../domain/maintenance/adapter.js';
 import { today, monday, shiftDay, dateLabel } from '../domain/maintenance/types.js';
 import { maintenanceEfficiency, formatDays, causeName } from '../domain/maintenance/presentation.js';
-import { dailyMaintenance, detentionReason, evidenceQuestions, isoWeek, maintenanceBars, maintenanceLabel, orderedUpdates, outcomeAtEnd, updateOutcomeLabel, workDurationLabel } from '../domain/maintenance/view.js';
+import { dailyMaintenance, detentionReason, evidenceQuestions, isoWeek, maintenanceBars, orderedUpdates, outcomeAtEnd, updateOutcomeLabel, workDurationLabel } from '../domain/maintenance/view.js';
 import { registerCsv, efficiencyCsv } from '../domain/maintenance/export.js';
 import CargaDatosModal from './CargaDatosModal.jsx';
 import RegistroEventoModal from './RegistroEventoModal.jsx';
 import ActualizacionEventoModal from './ActualizacionEventoModal.jsx';
-import SeguimientoFields from './SeguimientoFields.jsx';
+import MaintenanceIntakeFields from './MaintenanceIntakeFields.jsx';
+import { intakeTime } from '../domain/maintenance/capture.js';
 import ImportarPilotoModal from './ImportarPilotoModal.jsx';
 import './seguimiento.css';
 
@@ -44,12 +45,14 @@ function Efficiency({ result, location, onComplete, shifts }) {
 function UpdateEntry({ update, event, questions, onEdit, editor }) {
   const data = update.metadata?.seguimiento || {};
   return <article className="maintenance-journal-entry">
-    <div className="maintenance-journal-date"><strong>{dateLabel(update.fecha)}</strong><small>{data.period || 'Turno por confirmar'}</small></div>
+    <div className="maintenance-journal-date"><strong>{dateLabel(update.fecha)}</strong>{event.tipo === 'preventivo' && ['E','A','AB','ABC'].includes(event.preventivoCodigo) && <small>{data.period || 'Turno por confirmar'}</small>}</div>
     <div>{editor || <>{event.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(event.preventivoCodigo) && <span className="journal-preventive">Preventivo {event.preventivoCodigo} · locomotora completa</span>}<span className={`journal-activity ${data.activity || 'sin_dato'}`}>{activityNames[data.activity] || 'Actividad por confirmar'}</span><p>{update.descripcion}</p>
       {!['E','A','AB','ABC'].includes(event.preventivoCodigo) && <p className="journal-system"><strong>{data.system || event.metadata?.seguimiento?.system || 'Sistema por confirmar'}</strong> · {data.subsystem || 'Subsistema por clasificar'}{data.component && ` · ${data.component}`}</p>}
       <p>{[update.responsable, data.staffSpecialty, workDurationLabel(data)].filter(Boolean).join(' · ')}</p>
       {questions.map((q, i) => <p key={i} className="journal-missing">{onEdit ? <button onClick={onEdit}>{q.text} → Completar</button> : q.text}</p>)}
       {onEdit && <button className="journal-edit" onClick={onEdit}>Editar este avance</button>}
+      {(data.delayReported || data.cause) && <p className="journal-delay"><strong>Demora · {causeName(data.cause)}</strong>{data.delayDescription && ` · ${data.delayDescription}`}</p>}
+      {data.additionalShiftRequired && <p className="journal-delay">Se agregó otro turno · {causeName(data.extensionCause || data.cause)}{data.extensionReason && ` · ${data.extensionReason}`}</p>}
       <p className="journal-outcome">Estado informado: <strong>{updateOutcomeLabel(event, update)}</strong></p>
     </>}
     </div>
@@ -114,7 +117,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
     e.preventDefault(); if (!canEdit) return;
     const form = new FormData(e.currentTarget); setSaving(true); setError('');
     try {
-      await saveTracking(event, { ...event.metadata?.seguimiento, ...(event.metadata?.seguimiento?.intake ? { intake: { ...event.metadata.seguimiento.intake, pendingStart: !form.get('detentionTime'), pendingLocation: false, pendingSystem: false } } : {}), detentionStart: form.get('detentionStart'), detentionTime: form.get('detentionTime') || '', plannedStart: form.get('plannedStart') || '', plannedStartTime: form.get('plannedStartTime') || '', plannedEnd: form.get('plannedEnd') || '', plannedEndTime: form.get('plannedEndTime') || '', subsystem: form.get('subsystem') || '', legacyClassification: !form.get('subsystem'), detentionReason: form.get('detentionReason') || detentionReason(event), location: form.get('location'), system: form.get('system') || 'Varios sistemas', component: form.get('component') || form.get('subsystem') || 'Locomotora completa' });
+      await saveMaintenanceIntake(event, Object.fromEntries(form));
       setEditingMeta(false); await load(); onChanged?.();
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   }
@@ -142,17 +145,18 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
         {daily.map(item => <article key={item.id} className={`maintenance-day-card ${item.kind}`}><button onClick={() => select(item.id)}><strong>{item.event.locomotoraCodigo}</strong><span>{item.label}</span><small>Abrir mantenimiento →</small></button><div>{!item.updates.length ? <p>{day > today() ? 'Fecha futura; todavía no hay actividad registrada.' : 'Sin novedad registrada para este día. Falta confirmar si se trabajó y si continuó detenida.'}</p> : item.updates.map(a => <div className="day-update" key={a.id}><strong>{activityNames[a.metadata?.seguimiento?.activity] || 'Actividad por confirmar'} · {a.metadata?.seguimiento?.period || 'Turno por confirmar'}</strong><p>{a.descripcion}</p><small>{a.responsable || 'Personal por confirmar'} · {updateOutcomeLabel(item.event, a)}</small></div>)}</div></article>)}
       </section>}
     </>}
-    {selected && event && <div className="modal-backdrop"><section className="intervention-modal tracking-detail" role="dialog" aria-modal="true" aria-label={`Mantenimiento ${selected.unit}`}><div className="modal-heading"><div><span className={`maintenance-type ${event.tipo}`}>{selected.unit} · {event.tipo === 'preventivo' ? `Preventivo ${event.preventivoCodigo}` : 'Correctivo'}</span><h2>{maintenanceLabel(event)}</h2></div><button className="modal-close" aria-label="Cerrar detalle" onClick={() => select('')}>×</button></div>
+    {selected && event && <div className="modal-backdrop"><section className="intervention-modal tracking-detail" role="dialog" aria-modal="true" aria-label={`Mantenimiento ${selected.unit}`}><div className="modal-heading"><div><span className={`maintenance-type ${event.tipo}`}>{selected.unit} · {event.tipo === 'preventivo' ? `Preventivo ${event.preventivoCodigo}` : 'Correctivo'}</span></div><button className="modal-close" aria-label="Cerrar detalle" onClick={() => select('')}>×</button></div>
       <section className="maintenance-detail-section"><div className="maintenance-section-heading"><span>01</span><div><p className="eyebrow">{event.tipo === 'preventivo' ? 'Mantenimiento programado' : 'Ingreso a correctivo'}</p><h3>Datos del mantenimiento</h3></div></div>
       <dl className="tracking-facts">
-        <div><dt>Equipo</dt><dd>{selected.unit}</dd></div>
-        <div><dt>Detenida desde</dt><dd>{dateLabel(event.metadata?.seguimiento?.detentionStart)} · {event.metadata?.seguimiento?.detentionTime || (!event.metadata?.horaEstimada && !event.metadata?.seguimiento?.intake?.pendingStart ? event.hora?.slice(0,5) : '') || 'Hora por confirmar'}</dd></div>
-        {event.tipo === 'correctivo' ? <div className="maintenance-reason"><dt>Motivo de la detención</dt><dd>{detentionReason(event)}</dd></div> : <><div><dt>Inicio programado</dt><dd>{dateLabel(event.metadata?.seguimiento?.plannedStart)} · {event.metadata?.seguimiento?.plannedStartTime || 'Hora por confirmar'}</dd></div><div><dt>Fin programado</dt><dd>{dateLabel(event.metadata?.seguimiento?.plannedEnd)} · {event.metadata?.seguimiento?.plannedEndTime || 'Hora por confirmar'}</dd></div></>}
-        {event.estadoMantenimiento === 'finalizado' && <div><dt>Finalización registrada</dt><dd>{dateLabel(event.fechaCierre)} · {event.horaCierre || 'Hora por confirmar'}</dd></div>}
+
+        <div><dt>Fecha y hora de ingreso</dt><dd>{dateLabel(event.metadata?.seguimiento?.detentionStart || event.fecha)} · {intakeTime(event) || 'Hora por confirmar'}</dd></div>
+        <div className="maintenance-reason"><dt>Motivo de la detención</dt><dd>{detentionReason(event)}</dd></div>
+        {event.tipo === 'preventivo' && <><div><dt>Inicio programado</dt><dd>{dateLabel(event.metadata?.seguimiento?.plannedStart)} · {event.metadata?.seguimiento?.plannedStartTime || 'Hora por confirmar'}</dd></div><div><dt>Fin programado</dt><dd>{dateLabel(event.metadata?.seguimiento?.plannedEnd)} · {event.metadata?.seguimiento?.plannedEndTime || 'Hora por confirmar'}</dd></div></>}
+        <div className="maintenance-end-fact"><dt>Fecha y hora de fin</dt><dd>{event.estadoMantenimiento === 'finalizado' ? `${dateLabel(event.fechaCierre)} · ${event.horaCierre || 'Hora por confirmar'}` : 'En curso · sin fin registrado'}</dd></div>
       </dl>
-      <div className="maintenance-header-actions">{canEdit && <button onClick={() => setEditingMeta(true)}>Editar ingreso y programación</button>}{event.tipo === 'preventivo' && <button onClick={() => setSheetOpen(true)}>Ficha del mantenimiento</button>}</div>
+      <div className="maintenance-header-actions">{canEdit && <button onClick={() => setEditingMeta(true)}>Editar datos del mantenimiento</button>}{event.tipo === 'preventivo' && <button onClick={() => setSheetOpen(true)}>Ficha del mantenimiento</button>}</div>
       {event.origen === 'vista-previa-privada' && <p className="tracking-hint">Datos del archivo privado en vista temporal.</p>}
-      {editingMeta && <form onSubmit={saveMeta}><SeguimientoFields legacy tipo={event.tipo} code={event.preventivoCodigo} tracking={{ ...event.metadata?.seguimiento, detentionReason: detentionReason(event) }} /><button className="primary-action" disabled={saving}>{saving ? 'Guardando…' : 'Confirmar datos'}</button><button type="button" disabled={saving} onClick={() => setEditingMeta(false)}>Cancelar</button></form>}
+      {editingMeta && <form onSubmit={saveMeta}><MaintenanceIntakeFields event={event} locomotoras={locomotoras} /><button className="primary-action" disabled={saving}>{saving ? 'Guardando…' : 'Confirmar datos'}</button><button type="button" disabled={saving} onClick={() => setEditingMeta(false)}>Cancelar</button></form>}
       </section>
       <section className="maintenance-detail-section"><div className="maintenance-section-heading"><span>02</span><div><p className="eyebrow">Seguimiento diario</p><h3>Avances</h3></div></div>{!updates.length && <p>No hay avances registrados. El ingreso a mantenimiento no confirma una intervención.</p>}
       {workGroups.map(group => <section className="journal-day-group" key={group.key} aria-label={group.label}><header><h4>{group.label}</h4>{canEdit && selected.kind !== 'liviano' && <button onClick={() => setUpdate({initialDate:group.date})}>+ Otro bloque en este día</button>}</header>{group.updates.map(a => <UpdateEntry key={a.id} update={a} event={event} questions={questions.filter(q => q.update?.id === a.id)} onEdit={canEdit ? () => setUpdate({ initialUpdate: a }) : null} editor={inlineUpdate && update.initialUpdate?.id === a.id ? <ActualizacionEventoModal key={a.id} event={event} mode={event.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} initialUpdate={a} embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /> : null} />)}</section>)}
