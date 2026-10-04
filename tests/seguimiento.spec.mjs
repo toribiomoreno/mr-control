@@ -17,7 +17,7 @@ test('semana, detalle, eficiencia, corrección y CSV',async({page})=>{
  await expect(page.getByText('Estado actual de la locomotora',{exact:true})).toHaveCount(0);
  await expect(page.locator('.maintenance-journal-entry').getByText(/Demora:|50% útil/)).toHaveCount(0);
  await page.locator('.maintenance-journal-entry').first().getByRole('button',{name:/Completar/}).click();
- await expect(page.getByLabel('Fecha',{exact:true})).toHaveValue('2026-09-24');
+ await expect(page.getByLabel('Fecha de trabajo',{exact:true})).toHaveValue('2026-09-24');
  await expect(page.locator('.modal-backdrop')).toHaveCount(1);
  await expect(page.locator('.maintenance-journal-entry').first().getByRole('form',{name:'Editar avance'})).toBeVisible();
  await page.getByRole('button',{name:'Cerrar',exact:true}).click();
@@ -33,7 +33,7 @@ test('semana, detalle, eficiencia, corrección y CSV',async({page})=>{
  await page.getByLabel('Mantenimiento existente').selectOption('example');
  await page.getByLabel('Qué querés registrar').selectOption('first');
  await page.getByRole('button',{name:'Continuar con este mantenimiento'}).click();
- await expect(page.getByRole('button',{name:'Trabajo y demora',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(page.getByLabel('¿Tuviste alguna demora?')).toHaveValue('yes');
  await expect(page.getByLabel('Estado posterior de la máquina')).toHaveValue('continua');
  await page.getByRole('button',{name:'Cerrar',exact:true}).click();
  await page.getByRole('button',{name:'+ Cargar datos'}).click();
@@ -69,7 +69,7 @@ test('ingreso seguido de actividad: hora desconocida y media jornada sin pérdid
  await page.locator('textarea[name="descripcion"]').fill('Se reemplazó la válvula 26-C.');
  await page.getByLabel('¿Desde cuándo quedó detenida para esta intervención?').fill('2026-09-21');
  await page.locator('textarea[name="detentionReason"]').fill('No regulaba la presión.');
- await page.getByLabel('¿Dónde se realiza?').selectOption('Boulogne');
+ await expect(page.getByLabel('¿Dónde se realiza?')).toHaveCount(0);
  await page.getByLabel('¿Qué sistema estamos atacando?').selectOption('Sistema neumático');
  await page.getByLabel('Subsistema',{exact:true}).selectOption('Válvulas y presostatos');
  await page.locator('textarea[name="component"]').fill('Válvula 26-C');
@@ -78,11 +78,12 @@ test('ingreso seguido de actividad: hora desconocida y media jornada sin pérdid
  await page.getByRole('button',{name:'Guardar evento',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Completar actividad del registro creado'})).toBeVisible();
  expect(rows).toHaveLength(1);expect(rows[0].hora).toBeNull();
- await page.getByRole('button',{name:'Se trabajó',exact:true}).click();
- await page.getByLabel('¿Cuánto tiempo se trabajó?').selectOption('0.5');
+ await page.getByLabel('¿Tuviste alguna demora?').selectOption('no');
+ await page.getByLabel('¿Quién la trabajó?').selectOption('Turno fijo');
+ await page.getByRole('combobox',{name:'Jornada',exact:true}).selectOption('0.5');
  await page.getByLabel('Estado posterior de la máquina').selectOption('operativa');
  await page.locator('input[name="confirmAvailability"]').check();
- await page.locator('input[name="confirmActivity"]').check();
+
  await page.getByRole('button',{name:'Guardar avance',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Completar actividad del registro creado'})).toHaveCount(0);
  expect(notes).toHaveLength(1);expect(notes[0].tipo_actualizacion).toBe('cierre');
@@ -118,7 +119,7 @@ test('editar el avance en su ficha guarda, cancela y conserva los datos asociado
  await expect(page.getByRole('dialog',{name:'Mantenimiento E701'})).toBeVisible();
  await page.getByRole('button',{name:'Editar este avance'}).click();
  await form.locator('textarea[name="descripcion"]').fill('Descripción corregida');
- await form.locator('input[name="confirmActivity"]').check();
+
  await form.getByRole('button',{name:'Guardar avance',exact:true}).click();
  await expect(form).toHaveCount(0);
  await expect(page.getByRole('dialog',{name:'Mantenimiento E701'})).toBeVisible();
