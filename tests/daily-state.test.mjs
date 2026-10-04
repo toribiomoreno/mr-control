@@ -30,7 +30,7 @@ test('el parte persiste como estado de la misma unidad y nunca da disponible un 
  const daily={id:'daily',tipo:'otro',locomotoraCodigo:'7774',fecha:'2026-09-30',hora:'06:00',metadata:{dailyState:{state:'operativa',reportedState:'operativa',observation:'Sale acompañada'}}};
  const state=fleetState({codigo:'7774'},[job,daily],'2026-09-30');assert.equal(state.estado,'operativa');assert.equal(state.fechaParte,'2026-09-30');assert.equal(state.observacion,'Sale acompañada');
  assert.equal(fleetState({codigo:'7774'},[{...job,estadoMantenimiento:'en_curso'},daily],'2026-09-30').estado,'correctivo');
- const oldDaily={...daily,fecha:'2026-09-28'};assert.equal(fleetState({codigo:'7774'},[job,oldDaily],'2026-09-30').observacion,'Operativa · prueba pendiente');
+ const oldDaily={...daily,fecha:'2026-09-28'};assert.equal(fleetState({codigo:'7774'},[job,oldDaily],'2026-09-30').observacion,'Operativa · prueba pendiente · Sale acompañada');
  assert.equal(operatingSegments([daily],'2026-09-30','2026-09-30').length,1);
 });
 test('cierre operativo con pruebas pendientes conserva el plan y admite validación sin trabajo supuesto', () => {

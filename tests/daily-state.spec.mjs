@@ -3,10 +3,10 @@ import { fleet } from '../src/domain/maintenance/types.js';
 
 test('E701 ordenado y símbolos de trazo homogéneo: rojo, amarillo, violeta y tiza',async({page})=>{
  await page.goto('/tests/state.html?view=chronology');
- await expect(page.locator('.timeline-event-topline strong')).toHaveText(['Novedad · libro de turno','Estado diario de la máquina','Correctivo de prueba','Preventivo E']);
- expect(await page.locator('.history-event-icon svg').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('stroke-width')))).toEqual(['1.8','1.8','1.8','1.8']);
- expect(await page.locator('.history-event-icon svg').evaluateAll(nodes=>nodes.map(n=>n.dataset.icon))).toEqual(['book','daily','wrench','wrench']);
- expect(await page.locator('.history-event-icon').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).color))).toEqual(['rgb(167, 139, 250)','rgb(231, 229, 223)','rgb(239, 68, 68)','rgb(250, 204, 21)']);
+ await expect(page.locator('.timeline-event-topline strong')).toHaveText(['Novedad · libro de turno','Correctivo de prueba','Preventivo E']);
+ expect(await page.locator('.history-event-icon svg').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('stroke-width')))).toEqual(['1.8','1.8','1.8']);
+ expect(await page.locator('.history-event-icon svg').evaluateAll(nodes=>nodes.map(n=>n.dataset.icon))).toEqual(['book','wrench','wrench']);
+ expect(await page.locator('.history-event-icon').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).color))).toEqual(['rgb(167, 139, 250)','rgb(239, 68, 68)','rgb(250, 204, 21)']);
  await expect(page.getByText('Hora no informada',{exact:true})).toHaveCount(2);
  await page.locator('.history-timeline').screenshot({path:'/workspace/scratch/7ec95ebdf471/historico-e716-orden-iconos.png'});
  await page.setViewportSize({width:390,height:844});
@@ -45,11 +45,10 @@ test('Parque solo consulta e importa partes; faltantes se preguntan al cargar da
   return route.fulfill({json:[]});
  });
  await page.goto('/tests/state.html?view=app');
- await page.getByRole('button',{name:'Parque',exact:true}).click();
- await expect(page.getByRole('heading',{name:'Parque ferroviario'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Parque',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:'Disponibilidad para el servicio'})).toBeVisible();
  await expect(page.getByText('Disponibilidad por confirmar',{exact:false})).toHaveCount(0);
- await page.locator('.locomotive-unit').filter({hasText:'E714'}).click();
- await expect(page.locator('.side-panel').getByRole('heading',{name:'E714'})).toBeVisible();
+ await expect(page.locator('.fleet-unit').filter({hasText:'E714'})).toContainText('Detenida');
  await expect(page.getByRole('button',{name:'Iniciar nuevo mantenimiento'})).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Revisar estado pendiente'})).toHaveCount(0);
  await page.getByRole('button',{name:'Mantenimientos',exact:true}).click();
@@ -61,13 +60,13 @@ test('Parque solo consulta e importa partes; faltantes se preguntan al cargar da
 
 test('estado diario y libro como novedades cronológicas sin repetir observaciones',async({page})=>{
  await page.goto('/tests/state.html');
- await expect(page.locator('.timeline-date').first()).toHaveText('7 ENE 2020');
- await expect(page.getByText('Estado diario de la máquina',{exact:true})).toBeVisible();
- await expect(page.getByText('06:00 h',{exact:true})).toBeVisible();
- await expect(page.getByText('Sale acompañada',{exact:true})).toHaveCount(1);
+ await expect(page.locator('.timeline-date').first()).toHaveText('6 ENE 2020');
+ await expect(page.getByText('Estado diario de la máquina',{exact:true})).toHaveCount(0);
+ await expect(page.getByText('Supabase',{exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Estados diarios',exact:true})).toHaveCount(0);
  await expect(page.getByText('Novedad · libro de turno',{exact:true})).toBeVisible();
  await expect(page.getByText('Se revisó la novedad del eje.')).toBeVisible();
- await page.getByRole('button',{name:'Estados diarios',exact:true}).click();await expect(page.locator('.timeline-event-card')).toHaveCount(1);
+ await page.getByRole('button',{name:'Libro de turno',exact:true}).click();await expect(page.locator('.timeline-event-card')).toHaveCount(1);
  await page.getByRole('button',{name:'Todos',exact:true}).click();
  await page.locator('.history-timeline').screenshot({path:'/workspace/scratch/7ec95ebdf471/estados-diarios-preview.png'});
 });

@@ -71,6 +71,7 @@ test('ingreso seguido de actividad: hora desconocida y media jornada sin pérdid
  await page.locator('textarea[name="detentionReason"]').fill('No regulaba la presión.');
  await page.getByLabel('¿Dónde se realiza?').selectOption('Boulogne');
  await page.getByLabel('¿Qué sistema estamos atacando?').selectOption('Sistema neumático');
+ await page.getByLabel('Subsistema',{exact:true}).selectOption('Válvulas y presostatos');
  await page.locator('textarea[name="component"]').fill('Válvula 26-C');
  await page.getByLabel('¿Cómo queda la máquina después de este registro?').selectOption('continua');
  await page.getByLabel('Confirmo la locomotora, fechas, tipo y responsable que estoy cargando.').check();
@@ -80,6 +81,7 @@ test('ingreso seguido de actividad: hora desconocida y media jornada sin pérdid
  await page.getByRole('button',{name:'Se trabajó',exact:true}).click();
  await page.getByLabel('¿Cuánto tiempo se trabajó?').selectOption('0.5');
  await page.getByLabel('Estado posterior de la máquina').selectOption('operativa');
+ await page.locator('input[name="confirmAvailability"]').check();
  await page.locator('input[name="confirmActivity"]').check();
  await page.getByRole('button',{name:'Guardar avance',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Completar actividad del registro creado'})).toHaveCount(0);
