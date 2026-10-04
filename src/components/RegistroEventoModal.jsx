@@ -2,6 +2,7 @@ import SeguimientoFields from './SeguimientoFields.jsx';
 import { today, wholeLocomotive } from '../domain/maintenance/types.js';
 import { operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
 import { validateEvent } from '../domain/maintenance/adapter.js';
+import { lightSchedule } from '../domain/maintenance/schedule.js';
 import { useState } from 'react';
 import VoiceTextarea from './VoiceTextarea.jsx';
 
@@ -118,6 +119,8 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, initial
         fechaCierre,
         horaCierre: null,
       };
+      const schedule = lightSchedule(payload);
+      if (schedule) Object.assign(payload.metadata.seguimiento, { plannedStart: schedule.start, plannedStartTime: schedule.startTime, plannedEnd: schedule.end, plannedEndTime: schedule.endTime });
       validateEvent(payload);
       await onSave(payload, adjuntos);
     } catch (error) {

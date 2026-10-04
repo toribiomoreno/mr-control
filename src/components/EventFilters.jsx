@@ -5,9 +5,6 @@ const filterTabs = [
   { id: 'lavado', label: 'Lavados', color: '#7dd3fc' },
   { id: 'libro', label: 'Libro de turno', color: '#a78bfa' },
   { id: 'alistamiento', label: 'Alistamientos' },
-  { id: 'campana', label: 'Campañas' },
-  { id: 'otro', label: 'Ajustes' },
-  { id: 'adjuntos', label: 'Adjuntos' },
 ];
 
 export default function EventFilters({

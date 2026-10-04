@@ -92,6 +92,7 @@
 .maintenance-questions { padding:14px; border:1px solid #48546a; border-radius:8px; color:#cbd5e1; }.maintenance-questions summary { cursor:pointer; }.maintenance-questions > div { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:10px; }
 .journal-title { margin:28px 0 12px; }
 .maintenance-journal-entry { display:grid; grid-template-columns:145px 1fr; gap:18px; border-top:1px solid #2b394d; padding:22px 0; }
+.maintenance-journal-entry.grouped { grid-template-columns:1fr; }
 .maintenance-journal-date small { display:block; margin-top:7px; color:#94a3b8; }.maintenance-journal-entry p { white-space:pre-wrap; line-height:1.55; }
 .maintenance-journal-entry .journal-outcome { margin-top:12px; color:#94a3b8; font-size:13px; }.journal-outcome strong { color:#f1f5f9; }
 .journal-activity { padding:4px 8px; border-radius:5px; font-size:12px; background:#263449; }.journal-activity.trabajo { color:#86efac; background:#15372c; }.journal-activity.espera,.journal-activity.mixto { color:#fca5a5; background:#44252d; }
