@@ -9,8 +9,8 @@ const locomotiveItems = [
 
 const sidebarItems = [
   { id: 'inicio', label: 'Inicio', tab: 'inicio' },
-  { id: 'locomotoras', label: 'Locomotoras', children: locomotiveItems },
-  { id: 'coches', label: 'Coches', tab: 'coches' },
+  { id: 'locomotoras', label: 'Tractivo', children: locomotiveItems },
+  { id: 'coches', label: 'Remolcado', tab: 'coches' },
 ];
 
 export default function Sidebar({ active = 'locomotoras', onNavigate, onSignOut, perfil }) {

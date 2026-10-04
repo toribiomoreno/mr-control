@@ -13,6 +13,7 @@ export default function LocomotiveLifeLine({ events, loading, onOpenMaintenance 
       <div className="life-axis" aria-hidden="true" />
       <div className="life-lower">{maintenance.map((item) => <button key={item.id} type="button" className={`life-intervention ${item.kind} ${item.unconfirmed ? 'is-unconfirmed' : ''}`} style={{ gridColumn: `${item.column} / span ${item.span}`, gridRow: item.lane + 1 }} title={`${item.label}: ${item.reason}`} onClick={() => onOpenMaintenance(item.id)}><strong>{item.label}</strong><small>{item.reason}</small></button>)}</div>
     </div></div>
+    {maintenance.length > 0 && <p className="life-caption">Vista por día: la fecha de cierre incluye el mantenimiento. El estado actual figura junto al nombre de la locomotora.</p>}
     {loading ? <p className="life-caption">Cargando estados…</p> : maintenance.length === 0 && states.length === 0 ? <p className="life-caption">No hay estados confirmados para este período.</p> : hasUnconfirmedDays && <p className="life-caption">Las barras punteadas indican mantenimientos abiertos cuya continuidad falta confirmar. Los espacios vacíos no tienen estado registrado.</p>}
   </section>;
 }

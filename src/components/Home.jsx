@@ -1,7 +1,9 @@
 import FleetOverview from './FleetOverview.jsx';
+import FleetMetrics from './FleetMetrics.jsx';
 import heroLocomotive from '../assets/home/home-hero-loc.jpeg';
 import frontLocomotive from '../assets/home/locdetrompa.png';
 import motionLocomotive from '../assets/home/home-motion-loc.jpeg';
+import coaches from '../assets/home/remolcado-reference.webp';
 
 export default function Home(props) {
   return (
@@ -20,8 +22,8 @@ export default function Home(props) {
       </section>
 
       <section className="home-modules" aria-label="Material rodante">
-        <details className="fleet-accordion" open><summary><span>Tractivo<small>Estado del parque de locomotoras</small></span></summary><FleetOverview {...props} /></details>
-        <details className="fleet-accordion"><summary><span>Remolcado<small>Parque de coches</small></span></summary><div className="fleet-placeholder">Módulo pendiente de incorporación.</div></details>
+        <details className="fleet-accordion fleet-accordion-tractive" open><summary><img className="fleet-summary-photo" src={heroLocomotive} alt="" /><span>Tractivo<small>Parque de locomotoras</small></span><FleetMetrics locomotoras={props.locomotoras} loading={props.loading} /></summary><FleetOverview {...props} /></details>
+        <details className="fleet-accordion fleet-accordion-coaches"><summary><img className="fleet-summary-photo" src={coaches} alt="" /><span>Remolcado<small>Parque de coches</small></span></summary><div className="fleet-placeholder">Módulo pendiente de incorporación.</div></details>
       </section>
 
       <section className="home-route">
