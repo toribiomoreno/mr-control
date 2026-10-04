@@ -34,3 +34,10 @@ export function shiftEfficiency(event) {
   const planned = durations[event.preventivoCodigo];
   return { planned, registered, extensions: groups.filter(g=>g.updates.some(a=>a.metadata?.seguimiento?.shiftExtended)).length, percent: event.estadoMantenimiento === 'finalizado' && registered >= planned ? Math.round(planned/registered*100) : null };
 }
+
+export function nextShiftSelection(event) {
+  const updates = orderedUpdates(event).filter(a => a.metadata?.seguimiento?.shiftNumber && a.metadata?.seguimiento?.activity !== 'sin_dato');
+  const last = updates.at(-1)?.metadata?.seguimiento;
+  if (last?.additionalShiftRequired) return { number: last.shiftNumber, extended: true, extensionIndex: last.shiftExtended ? (last.extensionIndex || 1) + 1 : 1 };
+  return { number: nextShiftNumber(event), extended: false, extensionIndex: 1 };
+}

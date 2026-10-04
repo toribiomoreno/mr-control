@@ -105,7 +105,6 @@ export function evidenceQuestions(event) {
     if (['trabajo', 'mixto'].includes(t.activity) && missing(update.responsable)) add('¿Quién intervino?');
     if (['trabajo', 'mixto'].includes(t.activity) && t.workDurationDays == null && !(event.tipo === 'preventivo' && ['E', 'A', 'AB', 'ABC'].includes(event.preventivoCodigo))) add('¿Fue jornada completa o media jornada? La duración todavía no está confirmada.');
     if (['trabajo', 'mixto'].includes(t.activity) && event.tipo === 'correctivo' && (missing(t.system || meta.system) || missing(t.component || meta.component))) add('¿Qué parte se trabajó?');
-    if (t.activity === 'mixto' && t.usefulFraction == null) add('¿Qué parte del día se trabajó y qué parte se perdió?');
     if (['espera', 'mixto'].includes(t.activity) && (!t.cause || t.cause === 'PENDIENTE')) add('¿Por qué no se pudo trabajar?');
   }
   if (outcomeAtEnd(event).code === 'pendiente') questions.push({ field: 'outcome', text: '¿Quedó operativa o continúa el mantenimiento?' });
