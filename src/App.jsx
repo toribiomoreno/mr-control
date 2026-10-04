@@ -7,7 +7,6 @@ import Home from './components/Home.jsx';
 import HistorialLocomotora from './components/HistorialLocomotora.jsx';
 import ImportarEstadoDiarioModal from './components/ImportarEstadoDiarioModal.jsx';
 import Login from './components/Login.jsx';
-import Patio from './components/Patio.jsx';
 import ReportesGestion from './components/ReportesGestion.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import locoAzul from './assets/loco_azul.webp';
@@ -22,95 +21,9 @@ import { fetchHistorialByLocomotora } from './services/historialSupabaseService.
 import { fetchSeguimiento } from './services/seguimientoService.js';
 import { fetchFleetConfirmations } from './services/fleetConfirmationService.js';
 
-const interventionLabels = {
-  correctivo: 'Correctivo',
-  preventivo: 'Preventivo',
-  lavado: 'Lavado',
-  inspeccion: 'Inspeccion',
-  prueba: 'Prueba',
-};
-
-
-function interventionTitle(item) {
-  if (item.interventionClass !== 'preventivo') {
-    return interventionLabels[item.interventionClass] || item.type || 'Intervencion';
-  }
-
-  const code = item.preventiveCode || 'sin codigo';
-  const modality = item.modality === 'Externo' ? ' - Externo' : '';
-  return `Preventivo ${code}${modality}`;
-}
-
-function formatDateDisplay(value) {
-  if (!value) return '';
-  const [year, month, day] = String(value).slice(0, 10).split('-');
-  if (!year || !month || !day) return value;
-  return `${day}-${month}-${year}`;
-}
-
-function estadoEtiqueta(loco) {
-  if (!loco) return '';
-  if (loco.lavadoProgramado) return 'Programada para Lavado';
-  if (['servicio', 'operativa'].includes(loco.estado)) return 'Operativa';
-  if (loco.estado === 'reserva') return 'Reserva';
-  if (loco.estado === 'uso_excepcional') return 'Uso condicional';
-  if (loco.estado === 'detenida') return 'Detenida';
-  if (loco.estado === 'preventivo') {
-    if (loco.tipoPreventivo && loco.modalidad) return `Preventivo ${loco.tipoPreventivo} - ${loco.modalidad}`;
-    if (loco.tipoPreventivo) return `Preventivo ${loco.tipoPreventivo}`;
-    return 'Mantenimiento Preventivo';
-  }
-
-  return 'Mantenimiento Correctivo';
-}
-
-function estadoOperativo(loco) {
-  if (!loco) return '';
-  if (loco.estado === 'sin_confirmar') return 'Sin estado confirmado';
-  if (loco.lavadoProgramado) return 'Operativa';
-  if (loco.estado === 'reserva') return 'Reserva';
-  if (loco.estado === 'uso_excepcional') return 'Uso condicional';
-  if (['detenida', 'preventivo', 'correctivo'].includes(loco.estado)) return 'Detenida';
-  return 'Operativa';
-}
-
-function estadoOperativoClase(loco) {
-  const estado = estadoOperativo(loco);
-  if (estado === 'Operativa') return 'is-service';
-  if (estado === 'Reserva') return 'is-reserve';
-  if (estado === 'Uso condicional') return 'is-exceptional';
-  if (estado === 'Sin estado confirmado') return 'is-reserve';
-  return 'is-corrective';
-}
-
-function estadoClase(estado) {
-  if (estado?.lavadoProgramado) return 'is-wash';
-  if (estado === 'servicio' || estado === 'operativa') return 'is-service';
-  if (estado === 'reserva') return 'is-reserve';
-  if (estado === 'uso_excepcional') return 'is-exceptional';
-  if (estado === 'preventivo') return 'is-preventive';
-  return 'is-corrective';
-}
-
 function imagenLocomotora(loco) {
   if (!loco) return locoRoja;
   return loco.codigo === '7774' || loco.colorEspecial === 'azul' ? locoAzul : locoRoja;
-}
-
-function areaClase(area) {
-  if (area === 'Electrica') return 'electrical';
-  if (area === 'Mecanica') return 'mechanical';
-  return 'general';
-}
-
-function dotClase(area) {
-  if (area === 'Electrica') return 'electric';
-  if (area === 'Mecanica') return 'mechanic';
-  return 'service';
-}
-
-function sortHistoryDescending(items) {
-  return [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id || '').localeCompare(String(a.id || '')));
 }
 
 export default function App() {
@@ -132,6 +45,7 @@ export default function App() {
   const [historyEvents, setHistoryEvents] = useState([]);
   const [trackingEvents, setTrackingEvents] = useState([]);
   const [fleetConfirmations, setFleetConfirmations] = useState([]);
+  const [trackingLoaded, setTrackingLoaded] = useState(false);
   const [trackingError, setTrackingError] = useState('');
   const [trackingRevision, setTrackingRevision] = useState(0);
   const [historyStatus, setHistoryStatus] = useState('idle');
@@ -162,38 +76,30 @@ export default function App() {
     if (tab !== 'historial') return undefined;
     const timeoutId = window.setTimeout(() => loadHistoryEvents(defaultHistoryLoco), 0);
     return () => window.clearTimeout(timeoutId);
-  }, [tab, defaultHistoryLoco, loadHistoryEvents]);
+  }, [tab, defaultHistoryLoco, loadHistoryEvents, trackingRevision]);
 
   useEffect(() => {
     if (!session || !perfil?.activo) return undefined;
     let active = true;
     Promise.all([fetchSeguimiento(), fetchFleetConfirmations()]).then(([events, confirmations]) => {
-      if (active) { setTrackingEvents(events); setFleetConfirmations(confirmations); setTrackingError(''); }
+      if (active) { setTrackingEvents(events); setFleetConfirmations(confirmations); setTrackingError(''); setTrackingLoaded(true); }
     }).catch(error => { if (active) setTrackingError(error.message); });
     return () => { active = false; };
   }, [session, perfil?.activo, tab, trackingRevision]);
+
+  useEffect(() => {
+    if (!session || !perfil?.activo) return undefined;
+    const refresh = () => setTrackingRevision(value => value + 1);
+    const timer = window.setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [session, perfil?.activo]);
 
   const combinedTracking = [...trackingEvents, ...privatePreviewEvents.filter(preview =>
     !trackingEvents.some(saved => saved.metadata?.pilotSourceId === preview.metadata?.pilotSourceId))];
   const parque = fleetFromTracking(locomotoras, [...combinedTracking, ...fleetConfirmations]);
   const parqueSelected = selected ? parque.find(loco => loco.codigo === selected.codigo) : null;
   const parqueHistoryTarget = historyTarget ? parque.find(loco => loco.codigo === historyTarget.codigo) : null;
-
-  const resumen = parque.reduce(
-    (totales, loco) => ({
-      ...totales,
-      [loco.estado]: totales[loco.estado] + 1,
-      lavado: totales.lavado + (loco.lavadoProgramado ? 1 : 0),
-    }),
-    { servicio: 0, operativa: 0, reserva: 0, uso_excepcional: 0, preventivo: 0, correctivo: 0, detenida: 0, sin_confirmar: 0, lavado: 0 },
-  );
-  const normalizedSelectedHistory = selected
-    ? sortHistoryDescending(combinedTracking.filter(item => item.locomotoraCodigo === selected.codigo && !item.anulado && item.estadoMantenimiento !== 'cancelado').map(item => ({
-      id: item.id, date: item.fecha, type: item.titulo, interventionClass: item.tipo,
-      preventiveCode: item.preventivoCodigo, area: item.especialidad,
-      technician: item.responsable || 'Por confirmar', detail: item.descripcion,
-    })))
-    : [];
 
   const openHistory = (loco) => {
     setSelected(loco);
@@ -228,7 +134,7 @@ export default function App() {
 
   const sidebarActive = (() => {
     if (['inicio', 'areas', 'reportes'].includes(tab)) return 'inicio';
-    if (tab === 'patio') return 'patio';
+    if (tab === 'patio') return 'inicio';
     if (tab === 'coches') return 'coches';
     if (tab === 'calendario') return 'calendario';
     if (tab === 'configuracion') return 'configuracion';
@@ -278,7 +184,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar active={sidebarActive} onNavigate={(nextTab) => { setTrackingSelection(null); setTab(nextTab); }} onSignOut={signOut} perfil={perfil} />
+      <Sidebar active={sidebarActive} onNavigate={(nextTab) => { setTrackingSelection(null); setTab(nextTab === 'patio' ? 'inicio' : nextTab); }} onSignOut={signOut} perfil={perfil} />
 
       <div className="app-content">
         {trackingError && <div className="history-modal-note" role="status">Base de seguimiento pendiente: {trackingError}</div>}
@@ -288,92 +194,13 @@ export default function App() {
           </div>
         )}
 
-        {tab !== 'patio' && <SeguimientoPendientes events={[...combinedTracking, ...fleetConfirmations]} canManage={canManageHistory} onSaved={() => { setTrackingRevision(value => value + 1); if (tab === 'historial') loadHistoryEvents(historyLoco); }} onNewMaintenance={(codigo, fecha) => beginMaintenance(parque.find(loco => loco.codigo === codigo), fecha)} />}
+        {tab === 'calendario' && <SeguimientoPendientes events={[...combinedTracking, ...fleetConfirmations]} canManage={canManageHistory} onSaved={() => { setTrackingRevision(value => value + 1); if (tab === 'historial') loadHistoryEvents(historyLoco); }} onNewMaintenance={(codigo, fecha) => beginMaintenance(parque.find(loco => loco.codigo === codigo), fecha)} />}
 
-        {tab === 'inicio' && <Home onNavigate={setTab} />}
+        {tab === 'inicio' && <Home locomotoras={parque} canManage={canManagePatioCalendar} onImportDailyState={openFleetImport} onOpenHistory={openHistory} loading={!trackingLoaded} />}
 
         {tab === 'areas' && <AreasMaterialRodante onNavigate={setTab} />}
 
         {tab === 'reportes' && <ReportesGestion onNavigate={setTab} />}
-
-      {tab === 'patio' && (
-        <main className="operations-layout">
-          <Patio
-            canManage={canManagePatioCalendar}
-            locomotoras={parque}
-            onImportDailyState={openFleetImport}
-            onOpenHistory={openHistory}
-            selected={parqueSelected}
-            setSelected={setSelected}
-          />
-
-          <aside className="side-panel">
-            {parqueSelected ? (
-              <>
-                <div className="panel-heading">
-                  <div>
-                    <span className="panel-kicker">Locomotora seleccionada</span>
-                    <h2>{parqueSelected.codigo}</h2>
-                  </div>
-
-                  <span className={`status-pill ${estadoOperativoClase(parqueSelected)}`}>
-                    {estadoOperativo(parqueSelected)}
-                  </span>
-                </div>
-
-                <div className={`panel-loco-preview ${parqueSelected.codigo === '7774' ? 'blue' : 'red'}`}>
-                  <img alt={`Locomotora ${parqueSelected.codigo}`} src={imagenLocomotora(parqueSelected)} />
-                </div>
-
-                <div className="panel-section">
-                  <h3>Estado actual</h3>
-
-                  <p><strong>Estado actual:</strong><br />{estadoOperativo(parqueSelected)}</p>
-                  <p><strong>Último parte:</strong><br />{parqueSelected.fechaParte ? `${formatDateDisplay(parqueSelected.fechaParte)} ${parqueSelected.horaParte || ''}` : 'Sin parte diario cargado'}</p>
-                  <p><strong>Observaciones:</strong><br />{parqueSelected.observacion || 'Sin observaciones'}</p>
-                  {parqueSelected.conflictoEstado && <p className="tracking-hint">El parte y el mantenimiento abierto no coinciden. Se conserva detenida hasta confirmar el cierre.</p>}
-                </div>
-
-                <div className="panel-section timeline">
-                  <h3>Historial reciente</h3>
-
-                  {normalizedSelectedHistory.length > 0 ? (
-                    normalizedSelectedHistory.slice(0, 1).map((item) => (
-                      <article key={item.id}>
-                        <b className={`dot ${dotClase(item.area)}`} />
-                        <span>
-                          {interventionTitle(item)}{' '}
-                          <em className={`area-tag ${areaClase(item.area)}`}>{item.area || 'General'}</em>
-                        </span>
-                        <small>{formatDateDisplay(item.date)} - {item.technician}</small>
-                        <p>{item.detail}</p>
-                      </article>
-                    ))
-                  ) : (
-                    <p>Sin mantenimiento registrado.</p>
-                  )}
-                </div>
-
-                <button className="secondary-action panel-history-action" onClick={() => openHistory(selected)} type="button">
-                  Ver historial completo
-                </button>
-              </>
-            ) : (
-              <div className="empty-panel">
-                <h2>Panel locomotora</h2>
-                <p>Seleccione una locomotora del patio para ver su ficha tecnica.</p>
-
-                <div className="panel-summary">
-                  <span><strong>{resumen.servicio + resumen.operativa}</strong> Operativas</span>
-                  <span><strong>{resumen.preventivo}</strong> Preventivo</span>
-                  <span><strong>{resumen.correctivo + resumen.detenida}</strong> Detenidas</span>
-                  <span><strong>{resumen.lavado}</strong> Lavado</span>
-                </div>
-              </div>
-            )}
-          </aside>
-        </main>
-      )}
 
         {tab === 'historial' && (
         <HistorialLocomotora
@@ -419,28 +246,6 @@ export default function App() {
         />
       )}
 
-      {tab === 'locos' && (
-        <main className="locomotive-list">
-          <div className="yard-toolbar">
-            <div>
-              <p className="eyebrow">Inventario</p>
-              <h2>Locomotoras</h2>
-            </div>
-          </div>
-
-          <div className="list-grid">
-            {parque.map((loco) => (
-              <article className={`inventory-card ${loco.lavadoProgramado ? 'is-wash' : estadoClase(loco.estado)}`} key={loco.id}>
-                <img alt={`Locomotora ${loco.codigo}`} src={imagenLocomotora(loco)} />
-                <div>
-                  <h3>{loco.codigo}</h3>
-                  <p>{estadoEtiqueta(loco)}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </main>
-      )}
       </div>
       {isFleetImportOpen && (
         <ImportarEstadoDiarioModal

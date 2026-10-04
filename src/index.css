@@ -5603,7 +5603,11 @@ button {
 }
 .timeline-event-card { background: transparent; }
 body:has(.history-workspace) { min-width: 320px; }
+body:has(.home-dashboard) { min-width: 320px; }
 @media (max-width: 720px) {
+  .app-shell:has(.home-dashboard) { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:has(.home-dashboard) .history-sidebar { position: static; width: 100%; min-height: auto; height: auto; }
+  .home-dashboard .home-modules, .home-dashboard .home-route { width: calc(100% - 24px); }
   .app-shell:has(.history-workspace) { grid-template-columns: minmax(0, 1fr); }
   .app-shell:has(.history-workspace) .history-sidebar { position: static; width: 100%; min-height: auto; height: auto; }
   .history-file-header, .history-main-panel, .history-event-filters { min-width: 0; }
