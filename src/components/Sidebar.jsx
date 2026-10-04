@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { rolLegible } from '../lib/permissions.js';
 
 const locomotiveItems = [
-  { id: 'patio', label: 'Parque', tab: 'patio' },
   { id: 'archivo', label: 'Archivo historico', tab: 'historial' },
   { id: 'calendario', label: 'Mantenimientos', tab: 'calendario' },
 ];

@@ -96,13 +96,18 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, initial
         descripcion: form.get('descripcion'),
         responsable: eventResponsible(currentType, form),
         metadata: isMaintenanceType(currentType) ? { seguimiento: {
-          captureVersion: 2,
+          captureVersion: 4,
+          outcomeConfirmed: form.get('confirmAvailability') === 'on',
+          detentionTime: form.get('detentionTime') || '',
+          plannedStart: form.get('plannedStart') || '', plannedStartTime: form.get('plannedStartTime') || '',
+          plannedEnd: form.get('plannedEnd') || '', plannedEndTime: form.get('plannedEndTime') || '',
+          subsystem: form.get('subsystem') || '',
           detentionStart: form.get('detentionStart'), location: form.get('location'),
-          detentionReason: currentType === 'preventivo' ? 'Kilometraje' : form.get('detentionReason'),
+          detentionReason: currentType === 'preventivo' ? 'Preventivo programado' : form.get('detentionReason'),
           outcome,
           ...(fechaCierre ? { availableDate: fechaCierre } : {}),
           system: currentType === 'preventivo' ? wholeLocomotive.system : form.get('system'),
-          component: currentType === 'preventivo' ? wholeLocomotive.component : form.get('component'),
+          component: currentType === 'preventivo' ? wholeLocomotive.component : form.get('component') || form.get('subsystem'),
         } } : {},
         origen: 'manual',
         automatico: false,
@@ -275,6 +280,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, initial
         {isMaintenanceType(tipo) && <label>¿Cómo queda la máquina después de este registro?
           <select name="outcome" value={outcome} onChange={e => setOutcome(e.target.value)} required><option value="">Confirmar estado</option>{Object.entries(outcomeLabels).filter(([key]) => key !== 'pendiente').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
         </label>}
+        {isMaintenanceType(tipo) && operationalOutcomes.includes(outcome) && <label className="tracking-confirm availability-confirm"><input name="confirmAvailability" type="checkbox" required />Confirmo el estado seleccionado y la disponibilidad de esta locomotora.</label>}
         {isMaintenanceType(tipo) && operationalOutcomes.includes(outcome) && <label>Fecha en que quedó operativa<input name="fechaCierre" type="date" max={today()} required /></label>}
         {isMaintenanceType(tipo) && <p className="tracking-hint">Primero guardamos el ingreso. A continuación vas a confirmar la actividad del día, el personal y las posibles demoras. El ingreso por sí solo no cuenta como un día trabajado.</p>}
         <label className="tracking-confirm"><input type="checkbox" required /> Confirmo la locomotora, fechas, tipo y responsable que estoy cargando.</label>

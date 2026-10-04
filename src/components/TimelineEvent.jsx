@@ -21,7 +21,7 @@ function Icon({ kind = 'note' }) {
   }</svg>;
 }
 
-export default function TimelineEvent({ event }) {
+export default function TimelineEvent({ event, onOpenMaintenance }) {
   const [expanded, setExpanded] = useState(false);
   const updates = orderedUpdates(event);
   const maintenance = isMaintenance(event);
@@ -44,14 +44,15 @@ export default function TimelineEvent({ event }) {
       <div className="history-event-summary">
         <span className="history-event-icon"><Icon kind={daily ? 'daily' : book ? 'book' : maintenance ? 'wrench' : 'note'} /></span>
         <div className="history-event-copy">
-          <div className="timeline-event-topline"><strong>{daily ? 'Estado diario de la máquina' : book ? 'Novedad · libro de turno' : event.titulo || types[event.tipo] || event.tipo}</strong>
+          <div className="timeline-event-topline"><strong>{daily ? 'Estado diario de la máquina' : book ? 'Novedad · libro de turno' : event.tipo === 'alistamiento' ? `${event.locomotoraCodigo} · Alistamiento` : event.titulo || types[event.tipo] || event.tipo}</strong>
             {maintenance && <em className={`maintenance-state-badge ${state}`}>{states[state] || state}</em>}
           </div>
-          {daily || book ? <div className="timeline-event-meta">{daily && <span className="history-system">{dailyStateLabels[daily.state] || daily.state}</span>}{event.hora && <span>{event.hora.slice(0, 5)} h</span>}{book && event.nroLibro && <span>Registro {event.nroLibro}</span>}</div> : <div className="timeline-event-meta"><span className="history-system">{system}</span><span className="history-staff"><Icon kind="person" />{historyStaff(event)}</span>{maintenance && <span>{event.hora && !event.metadata?.horaEstimada ? `${event.hora.slice(0, 5)} h${event.metadata?.seguimiento?.intake ? ' · primer parte' : ''}` : 'Hora no informada'}</span>}</div>}
-          {(daily?.observation || (book && event.descripcion)) && <p className="history-source-note">{daily ? daily.observation : event.descripcion}</p>}
+          {daily || book || event.tipo === 'alistamiento' ? <div className="timeline-event-meta">{daily && <span className="history-system">{dailyStateLabels[daily.state] || daily.state}</span>}{event.hora && <span>{event.hora.slice(0, 5)} h</span>}{book && event.nroLibro && <span>Registro {event.nroLibro}</span>}</div> : <div className="timeline-event-meta"><span className="history-system">{system}</span><span className="history-staff"><Icon kind="person" />{historyStaff(event)}</span>{maintenance && <span>{event.hora && !event.metadata?.horaEstimada ? `${event.hora.slice(0, 5)} h${event.metadata?.seguimiento?.intake ? ' · primer parte' : ''}` : 'Hora no informada'}</span>}</div>}
+          {(daily?.observation || (['libro','alistamiento'].includes(event.tipo) && event.descripcion)) && <p className="history-source-note">{daily ? daily.observation : event.descripcion}</p>}
           {book && event.metadata?.bookSource?.reviewNote && <small>{event.metadata.bookSource.reviewNote}</small>}
           {daily?.needsMaintenance && <small>Detención informada · ingreso a mantenimiento por completar.</small>}
         </div>
+        {maintenance && onOpenMaintenance && <button className="history-expand-button" onClick={onOpenMaintenance}>Abrir mantenimiento</button>}
         <button className="history-expand-button" aria-expanded={expanded} aria-controls={detailId} onClick={() => setExpanded(value => !value)} type="button">{expanded ? 'Ocultar' : 'Ver'} {maintenance ? `avances (${updates.length})` : 'detalle'} <span aria-hidden="true">{expanded ? '⌃' : '⌄'}</span></button>
       </div>
       {expanded && <div id={detailId} className="maintenance-update-list history-expanded-details">

@@ -23,3 +23,5 @@
 .life-intervention small { font-size:10px; font-weight:400; opacity:.8; }
 .life-caption { margin:12px 0 0; line-height:1.5; }
 .life-intervention.is-unconfirmed { border-style:dashed; }
+
+.life-operation.detenida { background:#42232e; border-color:#9a4357; color:#fecdd3; box-shadow:none; }.life-operation.reserva { background:#253f5d; border-color:#60a5fa; color:#bfdbfe; box-shadow:none; }.life-operation.uso_excepcional { background:#3a2a53; border-color:#a78bfa; color:#ddd6fe; box-shadow:none; }.life-blue { background:#60a5fa; }.life-purple { background:#a78bfa; }

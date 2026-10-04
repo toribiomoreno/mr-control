@@ -1,7 +1,5 @@
 const filterTabs = [
   { id: 'todo', label: 'Todos' },
-  { id: 'operativa', label: 'Operativa', color: '#22c55e' },
-  { id: 'estado_diario', label: 'Estados diarios', color: '#e7e5df' },
   { id: 'correctivo', label: 'Correctivos', color: '#ef4444' },
   { id: 'preventivo', label: 'Preventivos', color: '#facc15' },
   { id: 'lavado', label: 'Lavados', color: '#7dd3fc' },

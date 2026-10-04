@@ -127,3 +127,6 @@
 .maintenance-inline-editor .modal-heading h2 { font-size:20px; }
 .maintenance-inline-editor .modal-actions { position:static; }
 @media(max-width:760px) { .maintenance-inline-editor { padding:12px; } }
+
+.journal-day-group { margin:18px 0; border:1px solid #334155; border-radius:10px; padding:0 18px; }.journal-day-group > header { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 0; }.journal-day-group h4 { margin:0; font-size:16px; }.journal-day-group header button { font-size:12px!important; }.journal-system { font-size:13px; color:#b7c9de; }.maintenance-reason { grid-column:1/-1; }.maintenance-header-actions { display:flex; flex-wrap:wrap; gap:10px; }.availability-confirm { border:1px solid #b89640; background:#292719; }.availability-confirm legend { color:#fde68a; font-weight:700; }.shift-efficiency { border-bottom:1px solid #334155; padding-bottom:18px; margin-bottom:22px; }.shift-efficiency strong { color:#fde68a; font-size:24px; }.history-title-row h2 { margin:0; }.history-title-row { flex-wrap:wrap; gap:16px; }
+@media(max-width:600px) { .journal-day-group { padding:0 10px; }.journal-day-group > header { align-items:start; flex-direction:column; } }

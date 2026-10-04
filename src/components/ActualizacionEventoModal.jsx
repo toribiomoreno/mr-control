@@ -1,9 +1,11 @@
-import { causes, systems, today } from '../domain/maintenance/types.js';
+import { causes, durations, today } from '../domain/maintenance/types.js';
 import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
 import { beforeMaintenanceClosure, operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
 import { useState } from 'react';
 import VoiceTextarea from './VoiceTextarea.jsx';
 
+import SystemFields from './SystemFields.jsx';
+import { nextShiftNumber } from '../domain/maintenance/journal.js';
 import TimeSelect from './TimeSelect.jsx';
 import { isValidTimeValue } from './timeUtils.js';
 
@@ -81,18 +83,22 @@ export default function ActualizacionEventoModal({
         ...saved,
         usefulFraction: undefined,
         workDurationDays: undefined,
-        captureVersion: 3,
+        captureVersion: 4,
+        legacyClassification: !!initialUpdate?.id && !saved.subsystem,
+        outcomeConfirmed: form.get('confirmAvailability') === 'on',
+        subsystem: form.get('subsystem') || saved.subsystem || '',
+        ...(isLight(event) && activity !== 'sin_dato' ? { shiftNumber: Number(form.get('shiftNumber')), shiftExtended: form.get('shiftExtended') === 'on', extensionIndex: Number(form.get('extensionIndex') || 1), workDurationShifts: Number(form.get('workDurationShifts') || saved.workDurationShifts || 1) } : {}),
         confirmedUnknownOutcome: outcome === 'pendiente' && form.get('confirmUnknownOutcome') === 'on',
         confirmedUnknownActivity: activity === 'sin_dato' && form.get('confirmActivity') === 'on',
         ...(outcome ? { outcome } : {}),
-        activity, system: form.get('system') || event.metadata?.seguimiento?.system || '', component: form.get('component') || event.metadata?.seguimiento?.component || '', period: staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? 'Mañana' : form.get('period') || '',
+        activity, system: form.get('system') || event.metadata?.seguimiento?.system || '', component: form.get('component') || form.get('subsystem') || event.metadata?.seguimiento?.component || '', period: staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? 'Mañana' : form.get('period') || '',
         cause: ['espera', 'mixto'].includes(activity) ? form.get('cause') : '',
         dayComplete: date === today() && event.estadoMantenimiento !== 'finalizado' ? form.get('dayComplete') === 'on' : saved.dayComplete === true,
         fullDay: activity === 'espera' && form.get('fullDay') === 'on',
         weekendEligible: form.get('weekendEligible') === 'on',
         ...(fraction !== '' ? { usefulFraction: Number(fraction) } : {}),
         allocationNote: form.get('allocationNote') || '',
-        ...(['trabajo', 'mixto'].includes(activity) ? { workDurationDays: isLight(event) || form.get('workDurationDays') === 'unknown' ? null : Number(form.get('workDurationDays')), confirmedUnknownDuration: form.get('workDurationDays') === 'unknown', staffSpecialty: form.get('staffSpecialty') || '' } : {}),
+        ...(['trabajo', 'mixto'].includes(activity) ? { workDurationDays: isLight(event) || ['unknown','partial'].includes(form.get('workDurationDays')) ? null : Number(form.get('workDurationDays')), confirmedUnknownDuration: ['unknown','partial'].includes(form.get('workDurationDays')), workSchedule: form.get('workDurationDays') === 'partial' ? 'parcial' : '', staffSpecialty: form.get('staffSpecialty') || '' } : {}),
       } },
     };
     const files = form.getAll('adjuntos').filter((file) => file && file.name);
@@ -151,17 +157,22 @@ export default function ActualizacionEventoModal({
           <VoiceTextarea name={isPause ? 'motivoPausa' : 'descripcion'} defaultValue={initialUpdate?.descripcion || ''} rows={4} required />
         </label>
 
+        {isLight(event) && <fieldset className="tracking-fields"><legend>Turno del preventivo {event.preventivoCodigo}</legend>
+          <label>Turno planificado<select name="shiftNumber" defaultValue={saved.shiftNumber || nextShiftNumber(event)} required>{Array.from({length:durations[event.preventivoCodigo]},(_,i)=><option key={i+1} value={i+1}>Turno {i+1}</option>)}</select></label>
+          <label className="tracking-confirm"><input type="checkbox" name="shiftExtended" defaultChecked={saved.shiftExtended} /> Es una extensión del turno seleccionado</label>
+          <label>Número de extensión<input name="extensionIndex" type="number" min="1" max="20" defaultValue={saved.extensionIndex || 1} /></label>
+          {saved.workDurationShifts > 1 && <><input type="hidden" name="workDurationShifts" value={saved.workDurationShifts} /><p>Este registro histórico abarca {saved.workDurationShifts} turnos. Se conserva completo.</p></>}
+        </fieldset>}
         <fieldset className="tracking-fields"><legend>¿Qué ocurrió durante el período relevado?</legend>
           <div className="tracking-choices">{[['trabajo', 'Se trabajó'], ['espera', 'No se pudo trabajar'], ['mixto', 'Trabajo y demora'], ['sin_dato', 'Solo anotación / sin información']].map(([value, label]) => <button type="button" key={value} aria-pressed={activity === value} onClick={() => { setActivity(value); setFraction(''); }}>{label}</button>)}</div>
           {activity && activity !== 'sin_dato' && <>
             {['trabajo', 'mixto'].includes(activity) && <>
               <label>Especialidad del personal (si se conoce)<input name="staffSpecialty" defaultValue={saved.staffSpecialty || ''} placeholder="Ej.: eléctrico, mecánico" /></label>
-              {!isLight(event) && <label>¿Cuánto tiempo se trabajó?<select name="workDurationDays" defaultValue={saved.workDurationDays ?? (saved.confirmedUnknownDuration ? 'unknown' : '')} required><option value="">Confirmar duración</option><option value="1">Jornada completa</option><option value="0.5">Media jornada</option><option value="unknown">Duración por confirmar</option></select></label>}
+              {!isLight(event) && <label>¿Cuánto tiempo se trabajó?<select name="workDurationDays" defaultValue={saved.workSchedule === 'parcial' ? 'partial' : saved.workDurationDays ?? (saved.confirmedUnknownDuration ? 'unknown' : '')} required><option value="">Confirmar duración</option><option value="1">Jornada completa</option><option value="0.5">Media jornada</option><option value="partial">Jornada parcial · duración sin precisar</option><option value="unknown">Duración por confirmar</option></select></label>}
               <p className="tracking-hint">Media jornada de trabajo no implica media jornada de demora. Si quedó operativa, el tiempo posterior no se registra como pérdida.</p>
             </>}
-            {event.tipo === 'correctivo' && ['trabajo', 'mixto'].includes(activity) && <>
-              <label>¿De qué sistema hablamos?<select name="system" defaultValue={saved.system || (event.metadata?.seguimiento?.intake?.pendingSystem ? '' : event.metadata?.seguimiento?.system) || ''} required><option value="">Seleccionar sistema</option>{systems.filter(x => x !== 'Por confirmar').map(x => <option key={x}>{x}</option>)}</select></label>
-              <label>¿Qué parte se trabajó en esta novedad?<input name="component" defaultValue={saved.component || (event.metadata?.seguimiento?.intake?.pendingSystem ? '' : event.metadata?.seguimiento?.component) || ''} required /></label>
+            {!isLight(event) && ['trabajo', 'mixto'].includes(activity) && <>
+              <SystemFields tracking={{...event.metadata?.seguimiento, ...saved}} legacy={!!initialUpdate?.id && !saved.subsystem} />
             </>}
             <label>¿En qué turno? {staff === 'Turno fijo' && ['trabajo', 'mixto'].includes(activity) ? <input value="Mañana · turno fijo" readOnly /> : <select name="period" defaultValue={saved.period || ''} required><option value="">Seleccionar</option><option>Mañana</option><option>Tarde</option><option>Mañana y tarde</option><option>Día completo</option></select>}</label>
             {['espera', 'mixto'].includes(activity) && <label>¿Por qué no se pudo trabajar?<select name="cause" defaultValue={saved.cause || ''} required><option value="">Seleccionar causa</option>{Object.entries(causes).filter(([c]) => c !== 'PENDIENTE').map(([c, label]) => <option key={c} value={c}>{c} · {label}</option>)}</select></label>}
@@ -175,12 +186,13 @@ export default function ActualizacionEventoModal({
           <label className="tracking-confirm"><input name="confirmActivity" type="checkbox" required /> Confirmo esta información{activity === 'sin_dato' ? ' y elijo dejar la actividad sin confirmar' : ''}.</label>
           <p className="tracking-hint">Mañana: 6–14 h · tarde: 14–22 h. Una salida acompañada o prueba pendiente genera una consulta de seguimiento, no trabajo supuesto.</p>
         </fieldset>
-        <fieldset className="tracking-fields"><legend>¿Cómo quedó la máquina después de este día?</legend>
+        <fieldset className="tracking-fields availability-confirm"><legend>¿Cómo quedó la máquina después de este día?</legend>
           <select aria-label="Estado posterior de la máquina" value={outcome} onChange={e => setOutcome(e.target.value)} required={activity !== 'sin_dato' || tipo === 'cierre' || Boolean(saved.outcome)}>
             <option value="">Confirmar estado posterior</option>
             {Object.entries(outcomeLabels).filter(([key]) => !(key === 'continua' && event.estadoMantenimiento === 'finalizado' && !beforeMaintenanceClosure(event, { ...initialUpdate, fecha: date, tipoActualizacion: tipo }))).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </select>
           {operationalOutcomes.includes(outcome) && event.estadoMantenimiento !== 'finalizado' && <p>Este registro cerrará el trabajo de mantenimiento en la fecha indicada.{outcome !== 'operativa' && ' La validación queda pendiente y se consultará al día siguiente desde las 9.'}</p>}
+          {operationalOutcomes.includes(outcome) && <label className="tracking-confirm"><input type="checkbox" name="confirmAvailability" required /> Confirmo el estado seleccionado y autorizo que se actualice la disponibilidad de la locomotora.</label>}
           {outcome === 'pendiente' && <label className="tracking-confirm"><input name="confirmUnknownOutcome" type="checkbox" required /> Elijo dejar el estado posterior sin confirmar.</label>}
         </fieldset>
         <div className="history-file-drop">

@@ -1,8 +1,9 @@
+import FleetOverview from './FleetOverview.jsx';
 import heroLocomotive from '../assets/home/home-hero-loc.jpeg';
 import frontLocomotive from '../assets/home/locdetrompa.png';
 import motionLocomotive from '../assets/home/home-motion-loc.jpeg';
 
-export default function Home() {
+export default function Home(props) {
   return (
     <main className="home-dashboard">
       <section className="home-hero" aria-labelledby="home-title">
@@ -19,52 +20,8 @@ export default function Home() {
       </section>
 
       <section className="home-modules" aria-label="Material rodante">
-        <div className="home-info-grid">
-          <article className="home-info-card">
-            <span className="home-card-icon target" />
-            <h3>Mision</h3>
-            <strong>Maximizar la fiabilidad y disponibilidad del material rodante</strong>
-            <p>
-              Garantizamos el optimo estado y funcionamiento de nuestros trenes,
-              asegurando la seguridad y eficiencia en el transporte ferroviario.
-            </p>
-          </article>
-
-          <article className="home-info-card">
-            <span className="home-card-icon trophy" />
-            <h3>Objetivos</h3>
-            <p>Nuestras metas para el exito</p>
-            <ul>
-              <li>Reducir el tiempo fuera de servicio</li>
-              <li>Optimizar el mantenimiento preventivo</li>
-              <li>Prolongar la vida util de los equipos</li>
-            </ul>
-          </article>
-
-          <article className="home-info-card home-scope-card">
-            <span className="home-card-icon gear" />
-            <h3>Alcance</h3>
-            <strong>Gestion integral del material rodante</strong>
-            <ul>
-              <li>Mantenimiento de locomotoras y coches</li>
-              <li>Gestion de repuestos y recursos</li>
-              <li>Monitorizacion del estado y rendimiento</li>
-              <li>Coordinacion con Infraestructura y Transporte</li>
-            </ul>
-          </article>
-
-          <article className="home-metric-card">
-            <span className="metric-flame" />
-            <strong>+85%</strong>
-            <p>Locomotoras operativas</p>
-          </article>
-
-          <article className="home-metric-card">
-            <span className="metric-team" />
-            <strong>+40</strong>
-            <p>Tecnicos especializados</p>
-          </article>
-        </div>
+        <details className="fleet-accordion" open><summary><span>Tractivo<small>Estado del parque de locomotoras</small></span></summary><FleetOverview {...props} /></details>
+        <details className="fleet-accordion"><summary><span>Remolcado<small>Parque de coches</small></span></summary><div className="fleet-placeholder">Módulo pendiente de incorporación.</div></details>
       </section>
 
       <section className="home-route">

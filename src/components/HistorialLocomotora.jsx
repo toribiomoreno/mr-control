@@ -21,14 +21,15 @@ function isCampaignType(type) {
 
 function displayState(loco) {
   if (loco.estado === 'sin_confirmar') return { icon: '?', key: 'reserva', label: 'Sin estado confirmado' };
+  if (['correctivo', 'preventivo'].includes(loco.estado)) return { icon: 'T', key: 'detenida', label: 'Detenida' };
   const observation = String(loco.observacion || '').toLowerCase();
   if (loco.estado === 'detenida') return { icon: '!', key: 'detenida', label: 'Detenida' };
   if (loco.estado === 'operativa') return { icon: 'OK', key: 'servicio', label: 'Operativa' };
-  if (loco.estado === 'uso_excepcional') return { icon: '!', key: 'uso-excepcional', label: 'Uso condicional' };
+  if (['uso_excepcional', 'uso_condicional'].includes(loco.estado)) return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
   if (observation.includes('uso excepcional')) return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
   if (loco.estado === 'reserva') return { icon: 'II', key: 'reserva', label: 'Reserva' };
-  if (loco.estado === 'servicio') return { icon: 'OK', key: 'servicio', label: 'En servicio' };
-  return { icon: 'T', key: 'mantenimiento', label: 'En mantenimiento' };
+  if (loco.estado === 'servicio') return { icon: 'OK', key: 'servicio', label: 'Operativa' };
+  return { icon: 'T', key: 'detenida', label: 'Detenida' };
 }
 
 export default function HistorialLocomotora({
@@ -58,7 +59,8 @@ export default function HistorialLocomotora({
   const filteredEvents = dateRangeInvalid
     ? []
     : locomotiveEvents.filter((event) => (
-      eventMatchesFilter(event, activeFilter)
+      !event.metadata?.dailyState && !event.metadata?.fleetConfirmation
+      && eventMatchesFilter(event, activeFilter)
       && historyMatchesSearch(event, search)
       && historyMatchesDates(event, appliedDates.from, appliedDates.to)
     ));
@@ -74,17 +76,8 @@ export default function HistorialLocomotora({
       <section className="history-main-panel">
         <header className="history-file-header">
           <div className="history-hero-copy">
-            <div className="history-hero-statusbar">
-              <span className="history-external-sync">
-                <b />
-                Sincronizacion externa activa
-              </span>
-              <span>{loading ? 'Cargando historial...' : 'Supabase'}</span>
-            </div>
-            <p className="eyebrow">Archivo historico ferroviario</p>
-            <h2>Archivo Historico de Locomotora</h2>
             <div className="history-title-row">
-              <strong>{targetLoco.codigo}</strong>
+              <h2>Archivo Histórico · Locomotora {targetLoco.codigo}</h2>
               <span className={`history-state-badge ${currentState.key}`}>
                 <i>{currentState.icon}</i>
                 {currentState.label}
@@ -130,7 +123,7 @@ export default function HistorialLocomotora({
           {!loading && !loadError && filteredEvents.map(event => (
             <div className="timeline-day" key={event.id}>
               <div className="timeline-date"><span>{historyDates(event)}</span></div>
-              <div className="timeline-day-events"><TimelineEvent event={event} /></div>
+              <div className="timeline-day-events"><TimelineEvent event={event} onOpenMaintenance={() => onOpenMaintenance?.(event.id, targetLoco.codigo, event.fecha, event.metadata?.seguimiento?.location)} /></div>
             </div>
           ))}
 
@@ -143,7 +136,7 @@ export default function HistorialLocomotora({
           {!loading && loadError && (
             <div className="history-empty large">
               <strong>Sin conexion al historial</strong>
-              <p>No fue posible conectarse con Supabase.</p>
+              <p>No fue posible cargar el historial.</p>
               <button className="secondary-action" onClick={onRetry} type="button">Reintentar</button>
             </div>
           )}
