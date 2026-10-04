@@ -6,7 +6,7 @@ const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', '
 // Una hora desconocida no equivale a medianoche ni se presenta como una hora real.
 export function compareHistoryEvents(a, b) {
   const date = event => isMaintenance(event) ? event.metadata?.seguimiento?.detentionStart || event.fecha : event.fecha;
-  const time = event => event.metadata?.horaEstimada ? '24:00' : event.hora?.slice(0, 5) || '24:00';
+  const time = event => (isMaintenance(event) && event.metadata?.seguimiento?.detentionTime) || (event.metadata?.horaEstimada ? '24:00' : event.hora?.slice(0, 5) || '24:00');
   const priority = event => event.tipo === 'libro' ? 0 : event.metadata?.dailyState ? 1 : 2;
   return date(b).localeCompare(date(a)) || time(a).localeCompare(time(b))
     || priority(a) - priority(b)

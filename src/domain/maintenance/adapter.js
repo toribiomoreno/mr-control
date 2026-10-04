@@ -1,3 +1,4 @@
+import { validClassification } from './taxonomy.js';
 import { fleet, normalizeUnit, today, wholeLocomotive } from './types.js';
 import { beforeMaintenanceClosure, detentionReason, operationalOutcomes, outcomeLabels } from './view.js';
 
@@ -11,7 +12,7 @@ export function toRegister(events) {
     const id = event.id;
     const observations = (event.actualizaciones || []).map(a => {
       const tracking = a.metadata?.seguimiento || {};
-      return { id: a.id, maintenanceId: id, date: a.fecha, period: tracking.period || 'Período por confirmar', activity: tracking.activity || 'sin_dato', task: a.descripcion || '', cause: tracking.cause || '', staff: a.responsable || event.responsable || 'Por confirmar', system: tracking.system || meta.system || (light ? wholeLocomotive.system : 'Por confirmar'), component: tracking.component || meta.component || (light ? wholeLocomotive.component : 'Por confirmar'), fullDay: !!tracking.fullDay, dayComplete: tracking.dayComplete === true, workDurationDays: tracking.workDurationDays ?? null, confirmedUnknownDuration: !!tracking.confirmedUnknownDuration, staffSpecialty: tracking.staffSpecialty || '', ...(tracking.usefulFraction != null ? { usefulFraction: Number(tracking.usefulFraction) } : {}), allocationNote: tracking.allocationNote || '', weekendEligible: !!tracking.weekendEligible, createdAt: a.createdAt || '', updatedAt: a.updatedAt || '', source: 'Archivo Histórico' };
+      return { id: a.id, maintenanceId: id, date: a.fecha, period: tracking.period || 'Período por confirmar', activity: tracking.activity || 'sin_dato', task: a.descripcion || '', cause: tracking.cause || '', staff: a.responsable || event.responsable || 'Por confirmar', subsystem: tracking.subsystem || '', system: tracking.system || meta.system || (light ? wholeLocomotive.system : 'Por confirmar'), component: tracking.component || meta.component || (light ? wholeLocomotive.component : 'Por confirmar'), fullDay: !!tracking.fullDay, dayComplete: tracking.dayComplete === true, workDurationDays: tracking.workDurationDays ?? null, confirmedUnknownDuration: !!tracking.confirmedUnknownDuration, staffSpecialty: tracking.staffSpecialty || '', ...(tracking.usefulFraction != null ? { usefulFraction: Number(tracking.usefulFraction) } : {}), allocationNote: tracking.allocationNote || '', weekendEligible: !!tracking.weekendEligible, createdAt: a.createdAt || '', updatedAt: a.updatedAt || '', source: 'Archivo Histórico' };
     });
     const confirmed = [meta.detentionStart || '', meta.confirmedThrough || '', ...observations.filter(o => o.activity !== 'sin_dato').map(o => o.date)].sort().at(-1);
     register.episodes.push({ id, unit: normalizeUnit(event.locomotoraCodigo), start: meta.detentionStart || '', end: event.estadoMantenimiento === 'finalizado' ? event.fechaCierre || meta.availableDate || event.fecha : '', confirmedThrough: confirmed, scope: meta.location === 'Boulogne' ? 'Boulogne' : 'Externo', notes: '' });
@@ -36,6 +37,10 @@ export function validateEvent(event, now = today()) {
     assert(meta.outcome, '¿Cómo quedó la máquina después del registro?');
     if (event.tipo === 'correctivo') assert(meta.detentionReason?.trim(), '¿Por qué quedó detenida la máquina?');
   }
+  if (meta.plannedStart) assert(validDate(meta.plannedStart), 'Inicio programado inválido.');
+  if (meta.plannedEnd) assert(validDate(meta.plannedEnd) && meta.plannedEnd >= (meta.plannedStart || meta.detentionStart), 'El fin programado debe ser posterior al inicio.');
+  if (meta.captureVersion >= 4 && operationalOutcomes.includes(meta.outcome)) assert(meta.outcomeConfirmed, 'Confirmá explícitamente la disponibilidad.');
+  if (meta.captureVersion >= 4 && event.tipo === 'correctivo' && !meta.legacyClassification) assert(validClassification(meta.system, meta.subsystem), 'Seleccioná un subsistema del sistema indicado.');
   if (meta.outcome) {
     assert(Object.hasOwn(outcomeLabels, meta.outcome) || meta.outcome === 'disponible', 'Confirmá cómo quedó la máquina.');
     assert(!(event.estadoMantenimiento === 'finalizado' && !operationalOutcomes.includes(meta.outcome) && meta.outcome !== 'detenida'), 'Confirmá si quedó operativa o detenida por otro motivo al finalizar este mantenimiento.');
@@ -61,6 +66,8 @@ export function validateUpdate(event, update, now = today()) {
     if (t.activity === 'sin_dato') assert(t.confirmedUnknownActivity, 'Confirmá que querés dejar la actividad sin información.');
     if (t.outcome === 'pendiente') assert(t.confirmedUnknownOutcome, 'Confirmá que querés dejar el estado posterior pendiente.');
   }
+  if (t.captureVersion >= 4 && operationalOutcomes.includes(t.outcome)) assert(t.outcomeConfirmed, 'Confirmá explícitamente la disponibilidad.');
+  if (t.captureVersion >= 4 && !isLight(event) && ['trabajo','mixto'].includes(t.activity) && !t.legacyClassification) assert(validClassification(t.system, t.subsystem), 'Seleccioná un subsistema del sistema indicado.');
   if (t.outcome) {
     assert(Object.hasOwn(outcomeLabels, t.outcome) || t.outcome === 'disponible', 'Confirmá cómo quedó la máquina.');
     assert(!(update.tipoActualizacion === 'cierre' && !operationalOutcomes.includes(t.outcome) && t.outcome !== 'detenida'), 'Confirmá si el cierre deja la locomotora operativa o detenida por otro motivo.');
@@ -73,7 +80,7 @@ export function validateUpdate(event, update, now = today()) {
   }
   if (update.tipoActualizacion === 'cierre') assert(!(event.actualizaciones || []).some(a => a.id !== update.id && a.fecha > update.fecha && a.metadata?.seguimiento?.activity !== 'sin_dato'), 'Hay actividad posterior a la fecha de cierre.');
   if (t.activity !== 'sin_dato') {
-    if (event.tipo === 'correctivo' && ['trabajo', 'mixto'].includes(t.activity)) {
+    if (!isLight(event) && ['trabajo', 'mixto'].includes(t.activity)) {
       const system = t.system || (!event.metadata?.seguimiento?.intake?.pendingSystem && event.metadata?.seguimiento?.system);
       const component = t.component || (!event.metadata?.seguimiento?.intake?.pendingSystem && event.metadata?.seguimiento?.component);
       assert(system && system !== 'Por confirmar' && component?.trim(), 'Confirmá sistema y parte atacada en esta novedad.');

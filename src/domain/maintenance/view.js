@@ -3,13 +3,13 @@ import { today, shiftDay } from './types.js';
 export const outcomeLabels = {
   continua: 'Continúa el mantenimiento', operativa: 'Operativa',
   acompanada: 'Operativa · sale acompañada', operativa_prueba: 'Operativa · prueba pendiente',
-  prueba: 'Pendiente de prueba', detenida: 'Detenida por otro motivo', pendiente: 'Por confirmar',
+  prueba_parque: 'Pendiente de prueba dinámica en Parque', prueba_linea: 'Pendiente de prueba en línea · salida acompañada', prueba: 'Pendiente de prueba', detenida: 'Detenida por otro motivo', pendiente: 'Por confirmar',
 };
 export const operationalOutcomes = ['operativa', 'disponible', 'acompanada', 'operativa_prueba'];
-export const workDurationLabel = tracking => tracking.workDurationShifts ? `${tracking.workDurationShifts} turno${tracking.workDurationShifts > 1 ? 's' : ''}` : tracking.workDurationDays === 1 ? 'Jornada completa' : tracking.workDurationDays === 0.5 ? 'Media jornada' : tracking.confirmedUnknownDuration ? 'Duración por confirmar' : '';
+export const workDurationLabel = tracking => tracking.workDurationShifts ? `${tracking.workDurationShifts} turno${tracking.workDurationShifts > 1 ? 's' : ''}` : tracking.workSchedule === 'parcial' ? 'Jornada parcial · duración por confirmar' : tracking.workDurationDays === 1 ? 'Jornada completa' : tracking.workDurationDays === 0.5 ? 'Media jornada' : tracking.confirmedUnknownDuration ? 'Duración por confirmar' : '';
 export const isVisibleMaintenance = event => ['preventivo', 'correctivo'].includes(event.tipo) && !event.anulado && event.estadoMantenimiento !== 'cancelado';
 export const maintenanceLabel = event => event.tipo === 'preventivo' ? `Preventivo ${event.preventivoCodigo || 'sin tipo'}` : (event.metadata?.seguimiento?.detentionReason || event.descripcion || event.titulo || 'Correctivo').split('\n')[0];
-export const detentionReason = event => event.metadata?.seguimiento?.detentionReason || (event.tipo === 'preventivo' ? 'Kilometraje' : event.descripcion?.split('\n')[0]) || 'Por confirmar';
+export const detentionReason = event => event.metadata?.seguimiento?.detentionReason || (event.tipo === 'preventivo' ? 'Mantenimiento preventivo programado' : event.descripcion?.split('\n')[0]) || 'Por confirmar';
 export function orderedUpdates(event) {
   return [...(event.actualizaciones || [])].sort((a, b) => `${a.fecha} ${a.hora || ({ Mañana: '06:00', Tarde: '14:00', 'Mañana y tarde': '06:00' }[a.metadata?.seguimiento?.period] || '')} ${a.createdAt || ''}`.localeCompare(`${b.fecha} ${b.hora || ({ Mañana: '06:00', Tarde: '14:00', 'Mañana y tarde': '06:00' }[b.metadata?.seguimiento?.period] || '')} ${b.createdAt || ''}`));
 }
@@ -31,7 +31,7 @@ export function trackingForCurrentState(event, tracking = event.metadata?.seguim
   const closure = orderedUpdates(event).filter(update => update.tipoActualizacion === 'cierre').at(-1);
   const saved = closure?.metadata?.seguimiento?.outcome || tracking.outcome;
   const outcome = saved === 'detenida' ? saved : operationalOutcomes.includes(saved) ? saved : 'operativa';
-  return { ...tracking, outcome, availableDate: outcome === 'detenida' ? undefined : event.fechaCierre || tracking.availableDate || event.fecha };
+  return { ...tracking, outcome, outcomeConfirmed: tracking.outcomeConfirmed || closure?.metadata?.seguimiento?.outcomeConfirmed || false, availableDate: outcome === 'detenida' ? undefined : event.fechaCierre || tracking.availableDate || event.fecha };
 }
 export function outcomeAtEnd(event) {
   if (event.estadoMantenimiento === 'finalizado') {

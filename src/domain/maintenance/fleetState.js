@@ -27,7 +27,7 @@ export function fleetState(loco, events, asOf = today()) {
     const confirmedThrough = reportedDetained && daily.fecha > window.confirmedThrough ? daily.fecha : window.confirmedThrough;
     const unconfirmed = confirmedThrough < asOf;
     return { ...loco, estado: job.tipo, tipoPreventivo: job.preventivoCodigo || '',
-      observacion: [detentionReason(job), daily?.metadata.dailyState.observation].filter(Boolean).join(' · '), lavadoProgramado: false,
+      observacion: [...new Set([detentionReason(job), ['prueba','prueba_parque','prueba_linea'].includes(outcomeAtEnd(job).code) ? outcomeAtEnd(job).label : '', daily?.metadata.dailyState.observation])].filter(Boolean).join(' · '), lavadoProgramado: false,
       conflictoEstado: Boolean((daily && maintenanceAt([job], loco.codigo, daily.fecha, daily.hora?.slice(0, 5)).length && daily.metadata.dailyState.reportedState !== 'detenida') || (!daily && reportDate >= window.confirmedThrough && ['servicio', 'operativa'].includes(loco.estado))), estadoConfirmado: !unconfirmed, fuenteEstado: unconfirmed
         ? `Detención confirmada hasta ${confirmedThrough}; continuidad por confirmar`
         : `Mantenimiento desde ${window.start}${reportedDetained ? ` · continúa según parte del ${daily.fecha}` : ''}` };
@@ -43,7 +43,7 @@ export function fleetState(loco, events, asOf = today()) {
   }
   if (last) {
     if (['operativa', 'acompanada', 'operativa_prueba'].includes(outcome.code)) {
-      return { ...loco, estado: 'operativa', observacion: outcome.code === 'operativa' ? '' : outcome.label,
+      return { ...loco, estado: 'operativa', observacion: [outcome.code === 'operativa' ? '' : outcome.label, daily?.metadata.dailyState.observation].filter(Boolean).join(' · '),
         lavadoProgramado: false, estadoConfirmado: true, fuenteEstado: `Resultado del ${outcome.date}` };
     }
     if (outcome.code === 'detenida') return { ...loco, estado: 'detenida', observacion: outcome.label, needsMaintenance: true, estadoConfirmado: true, fuenteEstado: `Resultado del ${outcome.date}` };

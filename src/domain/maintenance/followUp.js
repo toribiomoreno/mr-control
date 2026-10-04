@@ -38,7 +38,7 @@ export function pendingFollowUps(events, asOf = today(), time = '23:59') {
         resolve(event, result, update.fecha);
         if (result.result === 'pendiente') requests.set(`avance:${update.id}`, { ...followUpRequest({ key: `avance:${update.id}`, codigo: event.locomotoraCodigo, date: update.fecha, kind: result.kind, event, source: 'mantenimiento' }), continuation: true });
       } else {
-        const kind = t.outcome === 'acompanada' ? 'acompanada' : ['operativa_prueba', 'prueba'].includes(t.outcome) || update.estadoUnidadResultante === 'pendiente_de_prueba' ? 'prueba' : '';
+        const kind = ['acompanada','prueba_linea'].includes(t.outcome) ? 'acompanada' : ['operativa_prueba', 'prueba', 'prueba_parque'].includes(t.outcome) || update.estadoUnidadResultante === 'pendiente_de_prueba' ? 'prueba' : '';
         if (kind) requests.set(`avance:${update.id}`, followUpRequest({ key: `avance:${update.id}`, codigo: event.locomotoraCodigo, date: update.fecha, kind, event, source: 'mantenimiento' }));
       }
     }
@@ -47,8 +47,8 @@ export function pendingFollowUps(events, asOf = today(), time = '23:59') {
       resolve(event, result, event.fecha);
       if (result.result === 'pendiente') requests.set(`parte:${event.id}`, { ...followUpRequest({ key: `parte:${event.id}`, codigo: event.locomotoraCodigo, date: event.fecha, kind: result.kind, event, source: 'mantenimiento' }), continuation: true });
     }
-    if (!event.actualizaciones?.length && ['acompanada', 'operativa_prueba', 'prueba'].includes(event.metadata?.seguimiento?.outcome) && event.fecha <= asOf) {
-      const kind = event.metadata.seguimiento.outcome === 'acompanada' ? 'acompanada' : 'prueba';
+    if (!event.actualizaciones?.length && ['acompanada', 'operativa_prueba', 'prueba', 'prueba_parque', 'prueba_linea'].includes(event.metadata?.seguimiento?.outcome) && event.fecha <= asOf) {
+      const kind = ['acompanada','prueba_linea'].includes(event.metadata.seguimiento.outcome) ? 'acompanada' : 'prueba';
       requests.set(`mantenimiento:${event.id}`, followUpRequest({ key: `mantenimiento:${event.id}`, codigo: event.locomotoraCodigo, date: event.fechaCierre || event.fecha, kind, event, source: 'mantenimiento' }));
     }
   }
