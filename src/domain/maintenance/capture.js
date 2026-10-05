@@ -10,7 +10,7 @@ export function buildMaintenanceIntake(values) {
   if (!maintenanceTypes.includes(values.maintenanceType)) throw new Error('Elegí un tipo de mantenimiento válido.');
   if (values.startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.startTime)) throw new Error('La hora de ingreso no es válida.');
   const tipo = values.maintenanceType === 'Correctivo' ? 'correctivo' : 'preventivo';
-  const reason = (values.reason || '').trim();
+  const reason = tipo === 'preventivo' ? 'Kilometraje' : (values.reason || '').trim();
   if (!reason) throw new Error('Completá el motivo del ingreso.');
   const event = { locomotoraCodigo: values.unit, tipo, preventivoCodigo: tipo === 'preventivo' ? values.maintenanceType : null, fecha: values.startDate, hora: values.startTime || null,
     titulo: tipo === 'correctivo' ? 'Correctivo' : `Preventivo ${values.maintenanceType}`, descripcion: reason, responsable: values.staff, especialidad: tipo === 'preventivo' ? 'Todas' : 'Otra', origen: 'manual', estadoMantenimiento: 'en_curso', actualizaciones: [],
@@ -27,10 +27,11 @@ export function editMaintenanceIntake(event, values) {
   const tipo = values.maintenanceType === 'Correctivo' ? 'correctivo' : 'preventivo';
   if (!maintenanceTypes.includes(values.maintenanceType)) throw new Error('Elegí un tipo de mantenimiento válido.');
   const tracking = event.metadata?.seguimiento || {};
+  const reason = tipo === 'preventivo' ? 'Kilometraje' : (values.reason || '').trim();
   const next = { ...event, locomotoraCodigo: values.unit, tipo, preventivoCodigo: tipo === 'preventivo' ? values.maintenanceType : null, fecha: values.startDate, hora: values.startTime || null,
-    metadata: { ...event.metadata, seguimiento: { ...tracking, detentionStart: values.startDate, detentionTime: values.startTime || '', detentionReason: values.reason.trim(), ...(tracking.intake ? { intake: { ...tracking.intake, pendingStart: !values.startTime } } : {}) } } };
+    metadata: { ...event.metadata, seguimiento: { ...tracking, detentionStart: values.startDate, detentionTime: values.startTime || '', detentionReason: reason, ...(tracking.intake ? { intake: { ...tracking.intake, pendingStart: !values.startTime } } : {}) } } };
   next.metadata.seguimiento = trackingForCurrentState(next, next.metadata.seguimiento);
-  if (!values.reason.trim()) throw new Error('Completá el motivo del ingreso.');
+  if (!reason) throw new Error('Completá el motivo del ingreso.');
   if (values.startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.startTime)) throw new Error('La hora de ingreso no es válida.');
   if (isLight(next) && next.responsable !== 'Turno rotativo') throw new Error('Este ingreso tiene otro personal registrado. No se puede convertir a un preventivo liviano sin revisar ese registro.');
   if (tipo !== event.tipo || next.preventivoCodigo !== event.preventivoCodigo) {

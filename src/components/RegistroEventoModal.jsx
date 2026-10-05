@@ -104,7 +104,7 @@ export default function RegistroEventoModal({ locomotoras, selectedLoco, initial
           plannedEnd: form.get('plannedEnd') || '', plannedEndTime: form.get('plannedEndTime') || '',
           subsystem: form.get('subsystem') || '',
           detentionStart: form.get('detentionStart'), location: 'Boulogne',
-          detentionReason: currentType === 'preventivo' ? 'Preventivo programado' : form.get('detentionReason'),
+          detentionReason: currentType === 'preventivo' ? 'Kilometraje' : form.get('detentionReason'),
           outcome,
           ...(fechaCierre ? { availableDate: fechaCierre } : {}),
           system: currentType === 'preventivo' ? wholeLocomotive.system : form.get('system'),

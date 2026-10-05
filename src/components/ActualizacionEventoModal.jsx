@@ -1,6 +1,6 @@
 import { causes, durations, today } from '../domain/maintenance/types.js';
 import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
-import { beforeMaintenanceClosure, operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
+import { beforeMaintenanceClosure, hasMaintenanceDelay, operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
 import { buildMaintenanceIntake, buildProgress } from '../domain/maintenance/capture.js';
 import { nextShiftSelection } from '../domain/maintenance/journal.js';
 import { useState } from 'react';
@@ -19,7 +19,7 @@ export default function ActualizacionEventoModal({ event, mode = 'avance', initi
   const [date, setDate] = useState(initialUpdate?.fecha || initialDate || (event.estadoMantenimiento === 'finalizado' ? event.fechaCierre : today()));
   const [staff, setStaff] = useState(initialUpdate?.responsable || (light ? 'Turno rotativo' : ''));
   const [duration, setDuration] = useState(saved.activity === 'espera' ? '0' : saved.workDurationDays == null ? '' : String(saved.workDurationDays));
-  const [delayed, setDelayed] = useState(saved.delayReported === true || ['espera', 'mixto'].includes(saved.activity) ? 'yes' : initialUpdate?.id && saved.activity === 'trabajo' ? 'no' : '');
+  const [delayed, setDelayed] = useState(hasMaintenanceDelay(saved) ? 'yes' : 'no');
   const [outcome, setOutcome] = useState(saved.outcome || '');
   const [shift, setShift] = useState(saved.shiftNumber || nextShift.number);
   const [shiftResult, setShiftResult] = useState(saved.additionalShiftRequired ? 'extend' : saved.shiftFinished === true ? 'finished' : '');
