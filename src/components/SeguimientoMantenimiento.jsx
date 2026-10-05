@@ -8,8 +8,8 @@ import MaintenanceSheet from './MaintenanceSheet.jsx';
 import { toRegister } from '../domain/maintenance/adapter.js';
 import { today, monday, shiftDay, dateLabel } from '../domain/maintenance/types.js';
 import { maintenanceEfficiency, formatDays, causeName } from '../domain/maintenance/presentation.js';
-import { dailyMaintenance, detentionReason, evidenceQuestions, isoWeek, maintenanceBars, orderedUpdates, outcomeAtEnd, updateOutcomeLabel, workDurationLabel } from '../domain/maintenance/view.js';
-import { registerCsv, efficiencyCsv } from '../domain/maintenance/export.js';
+import { dailyMaintenance, detentionReason, evidenceQuestions, hasMaintenanceDelay, isoWeek, maintenanceBars, orderedUpdates, outcomeAtEnd, updateOutcomeLabel, workDurationLabel } from '../domain/maintenance/view.js';
+import { maintenanceCsv, efficiencyCsv } from '../domain/maintenance/export.js';
 import CargaDatosModal from './CargaDatosModal.jsx';
 import RegistroEventoModal from './RegistroEventoModal.jsx';
 import ActualizacionEventoModal from './ActualizacionEventoModal.jsx';
@@ -55,7 +55,7 @@ function UpdateEntry({ update, event, questions, onEdit, editor, grouped = false
       <p>{[update.responsable, data.staffSpecialty, workDurationLabel(data)].filter(Boolean).join(' · ')}</p>
       {questions.map((q, i) => <p key={i} className="journal-missing">{onEdit ? <button onClick={onEdit}>{q.text} → Completar</button> : q.text}</p>)}
       {onEdit && <button className="journal-edit" onClick={onEdit}>Editar este avance</button>}
-      {(data.delayReported || data.cause) && <p className="journal-delay"><strong>Demora · {causeName(data.cause)}</strong>{data.delayDescription && ` · ${data.delayDescription}`}</p>}
+      {hasMaintenanceDelay(data) ? <p className="journal-delay"><strong>Demora · {causeName(data.cause)}</strong>{data.delayDescription && ` · ${data.delayDescription}`}</p> : <p className="tracking-hint">Demoras: No</p>}
       {data.additionalShiftRequired && <p className="journal-delay">Se agregó otro turno · {causeName(data.extensionCause || data.cause)}{data.extensionReason && ` · ${data.extensionReason}`}</p>}
       <p className="journal-outcome">Estado informado: <strong>{updateOutcomeLabel(event, update)}</strong></p>
     </>}
@@ -99,7 +99,6 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
   const schedule = event ? lightSchedule(event) : null;
   const questions = event ? evidenceQuestions(event) : [];
   const jobs = register.maintenances.filter(item => bars.some(bar => bar.id === item.id));
-  const subset = { ...register, maintenances: jobs, observations: register.observations.filter(o => o.date >= range.from && o.date <= range.to && jobs.some(m => m.id === o.maintenanceId)), episodes: register.episodes.filter(e => jobs.some(m => m.episodeId === e.id)) };
   function changeWeek(value) { setWeek(monday(value)); setDay(''); }
   function select(id) { setSelectedId(id); setEditingMeta(false); setUpdate(null); }
   const inlineUpdate = Boolean(update && updateEvent?.id === selectedId);
@@ -140,7 +139,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
       <div className="week-navigation"><button onClick={() => changeWeek(shiftDay(week, -7))} aria-label="Semana anterior">‹</button><label>Semana del<input type="date" value={week} onChange={e => e.target.value && changeWeek(e.target.value)} /></label><button onClick={() => changeWeek(shiftDay(week, 7))} aria-label="Semana siguiente">›</button></div>
       <label>Locomotora<select value={unit} onChange={e => setUnit(e.target.value)}><option value="">Todas</option>{locomotoras.map(l => <option key={l.codigo}>{l.codigo}</option>)}</select></label>
 
-      <details className="maintenance-export"><summary>Datos</summary><button onClick={() => download(`mantenimientos-${week}.csv`, registerCsv(subset))}>CSV de la semana</button><button onClick={() => download('mantenimientos-completos.csv', registerCsv(register))}>CSV completo</button><button onClick={() => download(`eficiencia-${week}.csv`, efficiencyCsv(register, jobs.filter(m => m.location === 'Boulogne'), range))}>Indicadores CSV</button>{canManage && <button onClick={() => setImporting(true)}>Importar respaldo JSON</button>}</details>
+      <details className="maintenance-export"><summary>Datos</summary><button onClick={() => download(`mantenimientos-${week}.csv`, maintenanceCsv(filteredEvents, range))}>CSV de la semana</button><button onClick={() => download('mantenimientos-completos.csv', maintenanceCsv(filteredEvents))}>CSV completo</button><button onClick={() => download(`eficiencia-${week}.csv`, efficiencyCsv(register, jobs.filter(m => m.location === 'Boulogne'), range))}>Indicadores CSV</button>{canManage && <button onClick={() => setImporting(true)}>Importar respaldo JSON</button>}</details>
     </div>
     <div className="maintenance-key"><span><i className="preventivo" />Preventivos</span><span><i className="correctivo" />Correctivos</span><small>Tocá una barra para ver el mantenimiento o una fecha para revisar ese día.</small></div>
     {error && <p role="alert" className="tracking-error">{error}</p>}
