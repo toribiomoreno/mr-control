@@ -1,9 +1,26 @@
 import { isLight, validateEvent, validDate } from './adapter.js';
 import { operationalOutcomes, trackingForCurrentState } from './view.js';
-import { today } from './types.js';
+import { today, wholeLocomotive } from './types.js';
+import { lightSchedule } from './schedule.js';
 
 export const maintenanceTypes = ['Correctivo', 'E', 'A', 'AB', 'ABC', ...Array.from({ length: 12 }, (_, i) => `Numeral ${i + 1}`)];
 export const intakeTime = event => event.metadata?.seguimiento?.detentionTime || (!event.metadata?.horaEstimada && !event.metadata?.seguimiento?.intake?.pendingStart ? event.hora?.slice(0, 5) : '') || '';
+
+export function buildMaintenanceIntake(values) {
+  if (!maintenanceTypes.includes(values.maintenanceType)) throw new Error('Elegí un tipo de mantenimiento válido.');
+  if (values.startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.startTime)) throw new Error('La hora de ingreso no es válida.');
+  const tipo = values.maintenanceType === 'Correctivo' ? 'correctivo' : 'preventivo';
+  const reason = (values.reason || '').trim();
+  if (!reason) throw new Error('Completá el motivo del ingreso.');
+  const event = { locomotoraCodigo: values.unit, tipo, preventivoCodigo: tipo === 'preventivo' ? values.maintenanceType : null, fecha: values.startDate, hora: values.startTime || null,
+    titulo: tipo === 'correctivo' ? 'Correctivo' : `Preventivo ${values.maintenanceType}`, descripcion: reason, responsable: values.staff, especialidad: tipo === 'preventivo' ? 'Todas' : 'Otra', origen: 'manual', estadoMantenimiento: 'en_curso', actualizaciones: [],
+    metadata: { seguimiento: { captureVersion: 6, detentionStart: values.startDate, detentionTime: values.startTime || '', detentionReason: reason, location: 'Boulogne', outcome: 'continua', system: values.system, subsystem: values.subsystem, component: values.subsystem } } };
+  if (isLight(event)) { event.responsable = 'Turno rotativo'; Object.assign(event.metadata.seguimiento, wholeLocomotive); }
+  const schedule = lightSchedule(event);
+  if (schedule) Object.assign(event.metadata.seguimiento, { plannedStart: schedule.start, plannedStartTime: schedule.startTime, plannedEnd: schedule.end, plannedEndTime: schedule.endTime });
+  validateEvent(event);
+  return event;
+}
 
 // Esta edición solo modifica la identidad y el ingreso. Nunca reemplaza los avances.
 export function editMaintenanceIntake(event, values) {
@@ -31,7 +48,7 @@ export function buildProgress(event, initialUpdate, values) {
   const activity = observation ? 'sin_dato' : values.noWork ? 'espera' : values.delayed ? 'mixto' : 'trabajo';
   const outcome = values.outcome || saved.outcome || 'pendiente';
   const closes = event.estadoMantenimiento !== 'finalizado' && operationalOutcomes.includes(outcome);
-  const type = closes ? 'cierre' : old.id ? old.tipoActualizacion : observation ? 'observacion' : activity === 'espera' ? 'pausa' : 'avance';
+  const type = closes ? 'cierre' : old.id ? old.tipoActualizacion : observation || event.estadoMantenimiento === 'finalizado' ? 'observacion' : activity === 'espera' ? 'pausa' : 'avance';
   if (values.endTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.endTime)) throw new Error('La hora de fin no es válida.');
   const metadata = { ...saved, captureVersion: 6, activity, outcome, outcomeConfirmed: values.outcomeConfirmed || (outcome === saved.outcome && saved.outcomeConfirmed) || false,
     confirmedUnknownActivity: observation, confirmedUnknownOutcome: outcome === 'pendiente',
