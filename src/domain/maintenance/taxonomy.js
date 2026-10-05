@@ -5,7 +5,7 @@ export const subsystemsBySystem = {
   'Carrocería': ['Barandas y escaleras'],
   'Motor diésel': ['Circuito de combustible', 'Conjunto de fuerza', 'Dispositivo de baja presión', 'Gobernador Woodward', 'Inyectores'],
   'Registradores Ctrl.': ['Hombre vivo', 'Tacogenerador', 'Velocímetro'],
-  'Sistema eléctrico': ['Generador auxiliar', 'Motores de tracción', 'Regulador de tensión', 'Relés y contactores'],
+  'Sistema eléctrico': ['Generador auxiliar', 'Motores de tracción', 'Regulador de tensión', 'Relés y contactores', 'Tablero eléctrico'],
   'Sistema neumático': ['Cañería', 'Compresor', 'Mangas', 'Válvulas y presostatos'],
   'Bogies': ['Par montado', 'Cojinetes', 'Bastidor', 'Suspensión', 'Mesa'],
 };

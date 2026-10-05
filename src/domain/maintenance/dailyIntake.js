@@ -16,7 +16,7 @@ export function maintenanceIntake(row, date, time, events, id) {
     descripcion: row.reason.trim(), responsable: light ? wholeLocomotive.staff : 'Parte diario',
     estadoMantenimiento: 'en_curso', estadoUnidadResultante: 'fuera_de_servicio',
     metadata: { seguimiento: {
-      captureVersion: 3, detentionStart: date, confirmedThrough: date, detentionReason: row.reason.trim(),
+      captureVersion: 3, detentionStart: date, confirmedThrough: date, detentionReason: preventive ? 'Kilometraje' : row.reason.trim(),
       location: 'Boulogne', system: preventive ? wholeLocomotive.system : 'Otro',
       component: preventive ? wholeLocomotive.component : row.reason.trim(), outcome: 'continua',
       intake: { source: 'parte-diario', pendingSystem: !preventive, pendingStart: true, pendingLocation: true,
