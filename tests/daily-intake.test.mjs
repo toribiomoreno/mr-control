@@ -43,3 +43,10 @@ test('reimportar un parte idéntico no duplica; un cambio rechaza el lote antes 
  assert.equal(batch.created,0);assert.equal(batch.unchanged,1);assert.deepEqual(batch.rows,[]);
  assert.throws(()=>dailyImportBatch({date,time,rows:[{...row,reason:'Otro motivo'}]},[state],()=> 'b'),/parte distinto/);
 });
+test('parte disponible prepara cierre sin inventar avances y advierte antes de confirmar',()=>{
+ const job=maintenanceIntake(row,'2026-09-30',time,[],'open');
+ const batch=dailyImportBatch({date,time,rows:[{...row,newState:'operativa',reason:''}]},[job],()=> 'daily');
+ assert.equal(batch.rows.length,1);assert.equal(batch.intakes.length,0);assert.equal(batch.rows[0].metadata.dailyState.state,'operativa');assert.deepEqual(batch.rows[0].metadata.dailyState.closingMaintenanceIds,['open']);assert.equal(batch.rows[0].metadata.dailyState.conflict,false);assert.deepEqual(job.actualizaciones,[]);
+ const later={...job,actualizaciones:[{fecha:date,hora:'14:00',tipoActualizacion:'avance'}]};
+ const oldReport=dailyImportBatch({date,time,rows:[{...row,newState:'operativa',reason:''}]},[later],()=> 'daily');assert.equal(oldReport.rows[0].metadata.dailyState.state,'detenida');assert.deepEqual(oldReport.rows[0].metadata.dailyState.closingMaintenanceIds,[]);
+});

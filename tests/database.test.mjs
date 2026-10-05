@@ -26,6 +26,7 @@ test('migración, permisos, importación atómica y cierre estable', async()=>{
  await db.exec(await readFile('supabase/migrations/20260927_permitir_recalculo_interno.sql','utf8'));
  await db.exec(await readFile('supabase/migrations/20260929194849_jornada_confirmada.sql','utf8'));
  const delays=await readFile('supabase/migrations/20261004233410_demoras_maniobras_nueva_falla.sql','utf8');await db.exec(delays);await db.exec(delays);
+ const dailyClosure=await readFile('supabase/migrations/20261005113308_daily_state_closes_maintenance.sql','utf8');await db.exec(dailyClosure);await db.exec(dailyClosure);
  assert.equal((await db.query("select has_function_privilege('anon','public.mr_access(boolean)','EXECUTE') as allowed")).rows[0].allowed,false);
  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${supervisor}';`);
  const e={locomotoraCodigo:'E701',fecha:'2020-01-06',hora:'06:00',tipo:'correctivo',titulo:'Prueba sintética',descripcion:'Ejemplo de validación',responsable:'Turno fijo',especialidad:'Mecanica',estadoMantenimiento:'finalizado',fechaCierre:'2020-01-07',horaCierre:'14:00',metadata:{pilotSourceId:'test-one',seguimiento:{location:'Boulogne',detentionStart:'2020-01-06',system:'Bogie',component:'Prueba'}}};
@@ -59,5 +60,20 @@ test('migración, permisos, importación atómica y cierre estable', async()=>{
  await assert.rejects(db.query('select * from eventos_historial'),/permission denied/);
  await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000099';`);
  assert.equal((await db.query('select * from eventos_historial')).rows.length,0);
+ await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub = '${supervisor}';`);
+ const createOpen=async(unit,from='2020-01-06')=>(await db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,titulo,descripcion,responsable,estado_mantenimiento,metadata) values($1,$2,'06:00','correctivo','Prueba','Registro sintético','Turno fijo','en_curso',$3::jsonb) returning id`,[unit,from,JSON.stringify({seguimiento:{location:'Boulogne',detentionStart:from,system:'Bogie',component:'Prueba',outcome:'continua'}})])).rows[0].id;
+ const first=await createOpen('EM01'),second=await createOpen('EM01');
+ const report=JSON.stringify({dailyState:{reportedState:'operativa',state:'detenida',conflict:true,observation:''}});
+ const imported=(await db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,titulo,responsable,metadata) values('EM01','2020-01-07','06:00','otro','Estado diario','Parte diario',$1::jsonb) returning id,metadata`,[report])).rows[0];
+ assert.equal(imported.metadata.dailyState.state,'operativa');assert.equal(imported.metadata.dailyState.conflict,false);assert.equal(imported.metadata.dailyState.closedMaintenanceIds.length,2);
+ const closed=(await db.query('select estado_mantenimiento,fecha_cierre,hora_cierre,metadata from eventos_historial where id=any($1::uuid[])',[[first,second]])).rows;
+ assert.ok(closed.every(r=>r.estado_mantenimiento==='finalizado'&&r.hora_cierre==='06:00:00'&&r.metadata.seguimiento.outcome==='operativa'));
+ const closures=(await db.query("select * from actualizaciones_evento where evento_id=any($1::uuid[])",[[first,second]])).rows;assert.equal(closures.length,2);assert.ok(closures.every(r=>r.tipo_actualizacion==='cierre'&&r.metadata.seguimiento.activity==='sin_dato'&&!r.metadata.seguimiento.workDurationDays&&r.metadata.dailyStateClosure.confirmedBy===supervisor));
+ await db.query('update eventos_historial set metadata=metadata where id=$1',[imported.id]);assert.equal((await db.query('select count(*)::int as n from actualizaciones_evento where evento_id=any($1::uuid[])',[[first,second]])).rows[0].n,2);
+ const future=await createOpen('E703','2020-01-08');await db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,metadata) values('E703','2020-01-07','06:00','otro',$1::jsonb)`,[report]);assert.equal((await db.query('select estado_mantenimiento from eventos_historial where id=$1',[future])).rows[0].estado_mantenimiento,'en_curso');
+ const later=await createOpen('E704');await db.query(`insert into actualizaciones_evento(evento_id,fecha,hora,tipo_actualizacion,descripcion,metadata) values($1,'2020-01-08','06:00','observacion','Novedad posterior',$2::jsonb)`,[later,JSON.stringify({seguimiento:{activity:'sin_dato'}})]);
+ await db.query(`insert into actualizaciones_evento(evento_id,fecha,hora,tipo_actualizacion,descripcion,responsable,metadata) values($1,'2020-01-08','06:00','avance','Trabajo posterior','Turno fijo',$2::jsonb)`,[later,JSON.stringify({seguimiento:{activity:'trabajo',period:'Mañana'}})]);
+ const old=(await db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,metadata) values('E704','2020-01-07','06:00','otro',$1::jsonb) returning metadata`,[report])).rows[0];assert.equal(old.metadata.dailyState.state,'detenida');assert.equal((await db.query('select estado_mantenimiento from eventos_historial where id=$1',[later])).rows[0].estado_mantenimiento,'en_curso');
+ const atomic=await createOpen('E705');await assert.rejects(db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,metadata) values('E705','2020-01-07','06:00','otro',$1::jsonb),('E706','2999-01-01','06:00','correctivo',$2::jsonb)`,[report,JSON.stringify({seguimiento:{location:'Boulogne',detentionStart:'2999-01-01',system:'Bogie',component:'Prueba'}})]),/Fechas/);assert.equal((await db.query('select estado_mantenimiento from eventos_historial where id=$1',[atomic])).rows[0].estado_mantenimiento,'en_curso');assert.equal((await db.query('select count(*)::int as n from actualizaciones_evento where evento_id=$1',[atomic])).rows[0].n,0);
  await db.close();
 });

@@ -17,6 +17,18 @@ test('agregar trabajo anterior al cierre conserva el mantenimiento finalizado',(
  const progress=buildProgress(closed,null,values);validateUpdate(closed,progress);assert.equal(progress.tipoActualizacion,'observacion');assert.equal(progress.metadata.seguimiento.activity,'trabajo');assert.equal(progress.estadoResultante,null);assert.equal(closed.fechaCierre,'2026-09-23');
  assert.throws(()=>validateUpdate(closed,buildProgress(closed,null,{...values,date:'2026-09-24',outcome:'operativa',outcomeConfirmed:true})),/después del cierre/);
 });
+test('preventivo cerrado: admite completar turnos del mismo día sin reabrir ni cambiar el cierre',()=>{
+ const morning={id:'morning',fecha:'2026-09-22',tipoActualizacion:'avance',responsable:'Turno rotativo',descripcion:'Primer turno',metadata:{seguimiento:{activity:'trabajo',outcome:'continua',period:'Mañana',shiftNumber:1,shiftFinished:true}}};
+ const closing={id:'closing',fecha:'2026-09-22',tipoActualizacion:'cierre',responsable:'Turno rotativo',descripcion:'Cambio de portaescobillas',metadata:{seguimiento:{activity:'trabajo',outcome:'operativa',outcomeConfirmed:true,period:'Tarde',shiftNumber:2,shiftFinished:true}}};
+ const closed={...event,tipo:'preventivo',preventivoCodigo:'A',responsable:'Turno rotativo',estadoMantenimiento:'finalizado',fechaCierre:'2026-09-22',actualizaciones:[morning,closing]};
+ const original=structuredClone(closed);
+ const historical=buildProgress(closed,null,{...values,date:'2026-09-22',period:'Tarde',shiftNumber:2,shiftFinished:true,outcome:'continua'});
+ validateUpdate(closed,historical);assert.equal(historical.tipoActualizacion,'observacion');assert.equal(historical.estadoResultante,null);assert.deepEqual(closed,original);
+ const edited=buildProgress(closed,morning,{...values,period:'Mañana',shiftNumber:1,shiftFinished:true});validateUpdate(closed,edited);
+ assert.throws(()=>validateUpdate({...closed,horaCierre:'14:00'}, {...historical,hora:'15:00'}),/continúa el mantenimiento/);
+ const morningClosure={...closed,actualizaciones:[{...closing,metadata:{seguimiento:{...closing.metadata.seguimiento,period:'Mañana'}}}]};
+ assert.throws(()=>validateUpdate(morningClosure,historical),/continúa el mantenimiento/);
+});
 test('ingreso restringido conserva programación, ubicación, descripción, estado y avances',()=>{
  const original=structuredClone(event); const next=editMaintenanceIntake(event,{unit:'E715',maintenanceType:'Correctivo',reason:'Motivo corregido',startDate:'2026-09-20',startTime:'07:30',location:'Boulogne',plannedEnd:''});
  assert.equal(next.metadata.seguimiento.location,'Externo');assert.equal(next.metadata.seguimiento.plannedEnd,'2026-09-28');assert.equal(next.titulo,event.titulo);assert.equal(next.descripcion,event.descripcion);assert.equal(next.estadoMantenimiento,event.estadoMantenimiento);assert.equal(next.actualizaciones,event.actualizaciones);assert.deepEqual(event,original);

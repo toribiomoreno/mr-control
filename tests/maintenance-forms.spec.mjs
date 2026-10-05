@@ -9,6 +9,7 @@ async function setup(page,row,notes=[]){
   if(new URL(url).pathname.includes('adjuntos_evento'))return route.fulfill({json:[]});
   if(url.includes('actualizaciones_evento')){
    if(req.method()==='POST'){const body={...req.postDataJSON(),id:`note-${notes.length}`};notes.push(body);writes.push(body);return route.fulfill({json:body});}
+   if(req.method()==='PATCH'){const note=notes.find(a=>new URL(url).searchParams.get('id')===`eq.${a.id}`);const patch=req.postDataJSON();Object.assign(note,patch);writes.push(patch);return route.fulfill({json:note});}
    return route.fulfill({json:notes});
   }
   if(req.method()==='PATCH'){writes.push(req.postDataJSON());Object.assign(row,req.postDataJSON());}
@@ -100,6 +101,23 @@ test('ficha nueva adapta la misma carga a preventivo liviano y numeral en móvil
  await page.setViewportSize({width:390,height:844});await page.goto('/tests/seguimiento.html');await page.getByRole('button',{name:'+ Cargar datos'}).click();const form=page.getByRole('form',{name:'Registrar avance'});
  await form.getByLabel('Tipo de mantenimiento').selectOption('AB');await expect(form.getByLabel('¿En qué turno se trabajó?')).toBeVisible();await expect(form.locator('[name="system"]')).toHaveCount(0);await expect(form.getByLabel('Resultado del turno')).toBeVisible();
  await form.getByLabel('Tipo de mantenimiento').selectOption('Numeral 3');await expect(form.getByRole('combobox',{name:'Jornada',exact:true})).toBeVisible();await expect(form.getByLabel('¿En qué turno se trabajó?')).toHaveCount(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});
+test('A cerrado: editar turno 2 y completar trabajos de ese turno conserva el cierre',async({page})=>{
+ const row={...job('preventivo','A'),estado_mantenimiento:'finalizado',fecha_cierre:date},notes=[
+  {id:'morning',evento_id:'job',fecha:date,tipo_actualizacion:'avance',descripcion:'Sin novedad',responsable:'Turno rotativo',metadata:{seguimiento:{activity:'trabajo',outcome:'continua',period:'Mañana',shiftNumber:1,shiftFinished:true,delayReported:false}}},
+  {id:'closing',evento_id:'job',fecha:date,tipo_actualizacion:'cierre',descripcion:'Cambio de portaescobillas',responsable:'Turno rotativo',metadata:{seguimiento:{activity:'trabajo',outcome:'operativa',outcomeConfirmed:true,period:'Tarde',shiftNumber:2,shiftFinished:true,delayReported:false}}}
+ ];const writes=await setup(page,row,notes);
+ await page.getByRole('region',{name:'Turno 2',exact:true}).getByRole('button',{name:'Editar este avance'}).click();
+ const edit=page.getByRole('form',{name:'Editar avance'});await edit.locator('textarea[name="descripcion"]').fill('Cambio de portaescobillas y verificación');await edit.getByRole('button',{name:'Guardar avance'}).click();await expect(edit).toHaveCount(0);
+ expect(notes[1].descripcion).toBe('Cambio de portaescobillas y verificación');expect(notes[1].tipo_actualizacion).toBe('cierre');expect(row.fecha_cierre).toBe(date);
+ await page.getByRole('button',{name:'+ Agregar turno o novedad'}).click();const form=page.getByRole('form',{name:'Registrar avance'});
+ await form.getByLabel('Fecha del turno').fill(date);await form.getByRole('combobox',{name:'Turno',exact:true}).selectOption('2');await form.getByLabel('¿Se pudo trabajar normalmente?').selectOption('yes');await form.getByLabel('¿En qué turno se trabajó?').selectOption('Tarde');await form.locator('textarea[name="descripcion"]').fill('Detalle histórico adicional');await form.getByLabel('Resultado del turno').selectOption('finished');await form.getByLabel('Motivo de la demora').selectOption('Man');await form.locator('textarea[name="delayDescription"]').fill('Maniobras durante el turno');
+ await expect(form.getByLabel('Estado posterior de la máquina')).toHaveCount(0);await form.getByRole('button',{name:'Guardar avance'}).click();await expect(form).toHaveCount(0);
+ expect(writes[1].tipo_actualizacion).toBe('observacion');expect(writes[1].estado_resultante).toBeNull();expect(row.estado_mantenimiento).toBe('finalizado');expect(row.fecha_cierre).toBe(date);expect(notes).toHaveLength(3);
+});
+test('mantenimiento externo no solicita avances diarios ni duraciones faltantes',async({page})=>{
+ const row=job('preventivo','Numeral 8');row.locomotora_codigo='E704';await setup(page,row);await page.getByRole('button',{name:'Cerrar detalle'}).click();await page.getByRole('button',{name:'+ Cargar datos'}).click();await page.getByRole('button',{name:'Mantenimiento existente',exact:true}).click();await page.getByLabel('Mantenimiento existente').selectOption('job');
+ await expect(page.getByText('Mantenimiento externo: no se solicitan avances diarios. Se conservan los datos de ingreso y cierre.')).toBeVisible();await expect(page.getByRole('region',{name:'Información por completar'})).toHaveCount(0);
 });
 test('locomotora de carga legible en móvil y movimiento reducido',async({page})=>{
  let release;const gate=new Promise(resolve=>{release=resolve;});
