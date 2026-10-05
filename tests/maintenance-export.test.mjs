@@ -12,18 +12,18 @@ test('CSV diario conserva días sin detalle y demoras confirmadas; no duplica bl
  const event = { ...job, actualizaciones: [update('2026-09-22', 'Se limpió la caja.'), update('2026-09-22', 'Se reemplazaron contactos.'), update('2026-09-23', 'Se realizó la prueba.', { activity: 'mixto', delayReported: true, cause: 'CAP', delayDescription: 'Vía ocupada' })] };
  const rows = maintenanceCsvRows([event], range, '2026-09-28');
  assert.equal(rows.length, 2); assert.equal(rows[0][8], 'Se limpió la caja. · Se reemplazaron contactos.'); assert.equal(rows[0][9], 'No');
- assert.equal(rows[1][9], 'Sí'); assert.match(rows[1][10], /^CAP · /);
+ assert.equal(rows[1][9], 'Sí'); assert.match(rows[1][10], /^CAP · /); assert.equal(rows[1][11], 'Vía ocupada'); assert.equal(rows[0][11], '');
  assert.equal(rows[0][6], '23/09/2026'); assert.equal(rows[0][7], '');
  const empty = maintenanceCsvRows([job], range, '2026-09-28');
  assert.equal(empty.length, 2); assert.equal(empty[0][9], 'No'); assert.match(empty[0][8], /Sin descripción/);
  assert(!maintenanceCsvHeaders.some(h => /observaciones|eficiencia|personal|duración/i.test(h)));
- assert.equal(rows[0].length, 14);
+ assert.equal(rows[0].length, 15);
 });
 test('exportación respeta rango, anulaciones y prueba posterior al cierre sin repetir resumen semanal', () => {
  const result = { ...update('2026-09-24', 'Prueba acompañada.'), metadata: { seguimiento: { activity: 'sin_dato', outcome: 'operativa' }, followUpResult: { result: 'sin_novedades' } } };
  const event = { ...job, actualizaciones: [result, { ...update('2026-09-27', 'Resumen semanal'), metadata: { weeklySummary: { isoWeek: 39 } } }] };
  const rows = maintenanceCsvRows([event, { ...event, id: 'duplicate', anulado: true }], range, '2026-09-28');
- assert.equal(rows.length, 3); assert.equal(rows.at(-1)[5], '24/09/2026'); assert.match(rows.at(-1)[11], /sin novedades/);
+ assert.equal(rows.length, 3); assert.equal(rows.at(-1)[5], '24/09/2026'); assert.match(rows.at(-1)[12], /sin novedades/);
  assert.equal(maintenanceCsvRows([event], { from: '2026-09-24', to: '2026-09-24' }, '2026-09-28').length, 1);
  const text = maintenanceCsv([event], range, '2026-09-28'); assert(text.startsWith('\uFEFF')); assert(text.includes('\r\n')); assert(!text.includes('Resumen semanal'));
 });
@@ -48,6 +48,16 @@ test('un correctivo acepta tablero eléctrico solo dentro del sistema eléctrico
 });
 test('fin programado de preventivos y subsistema usan la misma clasificación y agenda de la ficha', () => {
  const event = { ...job, tipo: 'preventivo', preventivoCodigo: 'AB', fecha: '2026-09-22', hora: '14:00', metadata: { seguimiento: { detentionStart: '2026-09-22', detentionTime: '14:00' } }, actualizaciones: [update('2026-09-22', 'Revisión de tablero', { system:'Sistema eléctrico',subsystem:'Tablero eléctrico',component:'Cable TB 50' })] };
- const row = maintenanceCsvRows([event],range,'2026-09-28')[0];assert.equal(row[7],'23/09/2026');assert.equal(row[13],'Tablero eléctrico');
+ const row = maintenanceCsvRows([event],range,'2026-09-28')[0];assert.equal(row[7],'23/09/2026');assert.equal(row[14],'Tablero eléctrico');
  const numeral = { ...event, preventivoCodigo:'Numeral 9',metadata:{seguimiento:{detentionStart:'2026-09-22',plannedEnd:'2026-09-25'}} };assert.equal(maintenanceCsvRows([numeral],range,'2026-09-28')[0][7],'25/09/2026');
+});
+
+test('detalle de demora conserva anotaciones históricas, espera y extensión sin inventar el motivo', () => {
+ const notes = [update('2026-09-22', 'Revisión de rodamiento', {activity:'mixto',cause:'CAP',allocationNote:'Gatos ocupados por otra locomotora.'}),update('2026-09-23', 'Espera de repuesto.', {activity:'espera',cause:'MAT'})];
+ let rows=maintenanceCsvRows([{...job,actualizaciones:notes}],range,'2026-09-28');
+ assert.equal(rows[0][11],'Gatos ocupados por otra locomotora.'); assert.equal(rows[1][11],'Espera de repuesto.');
+ notes[0].metadata.seguimiento={activity:'mixto',additionalShiftRequired:true,extensionCause:'FA',extensionReason:'Se encontró fuga adicional.'};
+ notes[1].metadata.seguimiento={activity:'mixto',cause:'MO'};
+ rows=maintenanceCsvRows([{...job,actualizaciones:notes}],range,'2026-09-28');
+ assert.equal(rows[0][11],'Se encontró fuga adicional.'); assert.equal(rows[1][11],'Sin detalle de demora registrado.');
 });
