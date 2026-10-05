@@ -13,6 +13,7 @@ import { registerCsv, efficiencyCsv } from '../domain/maintenance/export.js';
 import CargaDatosModal from './CargaDatosModal.jsx';
 import RegistroEventoModal from './RegistroEventoModal.jsx';
 import ActualizacionEventoModal from './ActualizacionEventoModal.jsx';
+import NuevoMantenimientoModal from './NuevoMantenimientoModal.jsx';
 import MaintenanceIntakeFields from './MaintenanceIntakeFields.jsx';
 import { intakeTime } from '../domain/maintenance/capture.js';
 import { lightSchedule } from '../domain/maintenance/schedule.js';
@@ -112,6 +113,14 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
     } });
     await load(); onChanged?.();
   }
+  async function createMaintenance(payload, files) {
+    if (!canManage) throw new Error('No tenés permisos para cargar mantenimientos.');
+    return createHistorialEvent(payload, files, locomotoras);
+  }
+  async function maintenanceCreated(saved) {
+    setEntryOpen(false); setCreating(false); setSelectedId(saved.id);
+    await load(); onChanged?.();
+  }
   async function saveUpdate(parent, payload, files) {
     if (!canManage || parent.origen === 'vista-previa-privada') throw new Error('Este mantenimiento es de solo lectura.');
     if (payload.id) await editarActualizacion(payload, files, parent); else await crearActualizacion(payload, files, parent);
@@ -163,8 +172,8 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
       {editingMeta && <form onSubmit={saveMeta}><MaintenanceIntakeFields event={event} locomotoras={locomotoras} /><button className="primary-action" disabled={saving}>{saving ? 'Guardando…' : 'Confirmar datos'}</button><button type="button" disabled={saving} onClick={() => setEditingMeta(false)}>Cancelar</button></form>}
       </section>
       <section className="maintenance-detail-section"><div className="maintenance-section-heading"><span>02</span><div><p className="eyebrow">Seguimiento diario</p><h3>Avances</h3></div></div>{!updates.length && <p>No hay avances registrados. El ingreso a mantenimiento no confirma una intervención.</p>}
-      {workGroups.map(group => <section className="journal-day-group" key={group.key} aria-label={group.label}><header><h4>{group.label}{selected.kind === 'liviano' && ` · ${dateLabel(group.date)}`}</h4>{canEdit && selected.kind !== 'liviano' && <button onClick={() => setUpdate({initialDate:group.date})}>+ Otros trabajos realizados en este día</button>}</header>{group.updates.map(a => <UpdateEntry grouped key={a.id} update={a} event={event} questions={questions.filter(q => q.update?.id === a.id)} onEdit={canEdit ? () => setUpdate({ initialUpdate: a }) : null} editor={inlineUpdate && update.initialUpdate?.id === a.id ? <ActualizacionEventoModal key={a.id} event={event} mode={event.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} initialUpdate={a} embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /> : null} />)}{inlineUpdate && !update.initialUpdate?.id && update.initialDate === group.date && <article className="maintenance-journal-entry grouped"><ActualizacionEventoModal key={group.date} {...update} event={event} mode={event.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /></article>}</section>)}
-      {inlineUpdate && !update.initialUpdate?.id && !workGroups.some(group => group.date === update.initialDate) && <article className="maintenance-journal-entry grouped"><ActualizacionEventoModal key={update.initialDate || 'new'} {...update} event={event} mode={event.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /></article>}
+      {workGroups.map(group => <section className="journal-day-group" key={group.key} aria-label={group.label}><header><h4>{group.label}{selected.kind === 'liviano' && ` · ${dateLabel(group.date)}`}</h4>{canEdit && selected.kind !== 'liviano' && <button onClick={() => setUpdate({initialDate:group.date})}>+ Otros trabajos realizados en este día</button>}</header>{group.updates.map(a => <UpdateEntry grouped key={a.id} update={a} event={event} questions={questions.filter(q => q.update?.id === a.id)} onEdit={canEdit ? () => setUpdate({ initialUpdate: a }) : null} editor={inlineUpdate && update.initialUpdate?.id === a.id ? <ActualizacionEventoModal key={a.id} event={event} mode="avance" initialUpdate={a} embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /> : null} />)}{inlineUpdate && !update.initialUpdate?.id && update.initialDate === group.date && <article className="maintenance-journal-entry grouped"><ActualizacionEventoModal key={group.date} {...update} event={event} mode="avance" embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /></article>}</section>)}
+      {inlineUpdate && !update.initialUpdate?.id && !workGroups.some(group => group.date === update.initialDate) && <article className="maintenance-journal-entry grouped"><ActualizacionEventoModal key={update.initialDate || 'new'} {...update} event={event} mode="avance" embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /></article>}
       {canEdit && !inlineUpdate && <button onClick={() => setUpdate({})}>{selected.kind === 'liviano' ? '+ Agregar turno o novedad' : '+ Agregar día de trabajo'}</button>}
       </section>
       {selected.kind === 'liviano' && <section className="maintenance-detail-section"><h3>Novedades del mantenimiento</h3>{!lightNotes.length && <p>No hay novedades adicionales registradas.</p>}{lightNotes.map(a=><UpdateEntry key={a.id} update={a} event={event} questions={[]} onEdit={canEdit?()=>setUpdate({initialUpdate:a}):null} editor={inlineUpdate && update.initialUpdate?.id === a.id ? <ActualizacionEventoModal event={event} mode="observacion" initialUpdate={a} embedded onClose={()=>setUpdate(null)} onSave={saveUpdate} />:null} />)}{canEdit && !inlineUpdate && <button onClick={()=>setUpdate({initialUpdate:{fecha:today(),metadata:{seguimiento:{activity:'sin_dato'}}}})}>+ Agregar novedad</button>}</section>}
@@ -172,9 +181,10 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
       {error && <p role="alert" className="tracking-error">{error}</p>}
     </section></div>}
     {sheetOpen && event && <MaintenanceSheet event={event} canManage={canEdit} onClose={() => setSheetOpen(false)} onSaved={async () => { await load(); onChanged?.(); }} />}
-    {entryOpen && <CargaDatosModal events={events} unit={unit} onClose={() => setEntryOpen(false)} onNew={() => { setEntryOpen(false); setCreating(true); }} onReview={eventId => { setEntryOpen(false); setSelectedId(eventId); setEditingMeta(true); }} onUpdate={(eventId, initialUpdate) => { setEntryOpen(false); setUpdate({ eventId, initialUpdate }); }} />}
-    {creating && <RegistroEventoModal locomotoras={locomotoras} initialDate={initialSelection?.newMaintenance ? initialSelection.fecha : ''} selectedLoco={locomotoras.find(l => l.codigo === unit) || locomotoras[0]} onClose={() => setCreating(false)} onSave={create} />}
-    {update && updateEvent && !inlineUpdate && <ActualizacionEventoModal key={update.initialUpdate?.id || update.initialDate || updateEvent.id} event={updateEvent} mode={updateEvent.estadoMantenimiento === 'finalizado' ? 'observacion' : 'avance'} {...update} onClose={() => setUpdate(null)} onSave={saveUpdate} />}
+    {entryOpen && <CargaDatosModal events={events} unit={unit} onClose={() => setEntryOpen(false)} onNew={() => { setEntryOpen(false); setCreating('evento'); }} newMaintenance={<NuevoMantenimientoModal embedded locomotoras={locomotoras} unit={unit} onClose={() => setEntryOpen(false)} onCreate={createMaintenance} onSaveProgress={(parent, payload, files) => crearActualizacion(payload, files, parent)} onCreated={maintenanceCreated} />} onReview={eventId => { setEntryOpen(false); setSelectedId(eventId); setEditingMeta(true); }} onUpdate={(eventId, initialUpdate) => { setEntryOpen(false); setUpdate({ eventId, initialUpdate }); }} />}
+    {creating === 'evento' && <RegistroEventoModal locomotoras={locomotoras} initialDate={initialSelection?.newMaintenance ? initialSelection.fecha : ''} selectedLoco={locomotoras.find(l => l.codigo === unit) || locomotoras[0]} onClose={() => setCreating(false)} onSave={create} />}
+    {creating && creating !== 'evento' && <NuevoMantenimientoModal locomotoras={locomotoras} unit={unit} initialDate={initialSelection?.fecha} onClose={() => setCreating(false)} onCreate={createMaintenance} onSaveProgress={(parent, payload, files) => crearActualizacion(payload, files, parent)} onCreated={maintenanceCreated} />}
+    {update && updateEvent && !inlineUpdate && <ActualizacionEventoModal key={update.initialUpdate?.id || update.initialDate || updateEvent.id} event={updateEvent} mode="avance" {...update} onClose={() => setUpdate(null)} onSave={saveUpdate} />}
     {importing && <ImportarPilotoModal events={events} onClose={() => setImporting(false)} onImported={async () => { await load(); onChanged?.(); }} />}
   </main>;
 }

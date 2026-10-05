@@ -1,7 +1,7 @@
 import { causes, durations, today } from '../domain/maintenance/types.js';
 import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
 import { beforeMaintenanceClosure, operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
-import { buildProgress } from '../domain/maintenance/capture.js';
+import { buildMaintenanceIntake, buildProgress } from '../domain/maintenance/capture.js';
 import { nextShiftSelection } from '../domain/maintenance/journal.js';
 import { useState } from 'react';
 import VoiceTextarea from './VoiceTextarea.jsx';
@@ -9,12 +9,12 @@ import SystemFields from './SystemFields.jsx';
 import TimeSelect from './TimeSelect.jsx';
 
 const responsibleOptions = ['Turno fijo', 'Turno rotativo', 'Otro sector', 'Personal externo'];
-export default function ActualizacionEventoModal({ event, mode = 'avance', initialUpdate = null, initialDate = '', newEntry = false, embedded = false, onClose, onSave }) {
+export default function ActualizacionEventoModal({ event, mode = 'avance', initialUpdate = null, initialDate = '', newEntry = false, embedded = false, intakeFields = null, creatingMaintenance = false, onClose, onSave }) {
   const saved = initialUpdate?.metadata?.seguimiento || {};
   const light = isLight(event);
   const observation = saved.activity === 'sin_dato' || (mode === 'observacion' && !initialUpdate?.id);
   const nextShift = nextShiftSelection(event);
-  const [date, setDate] = useState(initialUpdate?.fecha || initialDate || today());
+  const [date, setDate] = useState(initialUpdate?.fecha || initialDate || (event.estadoMantenimiento === 'finalizado' ? event.fechaCierre : today()));
   const [staff, setStaff] = useState(initialUpdate?.responsable || (light ? 'Turno rotativo' : ''));
   const [duration, setDuration] = useState(saved.activity === 'espera' ? '0' : saved.workDurationDays == null ? '' : String(saved.workDurationDays));
   const [delayed, setDelayed] = useState(saved.delayReported === true || ['espera', 'mixto'].includes(saved.activity) ? 'yes' : initialUpdate?.id && saved.activity === 'trabajo' ? 'no' : '');
@@ -25,12 +25,13 @@ export default function ActualizacionEventoModal({ event, mode = 'avance', initi
   const needsCause = delayed === 'yes' || (light && shiftResult === 'extend');
   const finalShift = light && Number(shift) >= durations[event.preventivoCodigo] && shiftResult === 'finished';
   const showOutcome = !light || finalShift || observation || initialUpdate?.tipoActualizacion === 'cierre';
-  const implicitDate = !initialUpdate?.id && Boolean(initialDate);
+  const implicitDate = !creatingMaintenance && !initialUpdate?.id && Boolean(initialDate);
   async function submit(e) {
     e.preventDefault(); setError('');
     const form = new FormData(e.currentTarget);
     try {
-      const payload = buildProgress(event, initialUpdate, {
+      const parent = creatingMaintenance && !event.id ? buildMaintenanceIntake({ ...Object.fromEntries(form), staff }) : event;
+      const payload = buildProgress(parent, initialUpdate, {
         observation, date, description: String(form.get('descripcion') || ''), staff,
         delayed: delayed === 'yes', noWork: delayed === 'yes' && duration === '0', duration,
         cause: form.get('cause') || '', delayDescription: String(form.get('delayDescription') || ''),
@@ -42,14 +43,16 @@ export default function ActualizacionEventoModal({ event, mode = 'avance', initi
         period: form.get('period') || saved.period || 'Día completo',
         endTime: form.get('endTime') || '',
       });
-      validateUpdate(event, payload);
+      validateUpdate(parent, payload);
       setSaving(true);
-      await onSave(event, payload, []); onClose();
+      await onSave(parent, payload, []); onClose();
     } catch (err) { setError(err.message || 'No fue posible guardar el avance.'); }
     finally { setSaving(false); }
   }
-  const content = <form className={embedded ? 'maintenance-inline-editor' : 'intervention-modal maintenance-update-modal'} aria-label={initialUpdate?.id ? 'Editar avance' : 'Registrar avance'} onSubmit={submit} onInvalidCapture={e => setError(`Falta completar: ${e.target.closest('label')?.firstChild?.textContent?.trim() || 'un dato obligatorio'}.`)}>
-    <div className="modal-heading"><h3>{newEntry ? 'Completar actividad del registro creado' : initialUpdate?.id ? 'Editar avance' : observation ? 'Agregar novedad' : light ? 'Agregar avance por turno' : 'Agregar bloque de trabajo'}</h3><button type="button" className="modal-close" aria-label="Cerrar" onClick={onClose}>×</button></div>
+  const content = <form className={`maintenance-form ${embedded ? 'maintenance-inline-editor' : 'intervention-modal maintenance-update-modal'}`} aria-label={initialUpdate?.id ? 'Editar avance' : 'Registrar avance'} onSubmit={submit} onInvalidCapture={e => setError(`Falta completar: ${e.target.closest('label')?.firstChild?.textContent?.trim() || 'un dato obligatorio'}.`)}>
+    <div className="modal-heading"><h3>{creatingMaintenance ? 'Nuevo mantenimiento' : newEntry ? 'Completar actividad del registro creado' : initialUpdate?.id ? 'Editar avance' : observation ? 'Agregar novedad' : light ? 'Agregar avance por turno' : 'Agregar bloque de trabajo'}</h3><button type="button" className="modal-close" aria-label="Cerrar" onClick={onClose}>×</button></div>
+    {typeof intakeFields === 'function' ? intakeFields(setDate) : intakeFields}
+    {creatingMaintenance && <h4 className="maintenance-form-step">Trabajo realizado</h4>}
     {implicitDate ? <p className="tracking-hint">Fecha de trabajo: mismo día del bloque</p> : <label>{light ? 'Fecha del turno' : 'Fecha de trabajo'}<input name="fecha" type="date" value={date} onChange={e => setDate(e.target.value)} min={event.fecha} max={event.estadoMantenimiento === 'finalizado' && !observation ? event.fechaCierre : today()} required /></label>}
     {!observation && (light ? <>
       <label>Turno<select name="shiftNumber" value={shift} onChange={e => setShift(e.target.value)} required>{Array.from({ length: durations[event.preventivoCodigo] }, (_, i) => <option key={i + 1} value={i + 1}>Turno {i + 1}</option>)}</select></label>

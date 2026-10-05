@@ -139,3 +139,18 @@
 @media(max-width:650px) { .maintenance-intake-fields { grid-template-columns:1fr; } }
 
 .tracking-detail > .modal-heading .maintenance-type { font-size:18px; font-weight:700; padding:9px 13px; }
+
+.maintenance-form { display:grid; gap:16px; }
+.maintenance-form > label { display:grid; gap:8px; }
+.maintenance-form input,.maintenance-form select,.maintenance-form textarea { width:100%; box-sizing:border-box; }
+.maintenance-capture-options { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0 20px; }
+.maintenance-capture-options button[aria-pressed="true"] { border-color:#67e8f9; background:#183b50; color:#e0faff; }
+.maintenance-form-step { margin:0; color:#e2e8f0; font-size:17px; }
+.maintenance-intake-fields:disabled { opacity:.7; }
+.maintenance-form .tracking-confirm input { width:18px; height:18px; margin:0; }
+body:has(.tracking-page) { min-width:320px; }
+@media(max-width:650px) {
+  .tracking-page { padding:20px 16px; }
+  .maintenance-heading,.tracking-toolbar { flex-wrap:wrap; }
+  .maintenance-form,.maintenance-form fieldset,.maintenance-form label { min-width:0; }
+}
