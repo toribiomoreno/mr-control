@@ -12,6 +12,8 @@ const responsibleOptions = ['Turno fijo', 'Turno rotativo', 'Otro sector', 'Pers
 export default function ActualizacionEventoModal({ event, mode = 'avance', initialUpdate = null, initialDate = '', newEntry = false, embedded = false, intakeFields = null, creatingMaintenance = false, onClose, onSave }) {
   const saved = initialUpdate?.metadata?.seguimiento || {};
   const light = isLight(event);
+  const closed = event.estadoMantenimiento === 'finalizado';
+  const historicalShift = light && closed && initialUpdate?.tipoActualizacion !== 'cierre';
   const observation = saved.activity === 'sin_dato' || (mode === 'observacion' && !initialUpdate?.id);
   const nextShift = nextShiftSelection(event);
   const [date, setDate] = useState(initialUpdate?.fecha || initialDate || (event.estadoMantenimiento === 'finalizado' ? event.fechaCierre : today()));
@@ -24,7 +26,7 @@ export default function ActualizacionEventoModal({ event, mode = 'avance', initi
   const [error, setError] = useState(''), [saving, setSaving] = useState(false);
   const needsCause = delayed === 'yes' || (light && shiftResult === 'extend');
   const finalShift = light && Number(shift) >= durations[event.preventivoCodigo] && shiftResult === 'finished';
-  const showOutcome = !light || finalShift || observation || initialUpdate?.tipoActualizacion === 'cierre';
+  const showOutcome = !light || (!historicalShift && (finalShift || observation || initialUpdate?.tipoActualizacion === 'cierre'));
   const implicitDate = !creatingMaintenance && !initialUpdate?.id && Boolean(initialDate);
   async function submit(e) {
     e.preventDefault(); setError('');
@@ -52,6 +54,7 @@ export default function ActualizacionEventoModal({ event, mode = 'avance', initi
   const content = <form className={`maintenance-form ${embedded ? 'maintenance-inline-editor' : 'intervention-modal maintenance-update-modal'}`} aria-label={initialUpdate?.id ? 'Editar avance' : 'Registrar avance'} onSubmit={submit} onInvalidCapture={e => setError(`Falta completar: ${e.target.closest('label')?.firstChild?.textContent?.trim() || 'un dato obligatorio'}.`)}>
     <div className="modal-heading"><h3>{creatingMaintenance ? 'Nuevo mantenimiento' : newEntry ? 'Completar actividad del registro creado' : initialUpdate?.id ? 'Editar avance' : observation ? 'Agregar novedad' : light ? 'Agregar avance por turno' : 'Agregar bloque de trabajo'}</h3><button type="button" className="modal-close" aria-label="Cerrar" onClick={onClose}>×</button></div>
     {typeof intakeFields === 'function' ? intakeFields(setDate) : intakeFields}
+    {closed && !observation && <p className="tracking-hint">Podés completar o corregir trabajos históricos hasta la fecha de fin. Agregar un trabajo conserva el cierre y la disponibilidad registrados.</p>}
     {creatingMaintenance && <h4 className="maintenance-form-step">Trabajo realizado</h4>}
     {implicitDate ? <p className="tracking-hint">Fecha de trabajo: mismo día del bloque</p> : <label>{light ? 'Fecha del turno' : 'Fecha de trabajo'}<input name="fecha" type="date" value={date} onChange={e => setDate(e.target.value)} min={event.fecha} max={event.estadoMantenimiento === 'finalizado' && !observation ? event.fechaCierre : today()} required /></label>}
     {!observation && (light ? <>
