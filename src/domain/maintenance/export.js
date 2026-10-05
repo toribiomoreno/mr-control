@@ -6,7 +6,7 @@ export function csv(rows) {
     const cell = (v) => { const s = String(v); return '"' + (/^[\s]*[=+\-@]|^[\t\r]/.test(s) ? "'" + s : s).replaceAll('"', '""') + '"'; };
     return '\uFEFF' + rows.map(row => row.map(cell).join(';')).join('\r\n');
 }
-export const maintenanceCsvHeaders = ['Semana', 'Máquina', 'Tipo de mantenimiento', 'Motivo', 'Fecha de detención', 'Fecha del día trabajado', 'Fecha de fin', 'Fecha de fin programada', 'Trabajo realizado', '¿Hubo demora?', 'Causa raíz de la demora', 'Estado al finalizar el día', 'Sistema', 'Subsistema'];
+export const maintenanceCsvHeaders = ['Semana', 'Máquina', 'Tipo de mantenimiento', 'Motivo', 'Fecha de detención', 'Fecha del día trabajado', 'Fecha de fin', 'Fecha de fin programada', 'Trabajo realizado', '¿Hubo demora?', 'Causa raíz de la demora', 'Motivo u observación de la demora', 'Estado al finalizar el día', 'Sistema', 'Subsistema'];
 const distinct = values => [...new Set(values.filter(Boolean))];
 export function maintenanceCsvRows(events, range, now = today()) {
     const rows = [];
@@ -31,6 +31,10 @@ export function maintenanceCsvRows(events, range, now = today()) {
             const work = daily.filter(a => ['trabajo', 'mixto'].includes(a.metadata?.seguimiento?.activity));
             const latest = daily.at(-1) || updates.filter(a => a.fecha < date && a.metadata?.seguimiento?.outcome).at(-1);
             const codes = distinct(tracking.filter(hasMaintenanceDelay).map(t => t.extensionCause || t.cause).filter(c => c !== 'PENDIENTE'));
+            const delayNotes = distinct(daily.filter(a => hasMaintenanceDelay(a.metadata?.seguimiento)).map(a => {
+                const t = a.metadata.seguimiento;
+                return distinct([t.delayDescription, t.extensionReason]).join(' · ') || t.allocationNote || (t.activity === 'espera' ? a.descripcion : '') || 'Sin detalle de demora registrado.';
+            }));
             const meta = event.metadata?.seguimiento || {};
             const plannedEnd = event.tipo === 'preventivo' ? lightSchedule(event)?.end || meta.plannedEnd : '';
             const descriptions = distinct((work.length ? work : daily).map(a => a.descripcion));
@@ -41,6 +45,7 @@ export function maintenanceCsvRows(events, range, now = today()) {
                 event.fechaCierre ? dateLabel(event.fechaCierre) : '', plannedEnd ? dateLabel(plannedEnd) : '',
                 descriptions.join(' · ') || 'Sin descripción de trabajo registrada.',
                 tracking.some(hasMaintenanceDelay) ? 'Sí' : 'No', codes.map(c => `${c} · ${causeName(c)}`).join(' / '),
+                delayNotes.join(' · '),
                 latest ? updateOutcomeLabel(event, latest) : 'Sin confirmar',
                 distinct(tracking.map(t => t.system || meta.system)).join(' · ') || meta.system || 'Sin confirmar',
                 distinct(tracking.map(t => t.subsystem || meta.subsystem || t.component || meta.component)).join(' · ') || meta.subsystem || meta.component || 'Sin confirmar',
