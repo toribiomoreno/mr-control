@@ -11,8 +11,8 @@ import { pendingFollowUps } from '../src/domain/maintenance/followUp.js';
 const date='2026-09-21';
 const base={id:'job',locomotoraCodigo:'E701',tipo:'correctivo',fecha:date,hora:'10:00',estadoMantenimiento:'en_curso',metadata:{seguimiento:{detentionStart:date,detentionReason:'Revisión sintética',system:'Motor diésel',subsystem:'Inyectores',component:'Inyectores',location:'Boulogne',outcome:'continua'}},actualizaciones:[]};
 const note=(id,date,extra={})=>({id,fecha:date,hora:'14:00',tipoActualizacion:'avance',responsable:'Turno fijo',descripcion:'Trabajo de prueba',metadata:{seguimiento:{captureVersion:4,system:'Motor diésel',subsystem:'Inyectores',component:'Inyectores',period:'Mañana',activity:'trabajo',workDurationDays:1,outcome:'continua',...extra}}});
-test('8 sistemas y 26 subsistemas únicos; no hay correspondencias cruzadas',()=>{
- assert.equal(Object.keys(subsystemsBySystem).length,8);const all=Object.values(subsystemsBySystem).flat();assert.equal(all.length,26);assert.equal(new Set(all).size,26);assert.equal(validClassification('Motor diésel','Par montado'),false);
+test('8 sistemas y 27 subsistemas únicos; no hay correspondencias cruzadas',()=>{
+ assert.equal(Object.keys(subsystemsBySystem).length,8);const all=Object.values(subsystemsBySystem).flat();assert.equal(all.length,27);assert.equal(new Set(all).size,27);assert.equal(validClassification('Motor diésel','Par montado'),false);assert.equal(validClassification('Sistema eléctrico','Tablero eléctrico'),true);assert.equal(validClassification('Motor diésel','Tablero eléctrico'),false);
 });
 test('cobertura compara operativas con 16 y unifica uso condicional',()=>{
  const result=summarizeFleet([...Array.from({length:15},()=>({estado:'operativa'})),{estado:'correctivo'},{estado:'preventivo'},{estado:'reserva'},{estado:'uso_condicional'}]);assert.equal(result.balance,-1);assert.equal(result.detenida,2);assert.equal(result.uso_excepcional,1);assert.equal(result.coverage,93.75);
