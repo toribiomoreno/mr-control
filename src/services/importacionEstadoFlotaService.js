@@ -374,6 +374,7 @@ export function buildFleetImportPreview({ date, time, text, locomotoras, mainten
     if (row.unit && !duplicate) seen.set(row.unit, row);
     if (stateResult.state === 'detenida' && classification.classification === 'sin_clasificar' && !row.reason?.trim()) warnings.push('Falta el motivo de la detención. Completalo al cargar datos en Mantenimientos.');
     const snapshot = dailyStateRecord({ unit: row.unit, reportDate: effectiveDate, reportTime: effectiveTime, newState: stateResult.state, reason: row.reason }, maintenanceEvents);
+    if (snapshot.closingMaintenanceIds.length) warnings.push(`Al confirmar el parte se cerrarán ${snapshot.closingMaintenanceIds.length} mantenimiento(s) abierto(s) y la máquina quedará Operativa, con fecha y hora de este parte.`);
     if (snapshot.conflict) warnings.push(`El parte informa ${stateResult.label}, pero hay un mantenimiento abierto en esa fecha y hora: se conserva Detenida hasta confirmar el cierre.`);
     if (snapshot.needsMaintenance && row.reason?.trim()) warnings.push(classification.classification === 'preventivo' && !/^(E|A|AB|ABC|Numeral ([1-9]|1[0-2]))$/.test(classification.preventiveCode)
       ? 'Falta el código preventivo; completalo en Mantenimientos.'
