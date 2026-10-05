@@ -16,12 +16,17 @@ export function maintenanceAt(events, code, date, time = '06:00') {
 
 export function dailyStateRecord(row, events = []) {
   const active = maintenanceAt(events, row.unit, row.reportDate, row.reportTime);
-  const conflict = active.length > 0 && row.newState !== 'detenida';
+  const closing = row.newState === 'operativa' ? active.filter(event => event.estadoMantenimiento !== 'finalizado'
+    && !(event.actualizaciones || []).some(update => update.tipoActualizacion !== 'observacion'
+      && stamp(update.fecha, update.hora || ({ Mañana: '06:00', Tarde: '14:00' }[update.metadata?.seguimiento?.period] || '00:00')) > stamp(row.reportDate, row.reportTime))) : [];
+  const remaining = active.filter(event => !closing.includes(event));
+  const conflict = remaining.length > 0 && row.newState !== 'detenida';
   return {
     reportedState: row.newState,
-    state: active.length ? 'detenida' : row.newState,
+    state: remaining.length ? 'detenida' : row.newState,
     observation: row.reason || '',
-    maintenanceIds: active.map(event => event.id),
+    maintenanceIds: remaining.map(event => event.id),
+    closingMaintenanceIds: closing.map(event => event.id),
     conflict,
     needsMaintenance: row.newState === 'detenida' && !active.length,
     classification: row.classification || '',

@@ -19,7 +19,14 @@ export function beforeMaintenanceClosure(event, update) {
   if (update.fecha < event.fechaCierre) return true;
   if (update.fecha !== event.fechaCierre) return false;
   const closure = orderedUpdates(event).filter(a => a.tipoActualizacion === 'cierre').at(-1);
-  if (update.hora && closure?.hora) return update.hora < closure.hora;
+  const closureTime = closure?.hora || event.horaCierre;
+  if (update.hora && closureTime) return update.hora < closureTime;
+  // Los turnos históricos del día del cierre también pueden completarse después.
+  const periods = { Mañana: 0, Tarde: 1 };
+  const period = periods[update.metadata?.seguimiento?.period];
+  const closingPeriod = periods[closure?.metadata?.seguimiento?.period];
+  if (period != null && closingPeriod != null && period !== closingPeriod) return period < closingPeriod;
+  if (update.tipoActualizacion === 'observacion' && ['trabajo', 'mixto', 'espera'].includes(update.metadata?.seguimiento?.activity)) return true;
   const original = (event.actualizaciones || []).find(a => a.id === update.id);
   if (!original || original.fecha !== update.fecha) return false;
   if (original.metadata?.seguimiento?.outcome === 'continua') return true;
