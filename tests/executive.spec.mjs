@@ -31,7 +31,7 @@ test('Inicio unifica disponibilidad, filtros, histórico y dos bloques con cierr
  await expect(page.getByRole('button',{name:'Parque',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Operativas16',exact:true}).click();await expect(page.locator('.fleet-unit')).toHaveCount(16);
  await page.getByRole('button',{name:'Mantenimientos',exact:true}).click();
- await page.getByRole('button',{name:'+ Cargar datos',exact:true}).click();await page.getByRole('button',{name:'Crear un registro nuevo'}).click();
+ await page.getByRole('button',{name:'+ Cargar datos',exact:true}).click();await page.getByRole('button',{name:'Otros registros: lavado o alistamiento'}).click();
  await page.getByRole('combobox',{name:'Locomotora',exact:true}).last().selectOption('E701');
  await page.getByLabel('Fecha',{exact:true}).fill(date);await page.getByLabel('Tipo de evento').selectOption('correctivo');
  await page.getByLabel('Trabajo o intervención (título breve)').fill('Correctivo sintético');await page.locator('select[name="especialidad"]').selectOption('Mecanica');await page.getByLabel('Quien lo ataco').selectOption('Turno fijo');await page.locator('textarea[name="descripcion"]').fill('Revisión sintética de inyectores');

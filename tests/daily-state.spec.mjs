@@ -53,7 +53,7 @@ test('Parque solo consulta e importa partes; faltantes se preguntan al cargar da
  await expect(page.getByRole('button',{name:'Revisar estado pendiente'})).toHaveCount(0);
  await page.getByRole('button',{name:'Mantenimientos',exact:true}).click();
  await page.getByRole('button',{name:'+ Cargar datos',exact:true}).click();
- await page.getByLabel('Mantenimiento existente').selectOption(job.id);
+ await page.getByRole('button',{name:'Mantenimiento existente',exact:true}).click();await page.getByLabel('Mantenimiento existente').selectOption(job.id);
  await expect(page.getByRole('region',{name:'Información por completar'})).toContainText('¿Qué ocurrió el 30/09/2026?');
  await page.screenshot({path:'/workspace/scratch/7ec95ebdf471/carga-datos-preguntas.png'});
 });

@@ -1,11 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildProgress, editMaintenanceIntake } from '../src/domain/maintenance/capture.js';
+import { buildMaintenanceIntake, buildProgress, editMaintenanceIntake } from '../src/domain/maintenance/capture.js';
 import { validateUpdate } from '../src/domain/maintenance/adapter.js';
 import { nextShiftSelection, journalGroups } from '../src/domain/maintenance/journal.js';
 import { validClassification } from '../src/domain/maintenance/taxonomy.js';
 const event = { id:'example', locomotoraCodigo:'E714', tipo:'correctivo', titulo:'Ingreso original', descripcion:'Registro original', responsable:'Turno fijo', fecha:'2026-09-21', hora:'06:00', estadoMantenimiento:'en_curso', metadata:{ source:'original', seguimiento:{captureVersion:4, detentionStart:'2026-09-21', detentionTime:'06:00', detentionReason:'Baja presión', location:'Externo', system:'Motor diésel', subsystem:'Gobernador Woodward', component:'Impulsor', outcome:'continua', plannedStart:'2026-09-21', plannedEnd:'2026-09-28'} }, actualizaciones:[] };
 const values = { date:'2026-09-22', description:'Revisión', staff:'Turno fijo', system:'Sistema eléctrico', subsystem:'Relés y contactores', duration:'.5', delayed:false, outcome:'continua' };
+test('ficha nueva separa ingreso y trabajo, y cierra sólo con disponibilidad confirmada',()=>{
+ const intake=buildMaintenanceIntake({unit:'E714',maintenanceType:'Correctivo',reason:'No acciona el contactor',startDate:'2026-09-21',startTime:'06:30',staff:values.staff,system:values.system,subsystem:values.subsystem});
+ assert.equal(intake.descripcion,'No acciona el contactor');assert.equal(intake.estadoMantenimiento,'en_curso');assert.equal(intake.hora,'06:30');
+ const progress=buildProgress(intake,null,{...values,outcome:'operativa',outcomeConfirmed:true});validateUpdate(intake,progress);assert.equal(progress.tipoActualizacion,'cierre');assert.equal(progress.descripcion,'Revisión');
+ const light=buildMaintenanceIntake({unit:'E714',maintenanceType:'AB',reason:'Por ciclo',startDate:'2026-09-21',startTime:'14:00'});assert.equal(light.responsable,'Turno rotativo');assert.equal(light.preventivoCodigo,'AB');
+});
+test('agregar trabajo anterior al cierre conserva el mantenimiento finalizado',()=>{
+ const closed={...event,estadoMantenimiento:'finalizado',fechaCierre:'2026-09-23'};
+ const progress=buildProgress(closed,null,values);validateUpdate(closed,progress);assert.equal(progress.tipoActualizacion,'observacion');assert.equal(progress.metadata.seguimiento.activity,'trabajo');assert.equal(progress.estadoResultante,null);assert.equal(closed.fechaCierre,'2026-09-23');
+ assert.throws(()=>validateUpdate(closed,buildProgress(closed,null,{...values,date:'2026-09-24',outcome:'operativa',outcomeConfirmed:true})),/después del cierre/);
+});
 test('ingreso restringido conserva programación, ubicación, descripción, estado y avances',()=>{
  const original=structuredClone(event); const next=editMaintenanceIntake(event,{unit:'E715',maintenanceType:'Correctivo',reason:'Motivo corregido',startDate:'2026-09-20',startTime:'07:30',location:'Boulogne',plannedEnd:''});
  assert.equal(next.metadata.seguimiento.location,'Externo');assert.equal(next.metadata.seguimiento.plannedEnd,'2026-09-28');assert.equal(next.titulo,event.titulo);assert.equal(next.descripcion,event.descripcion);assert.equal(next.estadoMantenimiento,event.estadoMantenimiento);assert.equal(next.actualizaciones,event.actualizaciones);assert.deepEqual(event,original);

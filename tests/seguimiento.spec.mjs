@@ -30,14 +30,14 @@ test('semana, detalle, eficiencia, corrección y CSV',async({page})=>{
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Indicadores CSV',exact:true}).click();expect((await download).suggestedFilename()).toBe('eficiencia-2026-09-21.csv');
  await page.getByText('Datos',{exact:true}).click();
  await page.getByRole('button',{name:'+ Cargar datos'}).click();
- await page.getByLabel('Mantenimiento existente').selectOption('example');
+ await page.getByRole('button',{name:'Mantenimiento existente',exact:true}).click();await page.getByLabel('Mantenimiento existente').selectOption('example');
  await page.getByLabel('Qué querés registrar').selectOption('first');
  await page.getByRole('button',{name:'Continuar con este mantenimiento'}).click();
  await expect(page.getByLabel('¿Tuviste alguna demora?')).toHaveValue('yes');
  await expect(page.getByLabel('Estado posterior de la máquina')).toHaveValue('continua');
  await page.getByRole('button',{name:'Cerrar',exact:true}).click();
  await page.getByRole('button',{name:'+ Cargar datos'}).click();
- await page.getByRole('button',{name:'Crear un registro nuevo'}).click();
+ await page.getByRole('button',{name:'Otros registros: lavado o alistamiento'}).click();
 await page.getByLabel('Tipo de evento').selectOption('preventivo');await expect(page.getByText(/Locomotora completa · turno rotativo/)).toBeVisible();
  await expect(page.getByLabel('¿Qué sistema estamos atacando?')).toHaveCount(0);
  await page.getByLabel('Tipo de evento').selectOption('correctivo');await expect(page.getByLabel('¿Qué sistema estamos atacando?')).toBeVisible();
@@ -60,7 +60,7 @@ test('ingreso seguido de actividad: hora desconocida y media jornada sin pérdid
  await page.goto('/tests/seguimiento.html');
  await expect(page.getByText('Cargando mantenimientos…')).toHaveCount(0);
  await page.getByRole('button',{name:'+ Cargar datos'}).click();
- await page.getByRole('button',{name:'Crear un registro nuevo'}).click();
+ await page.getByRole('button',{name:'Otros registros: lavado o alistamiento'}).click();
  await page.getByLabel('Tipo de evento').selectOption('correctivo');
  await page.getByLabel('Fecha',{exact:true}).fill('2026-09-21');
  await page.getByLabel('Trabajo o intervención (título breve)').fill('Cambio de válvula');

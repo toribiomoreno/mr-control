@@ -6,7 +6,7 @@ async function setup(page,row,notes=[]){
  await page.route('http://127.0.0.1:54321/**',route=>{
   const req=route.request(),url=req.url();
   if(url.includes('seguimiento_version'))return route.fulfill({json:1});
-  if(url.includes('adjuntos_evento'))return route.fulfill({json:[]});
+  if(new URL(url).pathname.includes('adjuntos_evento'))return route.fulfill({json:[]});
   if(url.includes('actualizaciones_evento')){
    if(req.method()==='POST'){const body={...req.postDataJSON(),id:`note-${notes.length}`};notes.push(body);writes.push(body);return route.fulfill({json:body});}
    return route.fulfill({json:notes});
@@ -58,4 +58,52 @@ test('nuevo día comparte el editor y confirma continuidad anterior sin liberar 
 test('AB iniciado por la tarde calcula el fin y ofrece sólo los dos turnos permitidos',async({page})=>{
  const row=job('preventivo','AB'),notes=[{id:'first',evento_id:'job',fecha:date,tipo_actualizacion:'avance',descripcion:'Primer turno',responsable:'Turno rotativo',metadata:{seguimiento:{activity:'trabajo',outcome:'continua',shiftNumber:1,shiftFinished:true,period:'Tarde',workDurationShifts:1}}}];await setup(page,row,notes);
  await expect(page.locator('.tracking-facts').getByText('22/09/2026 · Turno tarde · 22:00',{exact:true})).toBeVisible();await page.getByRole('button',{name:'+ Agregar turno o novedad'}).click();expect(await page.locator('select[name="period"] option').allTextContents()).toEqual(['Seleccionar','Mañana','Tarde']);
+});
+
+test('Cargar datos usa la ficha común con ingreso al principio y guarda ingreso y trabajo juntos',async({page})=>{
+ const rows=[],notes=[];
+ await page.route('http://127.0.0.1:54321/**',route=>{
+  const req=route.request(),url=req.url();
+  if(url.includes('seguimiento_version'))return route.fulfill({json:1});
+  if(new URL(url).pathname.includes('adjuntos_evento'))return route.fulfill({json:[]});
+  if(url.includes('actualizaciones_evento')){
+   if(req.method()==='POST'){const row={...req.postDataJSON(),id:'progress'};notes.push(row);return route.fulfill({json:row});}
+   return route.fulfill({json:notes});
+  }
+  if(req.method()==='POST'){const row={...req.postDataJSON(),id:'intake'};rows.push(row);return route.fulfill({json:row});}
+  if(req.method()==='PATCH')Object.assign(rows[0],req.postDataJSON());
+  return route.fulfill({json:rows});
+ });
+ await page.goto('/tests/seguimiento.html');await page.getByRole('button',{name:'+ Cargar datos'}).click();
+ const form=page.getByRole('form',{name:'Registrar avance'});
+ const fields=await form.locator('[name]').evaluateAll(nodes=>nodes.map(n=>n.name));
+ expect(fields.slice(0,5)).toEqual(['unit','maintenanceType','reason','startDate','startTime']);
+ expect(fields.slice(5)).toEqual(['fecha','system','subsystem','responsable','workDurationDays','descripcion']);
+ await form.getByRole('combobox',{name:'Equipo',exact:true}).selectOption('E702');await form.getByLabel('Motivo del ingreso').fill('Falla eléctrica');await form.getByLabel('Fecha de ingreso').fill(date);
+ await expect(form.getByLabel('Fecha de trabajo',{exact:true})).toHaveValue(date);
+ await form.getByLabel('¿Qué sistema estamos atacando?').selectOption('Sistema eléctrico');await form.getByLabel('Subsistema',{exact:true}).selectOption('Relés y contactores');await form.getByLabel('¿Quién la trabajó?').selectOption('Turno fijo');await form.getByRole('combobox',{name:'Jornada',exact:true}).selectOption('0.5');await form.locator('textarea[name="descripcion"]').fill('Contactores revisados');await form.getByLabel('¿Tuviste alguna demora?').selectOption('no');await form.getByLabel('Estado posterior de la máquina').selectOption('operativa');await form.locator('input[name="confirmAvailability"]').check();
+ await page.screenshot({path:'/workspace/scratch/7ec95ebdf471/ficha-unificada.png',fullPage:true});
+ await form.getByRole('button',{name:'Guardar avance',exact:true}).click();await expect(page.getByRole('dialog',{name:'Cargar datos',exact:true})).toHaveCount(0);
+ expect(rows).toHaveLength(1);expect(notes).toHaveLength(1);expect(rows[0].locomotora_codigo).toBe('E702');expect(rows[0].descripcion).toBe('Falla eléctrica');expect(rows[0].estado_mantenimiento).toBe('finalizado');expect(notes[0].descripcion).toBe('Contactores revisados');expect(notes[0].tipo_actualizacion).toBe('cierre');expect(notes[0].metadata.seguimiento.workDurationDays).toBe(.5);
+});
+test('mantenimiento cerrado: otros trabajos y nuevo día muestran los mismos campos que editar',async({page})=>{
+ const row={...job(),estado_mantenimiento:'finalizado',fecha_cierre:'2026-09-23'},notes=[{id:'old',evento_id:'job',fecha:date,tipo_actualizacion:'observacion',descripcion:'Trabajo anterior',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',outcome:'continua',system:'Sistema eléctrico',subsystem:'Relés y contactores',component:'Relés y contactores',period:'Mañana',workDurationDays:1}}}];
+ const writes=await setup(page,row,notes);
+ await page.getByRole('button',{name:'Editar este avance'}).click();const edit=page.getByRole('form',{name:'Editar avance'});const fields=await edit.locator('[name]').evaluateAll(nodes=>nodes.map(n=>n.name));await edit.getByRole('button',{name:'Cancelar',exact:true}).click();
+ await page.getByRole('button',{name:'+ Agregar día de trabajo',exact:true}).click();let form=page.getByRole('form',{name:'Registrar avance'});expect(await form.locator('[name]').evaluateAll(nodes=>nodes.map(n=>n.name))).toEqual(fields);await form.getByRole('button',{name:'Cancelar',exact:true}).click();
+ await page.getByRole('button',{name:'+ Otros trabajos realizados en este día'}).click();form=page.getByRole('form',{name:'Registrar avance'});expect(await form.locator('[name]').evaluateAll(nodes=>nodes.map(n=>n.name))).toEqual(fields.filter(name=>name!=='fecha'));
+ await form.getByLabel('¿Quién la trabajó?').selectOption('Turno fijo');await form.getByRole('combobox',{name:'Jornada',exact:true}).selectOption('0.5');await form.locator('textarea[name="descripcion"]').fill('Otro trabajo histórico');await form.getByLabel('¿Tuviste alguna demora?').selectOption('no');await form.getByLabel('Estado posterior de la máquina').selectOption('continua');await form.getByRole('button',{name:'Guardar avance'}).click();await expect(form).toHaveCount(0);
+ expect(writes[0].tipo_actualizacion).toBe('observacion');expect(writes[0].metadata.seguimiento.activity).toBe('trabajo');expect(row.estado_mantenimiento).toBe('finalizado');expect(row.fecha_cierre).toBe('2026-09-23');expect(notes).toHaveLength(2);
+});
+test('ficha nueva adapta la misma carga a preventivo liviano y numeral en móvil',async({page})=>{
+ await page.route('http://127.0.0.1:54321/**',route=>route.fulfill({json:route.request().url().includes('seguimiento_version')?1:[]}));
+ await page.setViewportSize({width:390,height:844});await page.goto('/tests/seguimiento.html');await page.getByRole('button',{name:'+ Cargar datos'}).click();const form=page.getByRole('form',{name:'Registrar avance'});
+ await form.getByLabel('Tipo de mantenimiento').selectOption('AB');await expect(form.getByLabel('¿En qué turno se trabajó?')).toBeVisible();await expect(form.locator('[name="system"]')).toHaveCount(0);await expect(form.getByLabel('Resultado del turno')).toBeVisible();
+ await form.getByLabel('Tipo de mantenimiento').selectOption('Numeral 3');await expect(form.getByRole('combobox',{name:'Jornada',exact:true})).toBeVisible();await expect(form.getByLabel('¿En qué turno se trabajó?')).toHaveCount(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});
+test('locomotora de carga legible en móvil y movimiento reducido',async({page})=>{
+ let release;const gate=new Promise(resolve=>{release=resolve;});
+ await page.route('http://127.0.0.1:54321/**',async route=>{await gate;await route.fulfill({json:route.request().url().includes('seguimiento_version')?1:[]});});
+ await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/tests/seguimiento.html');
+ try{await expect(page.getByRole('status')).toContainText('Cargando mantenimientos');await expect(page.locator('.railway-loader-train')).toHaveCSS('animation-name','none');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.screenshot({path:'/workspace/scratch/7ec95ebdf471/locomotora-carga.png'});}finally{release();}
 });
