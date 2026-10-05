@@ -174,7 +174,7 @@ export async function sincronizarEstadoMantenimientoEvento(event, actualizacione
   const desired = {
     estado_mantenimiento: resolved.estado,
     fecha_cierre: resolved.estado === 'finalizado' ? resolved.fechaCierre : null,
-    hora_cierre: resolved.estado === 'finalizado' ? resolved.horaCierre : null,
+    hora_cierre: resolved.estado === 'finalizado' ? resolved.horaCierre || null : null,
     ultima_actividad_at: resolved.ultimaActividadAt,
   };
 
