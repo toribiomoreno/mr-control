@@ -1,5 +1,5 @@
 import { jobTitle, maintenanceEfficiency, formatDays, causeName } from './presentation.js';
-import { detentionReason, hasMaintenanceDelay, isVisibleMaintenance, isoWeek, maintenanceWindow, orderedUpdates, updateOutcomeLabel } from './view.js';
+import { detentionReason, hasMaintenanceDelay, isVisibleMaintenance, isoWeek, maintenanceWindow, orderedUpdates, outcomeLabels, updateOutcomeLabel } from './view.js';
 import { dateLabel, shiftDay, today } from './types.js';
 import { lightSchedule } from './schedule.js';
 export function csv(rows) {
@@ -46,7 +46,7 @@ export function maintenanceCsvRows(events, range, now = today()) {
                 descriptions.join(' · ') || 'Sin descripción de trabajo registrada.',
                 tracking.some(hasMaintenanceDelay) ? 'Sí' : 'No', codes.map(c => `${c} · ${causeName(c)}`).join(' / '),
                 delayNotes.join(' · '),
-                latest ? updateOutcomeLabel(event, latest) : 'Sin confirmar',
+                latest ? updateOutcomeLabel(event, latest) : event.estadoMantenimiento !== 'finalizado' && meta.confirmedThrough >= date && ['continua','detenida'].includes(meta.outcome) ? outcomeLabels[meta.outcome] : 'Sin confirmar',
                 distinct(tracking.map(t => t.system || meta.system)).join(' · ') || meta.system || 'Sin confirmar',
                 distinct(tracking.map(t => t.subsystem || meta.subsystem || t.component || meta.component)).join(' · ') || meta.subsystem || meta.component || 'Sin confirmar',
             ] });

@@ -1,12 +1,15 @@
 import { isLight, validateEvent, validDate } from './adapter.js';
 import { operationalOutcomes, trackingForCurrentState } from './view.js';
-import { today, wholeLocomotive } from './types.js';
+import { durations, today, wholeLocomotive } from './types.js';
 import { lightSchedule } from './schedule.js';
+
+const canonicalTime = value => /^([01]?\d|2[0-3]):[0-5]\d$/.test(value || '') ? value.padStart(5, '0') : value;
 
 export const maintenanceTypes = ['Correctivo', 'E', 'A', 'AB', 'ABC', ...Array.from({ length: 12 }, (_, i) => `Numeral ${i + 1}`)];
 export const intakeTime = event => event.metadata?.seguimiento?.detentionTime || (!event.metadata?.horaEstimada && !event.metadata?.seguimiento?.intake?.pendingStart ? event.hora?.slice(0, 5) : '') || '';
 
 export function buildMaintenanceIntake(values) {
+  values = { ...values, startTime: canonicalTime(values.startTime) };
   if (!maintenanceTypes.includes(values.maintenanceType)) throw new Error('Elegí un tipo de mantenimiento válido.');
   if (values.startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.startTime)) throw new Error('La hora de ingreso no es válida.');
   const tipo = values.maintenanceType === 'Correctivo' ? 'correctivo' : 'preventivo';
@@ -24,6 +27,7 @@ export function buildMaintenanceIntake(values) {
 
 // Esta edición solo modifica la identidad y el ingreso. Nunca reemplaza los avances.
 export function editMaintenanceIntake(event, values) {
+  values = { ...values, startTime: canonicalTime(values.startTime) };
   const tipo = values.maintenanceType === 'Correctivo' ? 'correctivo' : 'preventivo';
   if (!maintenanceTypes.includes(values.maintenanceType)) throw new Error('Elegí un tipo de mantenimiento válido.');
   const tracking = event.metadata?.seguimiento || {};
@@ -44,14 +48,19 @@ export function editMaintenanceIntake(event, values) {
 }
 
 export function buildProgress(event, initialUpdate, values) {
+  values = { ...values, endTime: canonicalTime(values.endTime) };
   const old = initialUpdate || {}, saved = old.metadata?.seguimiento || {};
   const light = isLight(event), observation = values.observation;
   const activity = observation ? 'sin_dato' : values.noWork ? 'espera' : values.delayed ? 'mixto' : 'trabajo';
-  const outcome = values.outcome || saved.outcome || 'pendiente';
+  const finalShift = light && !observation && values.shiftFinished === true && !values.additionalShiftRequired && Number(values.shiftNumber) >= durations[event.preventivoCodigo];
+  const automaticClosure = event.metadata?.dailyStateClosure && event.estadoMantenimiento === 'finalizado';
+  const inferredCompletion = finalShift && (event.estadoMantenimiento !== 'finalizado' || automaticClosure) && !values.outcomeConfirmed && ['', 'continua', 'pendiente', undefined].includes(values.outcome);
+  const outcome = inferredCompletion ? 'operativa' : values.outcome || saved.outcome || 'pendiente';
+  const endTime = values.endTime || (finalShift && (inferredCompletion || operationalOutcomes.includes(outcome)) ? ({ Mañana: '14:00', Tarde: '22:00' }[values.period]) : '') || '';
   const closes = event.estadoMantenimiento !== 'finalizado' && operationalOutcomes.includes(outcome);
   const type = closes ? 'cierre' : old.id ? old.tipoActualizacion : observation || event.estadoMantenimiento === 'finalizado' ? 'observacion' : activity === 'espera' ? 'pausa' : 'avance';
   if (values.endTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.endTime)) throw new Error('La hora de fin no es válida.');
-  const metadata = { ...saved, captureVersion: 6, activity, outcome, outcomeConfirmed: values.outcomeConfirmed || (outcome === saved.outcome && saved.outcomeConfirmed) || false,
+  const metadata = { ...saved, captureVersion: 6, activity, outcome, completedFinalShift: Boolean(finalShift && (inferredCompletion || operationalOutcomes.includes(outcome)) && (event.estadoMantenimiento !== 'finalizado' || automaticClosure)), outcomeConfirmed: inferredCompletion || values.outcomeConfirmed || (outcome === saved.outcome && saved.outcomeConfirmed) || false,
     confirmedUnknownActivity: observation, confirmedUnknownOutcome: outcome === 'pendiente',
     ...(observation ? {} : { cause: values.delayed ? values.cause : '', delayDescription: values.delayed ? (values.delayDescription || '').trim() : '', delayReported: Boolean(values.delayed),
       // Compatibilidad con los registros diarios existentes; no se solicita turno físico.
@@ -71,7 +80,7 @@ export function buildProgress(event, initialUpdate, values) {
   if (values.additionalShiftRequired && (!values.cause || !values.delayDescription?.trim())) throw new Error('Indicá por qué se agregó otro turno.');
   if (!observation && !light && !values.noWork && ![0.5, 1].includes(Number(values.duration))) throw new Error('Elegí jornada completa o media jornada.');
   if (!validDate(values.date) || values.date > today()) throw new Error('La fecha de trabajo no es válida.');
-  return { ...old, eventoId: event.id, fecha: values.date, hora: (closes || type === 'cierre' ? values.endTime || old.hora : old.hora) || null, tipoActualizacion: type, descripcion: values.description.trim(), responsable: observation ? old.responsable || event.responsable : light ? 'Turno rotativo' : values.staff,
+  return { ...old, eventoId: event.id, fecha: values.date, hora: (closes || type === 'cierre' || metadata.completedFinalShift ? endTime || old.hora : old.hora) || null, tipoActualizacion: type, descripcion: values.description.trim(), responsable: observation ? old.responsable || event.responsable : light ? 'Turno rotativo' : values.staff,
     porcentajeAvance: old.porcentajeAvance ?? null, estadoResultante: closes || type === 'cierre' ? 'finalizado' : type === 'pausa' ? 'pausado' : type === 'observacion' ? null : 'en_curso',
     motivoPausa: activity === 'espera' ? values.delayDescription : old.motivoPausa || null,
     estadoUnidadResultante: outcome === 'operativa' ? 'servicio' : ['prueba', 'prueba_parque', 'prueba_linea', 'operativa_prueba'].includes(outcome) ? 'pendiente_de_prueba' : outcome === 'acompanada' ? 'disponible_con_observaciones' : ['continua', 'detenida'].includes(outcome) ? 'fuera_de_servicio' : old.estadoUnidadResultante || null,

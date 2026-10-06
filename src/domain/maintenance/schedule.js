@@ -1,4 +1,4 @@
-import { durations, shiftDay } from './types.js';
+import { durations, shiftDay, today } from './types.js';
 
 // Dos turnos de ocho horas: mañana y tarde. La noche nunca consume un turno.
 export function lightSchedule(event) {
@@ -21,4 +21,18 @@ export function lightSchedule(event) {
   const slots = planned + extensions.size;
   const offset = (period === 'Tarde' ? 1 : 0) + slots - 1;
   return { start, startTime: period === 'Mañana' ? '06:00' : '14:00', end: shiftDay(start, Math.floor(offset / 2)), endTime: offset % 2 ? '22:00' : '14:00', endPeriod: offset % 2 ? 'Tarde' : 'Mañana', planned, extensions: extensions.size, slots };
+}
+
+// Suggest the actual scheduled slot when a historical shift is entered today.
+export function lightShiftSlot(event, number = 1, extension = 0) {
+  const plan = lightSchedule(event);
+  if (!plan) return null;
+  const offset = (plan.startTime === '14:00' ? 1 : 0) + Number(number) - 1 + extension;
+  return { date: shiftDay(plan.start, Math.floor(offset / 2)), period: offset % 2 ? 'Tarde' : 'Mañana' };
+}
+
+export function nextWorkDate(event) {
+  const dates = [event.fecha, ...(event.actualizaciones || []).filter(a => a.metadata?.seguimiento?.activity !== 'sin_dato').map(a => a.fecha)].filter(Boolean).sort();
+  const next = shiftDay(dates.at(-1) || today(), 1);
+  return [next, today(), ...(event.estadoMantenimiento === 'finalizado' ? [event.fechaCierre] : [])].filter(Boolean).sort()[0];
 }
