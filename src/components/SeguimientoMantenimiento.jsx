@@ -8,7 +8,7 @@ import MaintenanceSheet from './MaintenanceSheet.jsx';
 import { toRegister } from '../domain/maintenance/adapter.js';
 import { today, monday, shiftDay, dateLabel } from '../domain/maintenance/types.js';
 import { maintenanceEfficiency, formatDays, causeName } from '../domain/maintenance/presentation.js';
-import { dailyMaintenance, detentionReason, evidenceQuestions, hasMaintenanceDelay, isoWeek, maintenanceBars, orderedUpdates, outcomeAtEnd, updateOutcomeLabel, workDurationLabel } from '../domain/maintenance/view.js';
+import { dailyMaintenance, detentionReason, evidenceQuestions, hasMaintenanceDelay, isoWeek, maintenanceBars, orderedUpdates, updateOutcomeLabel, workDurationLabel } from '../domain/maintenance/view.js';
 import { maintenanceCsv, efficiencyCsv } from '../domain/maintenance/export.js';
 import CargaDatosModal from './CargaDatosModal.jsx';
 import RegistroEventoModal from './RegistroEventoModal.jsx';
@@ -19,6 +19,7 @@ import { intakeTime } from '../domain/maintenance/capture.js';
 import { lightSchedule } from '../domain/maintenance/schedule.js';
 import ImportarPilotoModal from './ImportarPilotoModal.jsx';
 import './seguimiento.css';
+import MaintenanceBar from './MaintenanceBar.jsx';
 
 const EMPTY = [];
 const stateNames = { worked: 'Útil', mixed: 'Mixto', wait: 'Pérdida', unknown: 'Sin información', excluded: 'Excluido', open: 'En curso' };
@@ -148,7 +149,7 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
       <div className="tracking-table-wrap"><div className="tracking-week"><div className="tracking-week-head"><strong>Unidad</strong><div>{days.map(date => <button key={date} aria-label={`Ver día ${dateLabel(date)}`} aria-pressed={day === date} onClick={() => setDay(day === date ? '' : date)}>{shortDay(date)}</button>)}</div></div>
         {[...new Set(bars.map(bar => bar.event.locomotoraCodigo))].sort().map(code => {
           const lanes = maintenanceBars(filteredEvents.filter(item => item.locomotoraCodigo === code), week, range.to);
-          return <div className="tracking-week-row" key={code}><strong>{code}</strong><div className="tracking-lanes">{lanes.map(bar => <button key={bar.id} className={`tracking-bar ${bar.kind} ${bar.unconfirmed ? 'is-unconfirmed' : ''}`} style={{ gridColumn: `${bar.column} / span ${bar.span}`, gridRow: bar.lane + 1 }} onClick={() => select(bar.id)} title={`${bar.label} · ${bar.reason}`}><strong>{bar.label}</strong><span>{bar.unconfirmed ? 'Continuidad por confirmar' : outcomeAtEnd(bar.event).label}</span></button>)}</div></div>;
+          return <div className="tracking-week-row" key={code}><strong>{code}</strong><div className="tracking-lanes">{lanes.map(bar => <MaintenanceBar key={bar.id} bar={bar} onSelect={select} />)}</div></div>;
         })}
       </div></div>
       {!bars.length && <p className="tracking-empty">No hay mantenimientos registrados en esta semana para los filtros elegidos.</p>}
@@ -167,16 +168,17 @@ export default function SeguimientoMantenimiento({ canManage, locomotoras, onCha
         <div className="maintenance-end-fact"><dt>Fecha y hora de fin</dt><dd>{event.estadoMantenimiento === 'finalizado' ? `${dateLabel(event.fechaCierre)} · ${event.horaCierre || 'Hora por confirmar'}` : 'En curso · sin fin registrado'}</dd></div>
       </dl>
       <div className="maintenance-header-actions">{canEdit && <button onClick={() => setEditingMeta(true)}>Editar datos del mantenimiento</button>}{event.tipo === 'preventivo' && <button onClick={() => setSheetOpen(true)}>Ficha del mantenimiento</button>}</div>
+      {selected.location === 'Externo' && <p className="tracking-hint">Mantenimiento externo: no se solicitan avances diarios. Se conservan los datos de ingreso y cierre.</p>}
       {event.origen === 'vista-previa-privada' && <p className="tracking-hint">Datos del archivo privado en vista temporal.</p>}
       {editingMeta && <form onSubmit={saveMeta}><MaintenanceIntakeFields event={event} locomotoras={locomotoras} /><button className="primary-action" disabled={saving}>{saving ? 'Guardando…' : 'Confirmar datos'}</button><button type="button" disabled={saving} onClick={() => setEditingMeta(false)}>Cancelar</button></form>}
       </section>
       <section className="maintenance-detail-section"><div className="maintenance-section-heading"><span>02</span><div><p className="eyebrow">Seguimiento diario</p><h3>Avances</h3></div></div>{!updates.length && <p>No hay avances registrados. El ingreso a mantenimiento no confirma una intervención.</p>}
       {workGroups.map(group => <section className="journal-day-group" key={group.key} aria-label={group.label}><header><h4>{group.label}{selected.kind === 'liviano' && ` · ${dateLabel(group.date)}`}</h4>{canEdit && selected.kind !== 'liviano' && <button onClick={() => setUpdate({initialDate:group.date})}>+ Otros trabajos realizados en este día</button>}</header>{group.updates.map(a => <UpdateEntry grouped key={a.id} update={a} event={event} questions={questions.filter(q => q.update?.id === a.id)} onEdit={canEdit ? () => setUpdate({ initialUpdate: a }) : null} editor={inlineUpdate && update.initialUpdate?.id === a.id ? <ActualizacionEventoModal key={a.id} event={event} mode="avance" initialUpdate={a} embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /> : null} />)}{inlineUpdate && !update.initialUpdate?.id && update.initialDate === group.date && <article className="maintenance-journal-entry grouped"><ActualizacionEventoModal key={group.date} {...update} event={event} mode="avance" embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /></article>}</section>)}
       {inlineUpdate && !update.initialUpdate?.id && !workGroups.some(group => group.date === update.initialDate) && <article className="maintenance-journal-entry grouped"><ActualizacionEventoModal key={update.initialDate || 'new'} {...update} event={event} mode="avance" embedded onClose={() => setUpdate(null)} onSave={saveUpdate} /></article>}
-      {canEdit && !inlineUpdate && <button onClick={() => setUpdate({})}>{selected.kind === 'liviano' ? '+ Agregar turno o novedad' : '+ Agregar día de trabajo'}</button>}
+      {canEdit && !inlineUpdate && <button onClick={() => setUpdate(selected.kind === 'liviano' ? {} : { advanceNextDay: true })}>{selected.kind === 'liviano' ? '+ Agregar turno o novedad' : '+ Avance día siguiente'}</button>}
       </section>
       {selected.kind === 'liviano' && <section className="maintenance-detail-section"><h3>Novedades del mantenimiento</h3>{!lightNotes.length && <p>No hay novedades adicionales registradas.</p>}{lightNotes.map(a=><UpdateEntry key={a.id} update={a} event={event} questions={[]} onEdit={canEdit?()=>setUpdate({initialUpdate:a}):null} editor={inlineUpdate && update.initialUpdate?.id === a.id ? <ActualizacionEventoModal event={event} mode="observacion" initialUpdate={a} embedded onClose={()=>setUpdate(null)} onSave={saveUpdate} />:null} />)}{canEdit && !inlineUpdate && <button onClick={()=>setUpdate({initialUpdate:{fecha:today(),metadata:{seguimiento:{activity:'sin_dato'}}}})}>+ Agregar novedad</button>}</section>}
-      <Efficiency shifts={shifts} result={result} location={selected.location} onComplete={canEdit ? date => setUpdate({ initialDate: date }) : null} />
+      <Efficiency shifts={shifts} result={result} location={selected.location} onComplete={canEdit && selected.location !== 'Externo' ? date => setUpdate({ initialDate: date }) : null} />
       {error && <p role="alert" className="tracking-error">{error}</p>}
     </section></div>}
     {sheetOpen && event && <MaintenanceSheet event={event} canManage={canEdit} onClose={() => setSheetOpen(false)} onSaved={async () => { await load(); onChanged?.(); }} />}

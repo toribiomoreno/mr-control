@@ -2,6 +2,7 @@ import { causes, durations, today } from '../domain/maintenance/types.js';
 import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
 import { beforeMaintenanceClosure, hasMaintenanceDelay, operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
 import { buildMaintenanceIntake, buildProgress } from '../domain/maintenance/capture.js';
+import { lightShiftSlot, nextWorkDate } from '../domain/maintenance/schedule.js';
 import { nextShiftSelection } from '../domain/maintenance/journal.js';
 import { useState } from 'react';
 import VoiceTextarea from './VoiceTextarea.jsx';
@@ -9,14 +10,15 @@ import SystemFields from './SystemFields.jsx';
 import TimeSelect from './TimeSelect.jsx';
 
 const responsibleOptions = ['Turno fijo', 'Turno rotativo', 'Otro sector', 'Personal externo'];
-export default function ActualizacionEventoModal({ event, mode = 'avance', initialUpdate = null, initialDate = '', newEntry = false, embedded = false, intakeFields = null, creatingMaintenance = false, onClose, onSave }) {
+export default function ActualizacionEventoModal({ event, mode = 'avance', initialUpdate = null, initialDate = '', advanceNextDay = false, newEntry = false, embedded = false, intakeFields = null, creatingMaintenance = false, onClose, onSave }) {
   const saved = initialUpdate?.metadata?.seguimiento || {};
   const light = isLight(event);
   const closed = event.estadoMantenimiento === 'finalizado';
-  const historicalShift = light && closed && initialUpdate?.tipoActualizacion !== 'cierre';
+  const historicalShift = light && closed && !event.metadata?.dailyStateClosure && initialUpdate?.tipoActualizacion !== 'cierre';
   const observation = saved.activity === 'sin_dato' || (mode === 'observacion' && !initialUpdate?.id);
   const nextShift = nextShiftSelection(event);
-  const [date, setDate] = useState(initialUpdate?.fecha || initialDate || (event.estadoMantenimiento === 'finalizado' ? event.fechaCierre : today()));
+  const slot = light ? lightShiftSlot(event, nextShift.number, nextShift.extended ? nextShift.extensionIndex : 0) : null;
+  const [date, setDate] = useState(initialUpdate?.fecha || initialDate || (advanceNextDay && !light ? nextWorkDate(event) : '') || (slot && slot.date <= today() ? slot.date : '') || (closed ? event.fechaCierre : today()));
   const [staff, setStaff] = useState(initialUpdate?.responsable || (light ? 'Turno rotativo' : ''));
   const [duration, setDuration] = useState(saved.activity === 'espera' ? '0' : saved.workDurationDays == null ? '' : String(saved.workDurationDays));
   const [delayed, setDelayed] = useState(hasMaintenanceDelay(saved) ? 'yes' : 'no');
@@ -61,7 +63,7 @@ export default function ActualizacionEventoModal({ event, mode = 'avance', initi
       <label>Turno<select name="shiftNumber" value={shift} onChange={e => setShift(e.target.value)} required>{Array.from({ length: durations[event.preventivoCodigo] }, (_, i) => <option key={i + 1} value={i + 1}>Turno {i + 1}</option>)}</select></label>
       {(initialUpdate?.id ? saved.shiftExtended : nextShift.extended) && <p className="tracking-hint">Turno adicional · extensión {saved.extensionIndex || nextShift.extensionIndex}</p>}
       <label>¿Se pudo trabajar normalmente?<select value={delayed} onChange={e => setDelayed(e.target.value)} required><option value="">Seleccionar</option><option value="no">Sí</option><option value="yes">No, hubo una demora</option></select></label>
-      <label>¿En qué turno se trabajó?<select name="period" defaultValue={saved.period || ''} required><option value="">Seleccionar</option><option>Mañana</option><option>Tarde</option>{initialUpdate?.id && ['Mañana y tarde','Día completo'].includes(saved.period) && <option>{saved.period}</option>}</select></label>
+      <label>¿En qué turno se trabajó?<select name="period" defaultValue={saved.period || slot?.period || ''} required><option value="">Seleccionar</option><option>Mañana</option><option>Tarde</option>{initialUpdate?.id && ['Mañana y tarde','Día completo'].includes(saved.period) && <option>{saved.period}</option>}</select></label>
     </> : <>
       <SystemFields compact tracking={{ ...event.metadata?.seguimiento, ...saved }} legacy={Boolean(initialUpdate?.id && !saved.subsystem)} />
       <label>¿Quién la trabajó?<select name="responsable" value={staff} onChange={e => setStaff(e.target.value)} required><option value="">Seleccionar personal</option>{staff && !responsibleOptions.includes(staff) && <option>{staff}</option>}{responsibleOptions.map(s => <option key={s}>{s}</option>)}</select></label>
@@ -78,6 +80,7 @@ export default function ActualizacionEventoModal({ event, mode = 'avance', initi
       <label>Motivo de la demora<select name="cause" defaultValue={saved.extensionCause || saved.cause || ''} required><option value="">Seleccionar causa</option>{Object.entries(causes).filter(([key]) => key !== 'PENDIENTE').map(([key, label]) => <option key={key} value={key}>{key} · {label}</option>)}</select></label>
       <label>Descripción de la demora<VoiceTextarea name="delayDescription" defaultValue={saved.delayDescription || saved.extensionReason || saved.allocationNote || (saved.activity === 'espera' ? initialUpdate?.descripcion : '') || ''} rows={2} required /></label>
     </fieldset>}
+    {light && finalShift && !historicalShift && <p className="tracking-hint">El último turno finalizado cierra el mantenimiento en la fecha indicada: mañana a las 14:00, tarde a las 22:00. Podés indicar otra hora o un estado distinto.</p>}
     {light && showOutcome && <fieldset className="tracking-fields availability-confirm"><legend>Disponibilidad al terminar el mantenimiento</legend><select aria-label="Estado posterior de la máquina" value={outcome} onChange={e => setOutcome(e.target.value)}><option value="">Sin confirmar todavía</option>{Object.entries(outcomeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>{operationalOutcomes.includes(outcome) && <label className="tracking-confirm"><input type="checkbox" name="confirmAvailability" defaultChecked={saved.outcomeConfirmed && saved.outcome === outcome} required />Confirmo que quedó disponible en el estado indicado.</label>}</fieldset>}
     {showOutcome && operationalOutcomes.includes(outcome) && <fieldset className="tracking-fields maintenance-end-fact"><legend>Fecha y hora de fin</legend><p>{date.split('-').reverse().join('/')}</p><TimeSelect name="endTime" label="Hora de fin (si se conoce)" defaultValue={initialUpdate?.hora || ''} required={false} /></fieldset>}
     <div className="modal-actions"><button type="button" onClick={onClose} disabled={saving}>Cancelar</button><button type="submit" className="primary-action" disabled={saving}>{saving ? 'Guardando…' : observation ? 'Guardar novedad' : 'Guardar avance'}</button></div>

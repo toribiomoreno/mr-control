@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { isValidTimeValue } from './timeUtils.js';
 
 function normalizeInitialTime(value) {
-  const raw = String(value || '').slice(0, 5);
+  const input = String(value || '').slice(0, 5);
+  const raw = /^([01]?\d|2[0-3]):[0-5]\d$/.test(input) ? input.padStart(5, '0') : input;
   return isValidTimeValue(raw) ? raw : '00:00';
 }
 
@@ -22,10 +23,11 @@ export default function TimeSelect({ defaultValue, label = 'Hora', name = 'hora'
         maxLength="5"
         name={name}
         onChange={(event) => setValue(cleanTimeInput(event.target.value))}
-        pattern="^([01]\d|2[0-3]):[0-5]\d$"
+        onBlur={() => { if (value) setValue(normalizeInitialTime(value)); }}
+        pattern="^([01]?\d|2[0-3]):[0-5]\d$"
         placeholder="HH:mm"
         required={required}
-        title="Use formato HH:mm, por ejemplo 19:44."
+        title="Hora válida: 9:20 o 09:20."
         value={value}
       />
     </label>
