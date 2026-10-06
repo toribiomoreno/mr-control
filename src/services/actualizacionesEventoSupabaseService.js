@@ -88,7 +88,7 @@ function toActualizacionPayload(actualizacion) {
 async function conservarCierreSiEsObservacionFinalizada(actualizacion, event) {
   const estadoEvento = event.estadoMantenimiento || event.estado_mantenimiento;
   const esObservacion = (actualizacion.tipoActualizacion || actualizacion.tipo_actualizacion) === 'observacion';
-  if (!esObservacion || estadoEvento !== 'finalizado') return;
+  if (!esObservacion || estadoEvento !== 'finalizado' || actualizacion.metadata?.seguimiento?.completedFinalShift) return;
 
   const { error } = await supabase
     .from('eventos_historial')
