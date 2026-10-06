@@ -54,3 +54,21 @@ test('turno adicional queda enlazado al turno de origen y cuenta como extensión
  light.actualizaciones=[first];assert.deepEqual(nextShiftSelection(light),{number:2,extended:true,extensionIndex:1});
  const extension=buildProgress(light,null,{...values,date:'2026-09-23',shiftNumber:2,shiftFinished:true,additionalShiftRequired:false,period:'Mañana',shiftExtended:true,extensionIndex:1});validateUpdate(light,extension);light.actualizaciones.push(extension);assert.equal(journalGroups(light)[1].label,'Turno 2 extendido');assert.equal(nextShiftSelection(light).number,3);
 });
+
+test('E finalizado cierra en su turno; primer turno de A y prueba pendiente no cierran',()=>{
+ const e=buildMaintenanceIntake({unit:'E713',maintenanceType:'E',startDate:'2026-10-05',startTime:'6:00'});
+ const done=buildProgress(e,null,{...values,date:'2026-10-05',period:'Mañana',shiftNumber:1,shiftFinished:true,outcome:'continua'});
+ validateUpdate(e,done);assert.equal(done.tipoActualizacion,'cierre');assert.equal(done.hora,'14:00');assert.equal(done.metadata.seguimiento.outcome,'operativa');
+ const a=buildMaintenanceIntake({unit:'E705',maintenanceType:'A',startDate:'2026-10-05',startTime:'14:00'});
+ const first=buildProgress(a,null,{...values,date:'2026-10-05',period:'Tarde',shiftNumber:1,shiftFinished:true,outcome:'continua'});
+ validateUpdate(a,first);assert.equal(first.tipoActualizacion,'avance');assert.equal(first.hora,null);
+ const pending=buildProgress(e,null,{...values,date:'2026-10-05',period:'Mañana',shiftNumber:1,shiftFinished:true,outcome:'prueba_parque'});
+ validateUpdate(e,pending);assert.equal(pending.tipoActualizacion,'avance');
+});
+test('turno final histórico corrige solo el cierre automático del parte, sin reabrir',()=>{
+ const e={...buildMaintenanceIntake({unit:'E713',maintenanceType:'E',startDate:'2026-10-05',startTime:'06:00'}),estadoMantenimiento:'finalizado',fechaCierre:'2026-10-06',metadata:{dailyStateClosure:{updateId:'report'},seguimiento:{detentionStart:'2026-10-05',location:'Boulogne'}}};
+ const done=buildProgress(e,null,{...values,date:'2026-10-05',period:'Mañana',shiftNumber:1,shiftFinished:true,outcome:'continua'});
+ validateUpdate(e,done);assert.equal(done.tipoActualizacion,'observacion');assert.equal(done.metadata.seguimiento.completedFinalShift,true);assert.equal(done.hora,'14:00');
+ const manual=buildProgress({...e,metadata:{seguimiento:e.metadata.seguimiento}},null,{...values,date:'2026-10-05',period:'Mañana',shiftNumber:1,shiftFinished:true,outcome:'continua'});
+ assert.equal(manual.metadata.seguimiento.completedFinalShift,false);
+});

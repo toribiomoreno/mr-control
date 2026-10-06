@@ -75,5 +75,17 @@ test('migración, permisos, importación atómica y cierre estable', async()=>{
  await db.query(`insert into actualizaciones_evento(evento_id,fecha,hora,tipo_actualizacion,descripcion,responsable,metadata) values($1,'2020-01-08','06:00','avance','Trabajo posterior','Turno fijo',$2::jsonb)`,[later,JSON.stringify({seguimiento:{activity:'trabajo',period:'Mañana'}})]);
  const old=(await db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,metadata) values('E704','2020-01-07','06:00','otro',$1::jsonb) returning metadata`,[report])).rows[0];assert.equal(old.metadata.dailyState.state,'detenida');assert.equal((await db.query('select estado_mantenimiento from eventos_historial where id=$1',[later])).rows[0].estado_mantenimiento,'en_curso');
  const atomic=await createOpen('E705');await assert.rejects(db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,metadata) values('E705','2020-01-07','06:00','otro',$1::jsonb),('E706','2999-01-01','06:00','correctivo',$2::jsonb)`,[report,JSON.stringify({seguimiento:{location:'Boulogne',detentionStart:'2999-01-01',system:'Bogie',component:'Prueba'}})]),/Fechas/);assert.equal((await db.query('select estado_mantenimiento from eventos_historial where id=$1',[atomic])).rows[0].estado_mantenimiento,'en_curso');assert.equal((await db.query('select count(*)::int as n from actualizaciones_evento where evento_id=$1',[atomic])).rows[0].n,0);
+ // A completed historical E shift corrects the daily report's later automatic closure.
+ await db.exec('reset role;');
+ await db.exec(await readFile('supabase/migrations/20261006120958_final_light_shift_overrides_daily_closure.sql','utf8'));
+ await db.exec(`set role authenticated; set request.jwt.claim.sub = '${supervisor}';`);
+ const lightId=(await db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,preventivo_codigo,titulo,responsable,estado_mantenimiento,metadata) values('E713','2020-01-06','06:00','preventivo','E','Preventivo E','Turno rotativo','en_curso',$1::jsonb) returning id`,[JSON.stringify({seguimiento:{detentionStart:'2020-01-06',location:'Boulogne'}})])).rows[0].id;
+ await db.query(`insert into eventos_historial(locomotora_codigo,fecha,hora,tipo,metadata) values('E713','2020-01-07','06:00','otro',$1::jsonb)`,[report]);
+ const finalShift={seguimiento:{activity:'trabajo',period:'Mañana',shiftNumber:1,shiftFinished:true,additionalShiftRequired:false,completedFinalShift:true,outcome:'operativa',outcomeConfirmed:true}};
+ await db.query(`insert into actualizaciones_evento(evento_id,fecha,hora,tipo_actualizacion,descripcion,responsable,metadata) values($1,'2020-01-06','14:00','observacion','Sin novedades','Turno rotativo',$2::jsonb)`,[lightId,JSON.stringify(finalShift)]);
+ const corrected=(await db.query('select estado_mantenimiento,fecha_cierre,hora_cierre,metadata from eventos_historial where id=$1',[lightId])).rows[0];
+ assert.equal(corrected.estado_mantenimiento,'finalizado');assert.equal(corrected.fecha_cierre.toISOString().slice(0,10),'2020-01-06');assert.equal(corrected.hora_cierre,'14:00:00');assert.equal(corrected.metadata.seguimiento.availableDate,'2020-01-06');
+ await db.query(`update actualizaciones_evento set descripcion='Sin novedades confirmadas' where evento_id=$1 and tipo_actualizacion='observacion'`,[lightId]);
+ assert.equal((await db.query('select hora_cierre from eventos_historial where id=$1',[lightId])).rows[0].hora_cierre,'14:00:00');
  await db.close();
 });

@@ -52,7 +52,7 @@ test('AB: resultado del turno agrega extensión con motivo sin campos diarios',a
 });
 test('nuevo día comparte el editor y confirma continuidad anterior sin liberar la máquina',async({page})=>{
  const notes=[{id:'old',evento_id:'job',fecha:date,tipo_actualizacion:'avance',descripcion:'Compresor revisado',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',outcome:'pendiente',system:'Sistema eléctrico',subsystem:'Relés y contactores',component:'Relés y contactores',period:'Mañana',workDurationDays:1}}}];
- const writes=await setup(page,job(),notes);await page.getByRole('button',{name:'+ Agregar día de trabajo',exact:true}).click();const form=page.getByRole('form',{name:'Registrar avance'});
+ const writes=await setup(page,job(),notes);await page.getByRole('button',{name:'+ Avance día siguiente',exact:true}).click();const form=page.getByRole('form',{name:'Registrar avance'});
  await expect(page.locator('.maintenance-journal-entry.grouped').getByRole('form',{name:'Registrar avance'})).toBeVisible();await form.getByLabel('Fecha de trabajo',{exact:true}).fill('2026-09-22');await form.getByLabel('¿Quién la trabajó?').selectOption('Turno fijo');await form.getByRole('combobox',{name:'Jornada',exact:true}).selectOption('1');await form.locator('textarea[name="descripcion"]').fill('Trabajo del día siguiente');await form.getByLabel('¿Tuviste alguna demora?').selectOption('no');await form.getByRole('button',{name:'Guardar avance'}).click();await expect(form).toHaveCount(0);
  expect(writes[0].tipo_actualizacion).toBe('avance');expect(writes[0].metadata.seguimiento.outcome).toBe('pendiente');await expect(page.getByRole('region',{name:'Día 1 · 21/09/2026'}).locator('.journal-outcome')).toContainText('Continúa el mantenimiento');await expect(page.getByRole('region',{name:'Día 2 · 22/09/2026'}).locator('.journal-outcome')).toContainText('Por confirmar');
 });
@@ -91,7 +91,7 @@ test('mantenimiento cerrado: otros trabajos y nuevo día muestran los mismos cam
  const row={...job(),estado_mantenimiento:'finalizado',fecha_cierre:'2026-09-23'},notes=[{id:'old',evento_id:'job',fecha:date,tipo_actualizacion:'observacion',descripcion:'Trabajo anterior',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',outcome:'continua',system:'Sistema eléctrico',subsystem:'Relés y contactores',component:'Relés y contactores',period:'Mañana',workDurationDays:1}}}];
  const writes=await setup(page,row,notes);
  await page.getByRole('button',{name:'Editar este avance'}).click();const edit=page.getByRole('form',{name:'Editar avance'});const fields=await edit.locator('[name]').evaluateAll(nodes=>nodes.map(n=>n.name));await edit.getByRole('button',{name:'Cancelar',exact:true}).click();
- await page.getByRole('button',{name:'+ Agregar día de trabajo',exact:true}).click();let form=page.getByRole('form',{name:'Registrar avance'});expect(await form.locator('[name]').evaluateAll(nodes=>nodes.map(n=>n.name))).toEqual(fields);await form.getByRole('button',{name:'Cancelar',exact:true}).click();
+ await page.getByRole('button',{name:'+ Avance día siguiente',exact:true}).click();let form=page.getByRole('form',{name:'Registrar avance'});expect(await form.locator('[name]').evaluateAll(nodes=>nodes.map(n=>n.name))).toEqual(fields);await form.getByRole('button',{name:'Cancelar',exact:true}).click();
  await page.getByRole('button',{name:'+ Otros trabajos realizados en este día'}).click();form=page.getByRole('form',{name:'Registrar avance'});expect(await form.locator('[name]').evaluateAll(nodes=>nodes.map(n=>n.name))).toEqual(fields.filter(name=>name!=='fecha'));
  await form.getByLabel('¿Quién la trabajó?').selectOption('Turno fijo');await form.getByRole('combobox',{name:'Jornada',exact:true}).selectOption('0.5');await form.locator('textarea[name="descripcion"]').fill('Otro trabajo histórico');await form.getByLabel('¿Tuviste alguna demora?').selectOption('no');await form.getByLabel('Estado posterior de la máquina').selectOption('continua');await form.getByRole('button',{name:'Guardar avance'}).click();await expect(form).toHaveCount(0);
  expect(writes[0].tipo_actualizacion).toBe('observacion');expect(writes[0].metadata.seguimiento.activity).toBe('trabajo');expect(row.estado_mantenimiento).toBe('finalizado');expect(row.fecha_cierre).toBe('2026-09-23');expect(notes).toHaveLength(2);
@@ -104,7 +104,7 @@ test('ficha nueva adapta la misma carga a preventivo liviano y numeral en móvil
 });
 test('tablero eléctrico disponible en carga y CSV semanal con fechas agrupadas',async({page})=>{
  const notes=[{id:'board',evento_id:'job',fecha:date,tipo_actualizacion:'avance',descripcion:'Limpieza de tablero.',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',system:'Sistema eléctrico',subsystem:'Tablero eléctrico',component:'Tablero eléctrico',workDurationDays:1}}}];
- await setup(page,job(),notes);await page.getByRole('button',{name:'+ Agregar día de trabajo',exact:true}).click();const form=page.getByRole('form',{name:'Registrar avance'});
+ await setup(page,job(),notes);await page.getByRole('button',{name:'+ Avance día siguiente',exact:true}).click();const form=page.getByRole('form',{name:'Registrar avance'});
  await form.getByLabel('¿Qué sistema estamos atacando?').selectOption('Sistema eléctrico');await form.getByLabel('Subsistema',{exact:true}).selectOption('Tablero eléctrico');await expect(form.getByLabel('¿Tuviste alguna demora?')).toHaveValue('no');await form.getByRole('button',{name:'Cancelar',exact:true}).click();await page.getByRole('button',{name:'Cerrar detalle'}).click();
  await page.locator('.maintenance-export summary').click();const pending=page.waitForEvent('download');await page.getByRole('button',{name:'CSV de la semana',exact:true}).click();const download=await pending;const stream=await download.createReadStream();let text='';for await(const chunk of stream)text+=chunk.toString('utf8');
  const lines=text.split('\r\n');expect(lines[0].replace(/^\uFEFF/,'').split(';')).toEqual(['Semana','Máquina','Tipo de mantenimiento','Motivo','Fecha de detención','Fecha del día trabajado','Fecha de fin','Fecha de fin programada','Trabajo realizado','¿Hubo demora?','Causa raíz de la demora','Motivo u observación de la demora','Estado al finalizar el día','Sistema','Subsistema'].map(v=>`"${v}"`));expect(lines[1]).toContain('"Limpieza de tablero.";"No";""');expect(lines[1]).toContain('"Sistema eléctrico";"Tablero eléctrico"');
@@ -123,12 +123,26 @@ test('A cerrado: editar turno 2 y completar trabajos de ese turno conserva el ci
  expect(writes[1].tipo_actualizacion).toBe('observacion');expect(writes[1].estado_resultante).toBeNull();expect(row.estado_mantenimiento).toBe('finalizado');expect(row.fecha_cierre).toBe(date);expect(notes).toHaveLength(3);
 });
 test('mantenimiento externo no solicita avances diarios ni duraciones faltantes',async({page})=>{
- const row=job('preventivo','Numeral 8');row.locomotora_codigo='E704';await setup(page,row);await page.getByRole('button',{name:'Cerrar detalle'}).click();await page.getByRole('button',{name:'+ Cargar datos'}).click();await page.getByRole('button',{name:'Mantenimiento existente',exact:true}).click();await page.getByLabel('Mantenimiento existente').selectOption('job');
- await expect(page.getByText('Mantenimiento externo: no se solicitan avances diarios. Se conservan los datos de ingreso y cierre.')).toBeVisible();await expect(page.getByRole('region',{name:'Información por completar'})).toHaveCount(0);
+ const row=job('preventivo','Numeral 8');row.locomotora_codigo='E704';await setup(page,row);
+ await expect(page.getByText('Mantenimiento externo: no se solicitan avances diarios. Se conservan los datos de ingreso y cierre.')).toBeVisible();await expect(page.locator('.efficiency-days').getByRole('button',{name:'Completar'})).toHaveCount(0);
 });
 test('locomotora de carga legible en móvil y movimiento reducido',async({page})=>{
  let release;const gate=new Promise(resolve=>{release=resolve;});
  await page.route('http://127.0.0.1:54321/**',async route=>{await gate;await route.fulfill({json:route.request().url().includes('seguimiento_version')?1:[]});});
  await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'reduce'});await page.goto('/tests/seguimiento.html');
  try{await expect(page.getByRole('status')).toContainText('Cargando mantenimientos');await expect(page.locator('.railway-loader-train')).toHaveCSS('animation-name','none');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.screenshot({path:'/workspace/scratch/7ec95ebdf471/locomotora-carga.png'});}finally{release();}
+});
+
+test('E histórico propone fecha de inicio y finaliza a las 14 sin extenderse al día de carga',async({page})=>{
+ const row=job('preventivo','E');const writes=await setup(page,row);
+ await expect(page.locator('.tracking-bar')).toContainText('En curso');
+ await page.getByRole('button',{name:'+ Agregar turno o novedad'}).click();
+ const form=page.getByRole('form',{name:'Registrar avance'});
+ await expect(form.getByLabel('Fecha del turno')).toHaveValue(date);
+ await expect(form.getByLabel('¿En qué turno se trabajó?')).toHaveValue('Mañana');
+ await form.locator('textarea[name="descripcion"]').fill('Sin novedades');
+ await form.getByLabel('Resultado del turno').selectOption('finished');
+ await form.getByRole('button',{name:'Guardar avance'}).click();
+ await expect(form).toHaveCount(0);
+ expect(writes[0].fecha).toBe(date);expect(writes[0].hora).toBe('14:00');expect(writes[0].tipo_actualizacion).toBe('cierre');
 });
