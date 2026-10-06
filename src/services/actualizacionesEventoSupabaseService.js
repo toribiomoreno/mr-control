@@ -1,4 +1,5 @@
-import { assertSupabaseConfig, supabase } from '../lib/supabase.js';
+import { validateUpdate } from '../domain/maintenance/adapter.js';
+import { assertSupabaseConfig, assertSeguimientoReady, supabase } from '../lib/supabase.js';
 import { attachmentKind, mapAttachmentRows } from './adjuntosSupabaseService.js';
 
 const BUCKET = 'eventos-adjuntos';
@@ -40,7 +41,7 @@ function activityTimestamp(fecha, hora) {
   return `${fecha} ${normalizeTime(hora)}:00`;
 }
 
-function mapActualizacionRow(row, adjuntos = []) {
+export function mapActualizacionRow(row, adjuntos = []) {
   return {
     id: row.id,
     eventoId: row.evento_id,
@@ -87,7 +88,7 @@ function toActualizacionPayload(actualizacion) {
 async function conservarCierreSiEsObservacionFinalizada(actualizacion, event) {
   const estadoEvento = event.estadoMantenimiento || event.estado_mantenimiento;
   const esObservacion = (actualizacion.tipoActualizacion || actualizacion.tipo_actualizacion) === 'observacion';
-  if (!esObservacion || estadoEvento !== 'finalizado') return;
+  if (!esObservacion || estadoEvento !== 'finalizado' || actualizacion.metadata?.seguimiento?.completedFinalShift) return;
 
   const { error } = await supabase
     .from('eventos_historial')
@@ -139,7 +140,7 @@ function resolverEstadoMantenimiento(event, actualizaciones = []) {
       hasStateChange = true;
     }
 
-    if (type === 'reanudacion') {
+    if (type === 'reanudacion' || type === 'avance') {
       estado = 'en_curso';
       ultimaActividadAt = activityTimestamp(update.fecha, update.hora);
       hasStateChange = true;
@@ -173,7 +174,7 @@ export async function sincronizarEstadoMantenimientoEvento(event, actualizacione
   const desired = {
     estado_mantenimiento: resolved.estado,
     fecha_cierre: resolved.estado === 'finalizado' ? resolved.fechaCierre : null,
-    hora_cierre: resolved.estado === 'finalizado' ? resolved.horaCierre : null,
+    hora_cierre: resolved.estado === 'finalizado' ? resolved.horaCierre || null : null,
     ultima_actividad_at: resolved.ultimaActividadAt,
   };
 
@@ -313,6 +314,8 @@ export async function subirAdjuntosActualizacion({ eventoId, actualizacionId, lo
 
 export async function crearActualizacion(actualizacion, files = [], event = {}) {
   assertSupabaseConfig();
+  await assertSeguimientoReady();
+  validateUpdate(event, actualizacion);
   const { data, error } = await supabase
     .from('actualizaciones_evento')
     .insert(toActualizacionPayload(actualizacion))
@@ -337,16 +340,15 @@ export async function crearActualizacion(actualizacion, files = [], event = {}) 
 
 export async function editarActualizacion(actualizacion, files = [], event = {}) {
   assertSupabaseConfig();
+  await assertSeguimientoReady();
+  validateUpdate(event, actualizacion);
   if (!actualizacion.id) throw new Error('La actualizacion no tiene id de Supabase.');
 
-  const { data, error } = await supabase
-    .from('actualizaciones_evento')
-    .update(toActualizacionPayload(actualizacion))
-    .eq('id', actualizacion.id)
-    .select('*')
-    .single();
-
+  let query = supabase.from('actualizaciones_evento').update(toActualizacionPayload(actualizacion)).eq('id', actualizacion.id);
+  if (actualizacion.updatedAt) query = query.eq('updated_at', actualizacion.updatedAt);
+  const { data, error } = await query.select('*').maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('El registro cambió. Actualizá el seguimiento antes de corregirlo.');
 
   await subirAdjuntosActualizacion({
     eventoId: data.evento_id,

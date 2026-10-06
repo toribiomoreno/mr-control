@@ -1,72 +1,18 @@
+import RailwayLoader from './RailwayLoader.jsx';
 import { useState } from 'react';
 
 import EventFilters from './EventFilters.jsx';
-import KpiCard from './KpiCard.jsx';
+import LocomotiveLifeLine from './LocomotiveLifeLine.jsx';
 import TimelineEvent from './TimelineEvent.jsx';
-
-function groupEventsByDate(events) {
-  return events.reduce((groups, event) => {
-    const existing = groups.find((group) => group.date === event.fecha);
-    if (existing) {
-      existing.events.push(event);
-      return groups;
-    }
-
-    return [...groups, { date: event.fecha, label: formatDateLabel(event.fecha), events: [event] }];
-  }, []);
-}
+import { compareHistoryEvents, historyDates, historyMatchesDates, historyMatchesSearch } from '../domain/maintenance/history.js';
 
 function eventMatchesFilter(event, filter) {
   if (filter === 'todo') return true;
-  if (filter === 'adjuntos') return (event.adjuntos || []).length > 0;
+  if (filter === 'adjuntos') return (event.adjuntos || []).length > 0 || (event.actualizaciones || []).some(a => a.adjuntos?.length);
   if (filter === 'campana') return isCampaignType(event.tipo);
+  if (filter === 'estado_diario') return Boolean(event.metadata?.dailyState);
+  if (filter === 'operativa') return event.metadata?.dailyState?.state === 'operativa' || event.metadata?.fleetConfirmation?.state === 'operativa' || event.metadata?.fleetConfirmation?.state === 'servicio';
   return event.tipo === filter;
-}
-
-function eventMatchesSearch(event, search) {
-  const query = search.trim().toLowerCase();
-  if (!query) return true;
-
-  return [
-    event.fecha,
-    event.hora,
-    event.especialidad,
-    event.titulo,
-    event.descripcion,
-    event.responsable,
-    event.tipo,
-  ].join(' ').toLowerCase().includes(query);
-}
-
-function toCalendarDay(value) {
-  if (!value) return '';
-  if (typeof value === 'string') {
-    const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function eventMatchesDateRange(event, dateFrom, dateTo) {
-  if (!dateFrom && !dateTo) return true;
-
-  const eventDay = toCalendarDay(event.fecha);
-  if (!eventDay) return false;
-  if (dateFrom && eventDay < dateFrom) return false;
-  if (dateTo && eventDay > dateTo) return false;
-  return true;
-}
-
-function formatDateLabel(value) {
-  const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-  const [year, month, day] = value.split('-');
-  return `${day} ${months[Number(month) - 1]} ${year}`;
 }
 
 function isCampaignType(type) {
@@ -74,18 +20,19 @@ function isCampaignType(type) {
 }
 
 function displayState(loco) {
+  if (loco.estado === 'sin_confirmar') return { icon: '?', key: 'reserva', label: 'Sin estado confirmado' };
+  if (['correctivo', 'preventivo'].includes(loco.estado)) return { icon: 'T', key: 'detenida', label: 'Detenida' };
   const observation = String(loco.observacion || '').toLowerCase();
   if (loco.estado === 'detenida') return { icon: '!', key: 'detenida', label: 'Detenida' };
-  if (loco.estado === 'operativa') return { icon: 'OK', key: 'servicio', label: 'Operativa' };
-  if (loco.estado === 'uso_excepcional') return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
+  if (loco.estado === 'operativa') return { icon: '✓', key: 'servicio', label: 'Operativa' };
+  if (['uso_excepcional', 'uso_condicional'].includes(loco.estado)) return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
   if (observation.includes('uso excepcional')) return { icon: '!', key: 'uso-excepcional', label: 'Uso excepcional' };
   if (loco.estado === 'reserva') return { icon: 'II', key: 'reserva', label: 'Reserva' };
-  if (loco.estado === 'servicio') return { icon: 'OK', key: 'servicio', label: 'En servicio' };
-  return { icon: 'T', key: 'mantenimiento', label: 'En mantenimiento' };
+  if (loco.estado === 'servicio') return { icon: '✓', key: 'servicio', label: 'Operativa' };
+  return { icon: 'T', key: 'detenida', label: 'Detenida' };
 }
 
 export default function HistorialLocomotora({
-  canManage = false,
   events,
   loadError,
   loading,
@@ -93,65 +40,35 @@ export default function HistorialLocomotora({
   locomotiveImage,
   locomotoras,
   onLocomotiveChange,
-  onCreateActualizacion,
-  onForbidden,
-  onImportLibro,
-  onRegisterEvent,
+  onOpenMaintenance,
   onRetry,
 }) {
   const [activeFilter, setActiveFilter] = useState('todo');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [appliedDates, setAppliedDates] = useState({ from: '', to: '' });
   const [search, setSearch] = useState('');
-  const [importStatus, setImportStatus] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-  const targetLoco = loco || locomotoras.find((item) => item.codigo === '7774') || locomotoras[0];
+  const targetLoco = loco || locomotoras.find((item) => item.codigo === 'E721') || locomotoras[0];
   const currentState = displayState(targetLoco);
   const hasDateRange = Boolean(dateFrom || dateTo);
   const dateRangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
   const dateRangeError = dateRangeInvalid ? 'La fecha desde no puede ser posterior a la fecha hasta.' : '';
   const locomotiveEvents = events
     .filter((event) => event.locomotoraCodigo === targetLoco.codigo)
-    .sort((a, b) => `${b.fecha} ${b.hora}`.localeCompare(`${a.fecha} ${a.hora}`));
+    .sort(compareHistoryEvents);
   const filteredEvents = dateRangeInvalid
     ? []
     : locomotiveEvents.filter((event) => (
-      eventMatchesFilter(event, activeFilter)
-      && eventMatchesSearch(event, search)
-      && eventMatchesDateRange(event, dateFrom, dateTo)
+      !event.metadata?.dailyState && !event.metadata?.fleetConfirmation
+      && eventMatchesFilter(event, activeFilter)
+      && historyMatchesSearch(event, search)
+      && historyMatchesDates(event, appliedDates.from, appliedDates.to)
     ));
-  const groupedEvents = groupEventsByDate(filteredEvents);
-  const latestPreventive = locomotiveEvents.find((event) => event.tipo === 'preventivo');
-  const latestCorrective = locomotiveEvents.find((event) => event.tipo === 'correctivo');
 
   const handleClearDateRange = () => {
     setDateFrom('');
     setDateTo('');
-  };
-
-  const handleLibroImport = async (inputEvent) => {
-    const [file] = inputEvent.target.files || [];
-    if (!file) return;
-
-    setImportStatus('');
-
-    if (!canManage) {
-      onForbidden?.();
-      inputEvent.target.value = '';
-      return;
-    }
-
-    setIsImporting(true);
-
-    try {
-      const result = await onImportLibro(file);
-      setImportStatus(`Importacion finalizada: ${result.created} creados, ${result.updated} actualizados, ${result.grupos} grupos procesados.`);
-    } catch (error) {
-      setImportStatus(error.message || 'No fue posible importar el libro de novedades.');
-    } finally {
-      setIsImporting(false);
-      inputEvent.target.value = '';
-    }
+    setAppliedDates({ from: '', to: '' });
   };
 
   return (
@@ -159,17 +76,8 @@ export default function HistorialLocomotora({
       <section className="history-main-panel">
         <header className="history-file-header">
           <div className="history-hero-copy">
-            <div className="history-hero-statusbar">
-              <span className="history-external-sync">
-                <b />
-                Sincronizacion externa activa
-              </span>
-              <span>{loading ? 'Cargando historial...' : 'Supabase'}</span>
-            </div>
-            <p className="eyebrow">Archivo historico ferroviario</p>
-            <h2>Archivo Historico de Locomotora</h2>
             <div className="history-title-row">
-              <strong>{targetLoco.codigo}</strong>
+              <h2>Archivo Histórico · Locomotora {targetLoco.codigo}</h2>
               <span className={`history-state-badge ${currentState.key}`}>
                 <i>{currentState.icon}</i>
                 {currentState.label}
@@ -184,19 +92,6 @@ export default function HistorialLocomotora({
               </label>
             </div>
 
-            <div className="history-hero-actions">
-              {canManage && (
-                <label className={`history-import-button ${isImporting ? 'is-loading' : ''}`}>
-                  {isImporting ? 'Importando...' : 'Importar libro de novedades'}
-                  <input accept=".csv,text/csv" disabled={isImporting} onChange={handleLibroImport} type="file" />
-                </label>
-              )}
-              {canManage && (
-                <button className="history-register-button" onClick={() => onRegisterEvent(targetLoco)} type="button">
-                  Registrar evento
-                </button>
-              )}
-            </div>
           </div>
 
           <div className={`history-hero-loco ${targetLoco.codigo === '7774' ? 'blue' : 'red'}`}>
@@ -204,17 +99,10 @@ export default function HistorialLocomotora({
           </div>
         </header>
 
-        {importStatus && (
-          <div className="history-modal-note history-import-status">
-            {importStatus}
-          </div>
-        )}
-
-        <section className="history-kpi-grid">
-          <KpiCard icon="C" label="Ultimo preventivo" tone="preventivo" value={latestPreventive ? formatDateLabel(latestPreventive.fecha) : 'Sin registro'} />
-          <KpiCard icon="H" label="Ultimo correctivo" tone="correctivo" value={latestCorrective ? formatDateLabel(latestCorrective.fecha) : 'Sin registro'} />
-          <KpiCard icon="D" label="Dias sin novedades" tone="libro" value="0" />
-        </section>
+        {!loadError && <LocomotiveLifeLine events={locomotiveEvents} loading={loading} onOpenMaintenance={(id) => {
+          const maintenance = locomotiveEvents.find((event) => event.id === id);
+          onOpenMaintenance(id, targetLoco.codigo, maintenance?.fecha, maintenance?.metadata?.seguimiento?.location);
+        }} />}
 
         <EventFilters
           activeFilter={activeFilter}
@@ -222,6 +110,7 @@ export default function HistorialLocomotora({
           dateRangeError={dateRangeError}
           dateTo={dateTo}
           onFilterChange={setActiveFilter}
+          onApplyDates={() => setAppliedDates({ from: dateFrom, to: dateTo })}
           onClearDateRange={handleClearDateRange}
           onDateFromChange={setDateFrom}
           onDateToChange={setDateTo}
@@ -230,38 +119,29 @@ export default function HistorialLocomotora({
         />
 
         <section className="history-timeline" aria-label="Linea de tiempo historica">
-          {!loading && !loadError && groupedEvents.map((group) => (
-            <div className="timeline-day" key={group.date}>
-              <h3>{group.label}</h3>
-              <div className="timeline-day-events">
-                {group.events.map((event) => (
-                  <TimelineEvent
-                    canManage={canManage}
-                    event={event}
-                    key={event.id}
-                    onCreateActualizacion={onCreateActualizacion}
-                    onForbidden={onForbidden}
-                  />
-                ))}
-              </div>
+          <h3 className="history-events-heading">Eventos del historial</h3>
+          {!loading && !loadError && filteredEvents.map(event => (
+            <div className="timeline-day" key={event.id}>
+              <div className="timeline-date"><span>{historyDates(event)}</span></div>
+              <div className="timeline-day-events"><TimelineEvent event={event} onOpenMaintenance={() => onOpenMaintenance?.(event.id, targetLoco.codigo, event.fecha, event.metadata?.seguimiento?.location)} /></div>
             </div>
           ))}
 
           {loading && (
             <div className="history-empty large">
-              <strong>Cargando historial...</strong>
+              <RailwayLoader label="Cargando historial…" />
             </div>
           )}
 
           {!loading && loadError && (
             <div className="history-empty large">
               <strong>Sin conexion al historial</strong>
-              <p>No fue posible conectarse con Supabase.</p>
+              <p>No fue posible cargar el historial.</p>
               <button className="secondary-action" onClick={onRetry} type="button">Reintentar</button>
             </div>
           )}
 
-          {!loading && !loadError && !dateRangeInvalid && groupedEvents.length === 0 && (
+          {!loading && !loadError && !dateRangeInvalid && filteredEvents.length === 0 && (
             <div className="history-empty large">
               <strong>Sin resultados</strong>
               <p>{hasDateRange ? 'No hay eventos registrados para ese rango de fechas.' : locomotiveEvents.length === 0 ? 'No hay eventos registrados.' : 'No hay eventos para esos filtros.'}</p>

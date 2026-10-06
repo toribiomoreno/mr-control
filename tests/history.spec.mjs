@@ -1,0 +1,26 @@
+import { test, expect } from '@playwright/test';
+test('histórico compacto, notas desplegables, filtro por rango y vista móvil',async({page})=>{
+ await page.goto('/tests/history.html');
+ await expect(page.getByRole('button',{name:/^(Campañas|Ajustes|Adjuntos)$/})).toHaveCount(0);await expect(page.locator('.history-state-badge')).not.toContainText('OK');
+ await expect(page.getByText('Ver archivo privado (temporal)')).toHaveCount(0);
+ await expect(page.getByText('Importar libro de novedades')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:/Registrar/})).toHaveCount(0);
+ await expect(page.locator('.timeline-date').last()).toHaveText('21 – 22 SEP 2026');
+ await expect(page.locator('.history-timeline').getByText('Disponible después del centrado.')).toHaveCount(0);
+ await page.locator('.history-timeline').screenshot({path:'/workspace/scratch/7ec95ebdf471/historico-redisenado.png'});
+ await page.getByRole('button',{name:'Ver avances (1)'}).last().click();
+ await expect(page.locator('.history-timeline').getByText('Disponible después del centrado.')).toHaveCount(1);
+ await page.getByLabel('Buscar en el historial').fill('centrado');
+ await expect(page.locator('.timeline-event-card')).toHaveCount(1);
+ await page.getByLabel('Buscar en el historial').fill('');
+ await page.getByLabel('Fecha desde').fill('2026-09-22');
+ await page.getByLabel('Fecha hasta').fill('2026-09-22');
+ await page.getByRole('button',{name:'Filtrar',exact:true}).click();
+ await expect(page.locator('.timeline-event-card')).toHaveCount(1);
+ await page.getByRole('button',{name:'Limpiar fechas'}).click();
+ await page.setViewportSize({width:390,height:844});
+ await expect(page.locator('.timeline-event-card')).toHaveCount(2);
+ await page.locator('.history-timeline').screenshot({path:'/workspace/scratch/7ec95ebdf471/historico-movil.png'});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+ await page.locator('.history-timeline').screenshot({path:'/workspace/scratch/7ec95ebdf471/historico-movil.png'});
+});

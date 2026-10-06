@@ -16,3 +16,9 @@ export function assertSupabaseConfig() {
     throw new Error('No fue posible conectarse con Supabase.');
   }
 }
+
+export async function assertSeguimientoReady() {
+  assertSupabaseConfig();
+  const { data, error } = await supabase.rpc('seguimiento_version');
+  if (error || data !== 1) throw new Error('La base aún no tiene habilitada la integración segura de seguimiento. Aplicá y verificá la migración antes de cargar mantenimientos.');
+}

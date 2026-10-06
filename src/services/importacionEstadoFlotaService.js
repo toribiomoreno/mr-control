@@ -1,7 +1,11 @@
+import { dailyStateRecord } from '../domain/maintenance/dailyState.js';
+import { validDate } from '../domain/maintenance/adapter.js';
+import { today } from '../domain/maintenance/types.js';
+
 export const fleetOperationalStates = {
   operativa: 'Operativa',
   reserva: 'Reserva',
-  uso_excepcional: 'Uso excepcional',
+  uso_excepcional: 'Uso condicional',
   detenida: 'Detenida',
 };
 
@@ -13,7 +17,9 @@ export const detentionClassifications = {
 
 const blockingErrorMessages = {
   fecha_faltante: 'Falta la fecha del parte.',
+  fecha_invalida: 'La fecha del parte debe ser válida y no futura.',
   hora_faltante: 'Falta la hora del parte.',
+  hora_invalida: 'La hora del parte debe tener formato HH:mm.',
   texto_vacio: 'Pega el contenido del parte antes de procesar.',
   unidad_desconocida: 'Unidad desconocida.',
   unidad_duplicada: 'Unidad duplicada en el parte.',
@@ -208,7 +214,7 @@ function detectColumns(cells) {
     return { unitIndex: 0, stateIndex: 1, reasonIndex: 2 };
   }
 
-  const unitIndex = normalized.findIndex((cell) => ['loc.', 'loc', 'unidad', 'locomotora', 'maquina', 'codigo'].some((name) => cell === name || cell.includes(name)));
+  const unitIndex = normalized.findIndex((cell) => ['loc.', 'loc', 'unidad', 'locomotora', 'maquina', 'codigo'].includes(cell));
   const stateIndex = normalized.findIndex((cell) => cell === 'estado' || cell.includes('estado'));
   const reasonIndex = normalized.findIndex((cell) => ['motivo', 'detalle', 'observacion', 'observaciones', 'novedad'].some((name) => cell === name || cell.includes(name)));
 
@@ -228,7 +234,8 @@ function extractStateFromRemainder(remainder) {
   ));
 
   if (!match) {
-    return { rawState: remainder.trim(), reason: '' };
+    // Sin columna de estado explícita, el texto que acompaña a la unidad es una observación.
+    return { rawState: '', reason: remainder.trim() };
   }
 
   const words = remainder.trim().split(/\s+/);
@@ -297,7 +304,8 @@ export function parseFleetStatusText(text) {
   lines.forEach((line, index) => {
     if (isIgnorableLine(line)) return;
 
-    const cells = splitLine(line).map((cell) => cell.trim()).filter((cell) => cell !== '');
+    // No eliminar celdas vacías: desplazaría la observación a la columna Estado.
+    const cells = splitLine(line).map((cell) => cell.trim());
     const detectedColumns = detectColumns(cells);
 
     if (detectedColumns) {
@@ -332,17 +340,19 @@ export function parseFleetStatusText(text) {
   return rows;
 }
 
-export function buildFleetImportPreview({ date, time, text, locomotoras }) {
+export function buildFleetImportPreview({ date, time, text, locomotoras, maintenanceEvents = [] }) {
   const detectedDateTime = extractFleetReportDateTime(text);
   const effectiveDate = date || detectedDateTime.date;
-  const effectiveTime = time || detectedDateTime.time;
+  const effectiveTime = time || detectedDateTime.time || '06:00';
   const validCodes = new Set(locomotoras.map((loco) => normalizeUnitCode(loco.codigo)));
   const rows = parseFleetStatusText(text);
   const seen = new Map();
   const errors = [];
 
   if (!effectiveDate) errors.push('fecha_faltante');
+  else if (!validDate(effectiveDate) || effectiveDate > today()) errors.push('fecha_invalida');
   if (!effectiveTime) errors.push('hora_faltante');
+  else if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(effectiveTime)) errors.push('hora_invalida');
   if (!String(text || '').trim()) errors.push('texto_vacio');
 
   const previewRows = rows.map((row) => {
@@ -362,14 +372,20 @@ export function buildFleetImportPreview({ date, time, text, locomotoras }) {
     if (duplicate) rowErrors.push('unidad_duplicada');
     if (stateResult.error) rowErrors.push(stateResult.error);
     if (row.unit && !duplicate) seen.set(row.unit, row);
-    if (stateResult.state === 'detenida' && classification.classification === 'sin_clasificar') warnings.push('Detencion sin clasificar.');
+    if (stateResult.state === 'detenida' && classification.classification === 'sin_clasificar' && !row.reason?.trim()) warnings.push('Falta el motivo de la detención. Completalo al cargar datos en Mantenimientos.');
+    const snapshot = dailyStateRecord({ unit: row.unit, reportDate: effectiveDate, reportTime: effectiveTime, newState: stateResult.state, reason: row.reason }, maintenanceEvents);
+    if (snapshot.closingMaintenanceIds.length) warnings.push(`Al confirmar el parte se cerrarán ${snapshot.closingMaintenanceIds.length} mantenimiento(s) abierto(s) y la máquina quedará Operativa, con fecha y hora de este parte.`);
+    if (snapshot.conflict) warnings.push(`El parte informa ${stateResult.label}, pero hay un mantenimiento abierto en esa fecha y hora: se conserva Detenida hasta confirmar el cierre.`);
+    if (snapshot.needsMaintenance && row.reason?.trim()) warnings.push(classification.classification === 'preventivo' && !/^(E|A|AB|ABC|Numeral ([1-9]|1[0-2]))$/.test(classification.preventiveCode)
+      ? 'Falta el código preventivo; completalo en Mantenimientos.'
+      : 'Se abrirá el mantenimiento con este motivo. Trabajo, turno y personal se completan en Mantenimientos.');
 
     return {
       ...row,
       previousState,
       previousLabel: fleetOperationalStates[previousState] || '',
       newState: stateResult.state,
-      newLabel: stateResult.label,
+      newLabel: snapshot.conflict ? `Detenida (parte: ${stateResult.label})` : stateResult.label,
       classification: classification.classification,
       classificationLabel: detentionClassifications[classification.classification] || '',
       preventiveCode: classification.preventiveCode,

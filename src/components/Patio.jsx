@@ -13,6 +13,7 @@ const statusClassNames = {
   reserva: 'is-reserve',
   uso_excepcional: 'is-exceptional',
   lavado: 'is-wash',
+  sin_confirmar: 'is-reserve',
 };
 
 const locomotiveScaleBoost = 1.04;
@@ -70,14 +71,16 @@ const filterOptions = [
   { id: 'all', label: 'Todas', className: 'all', predicate: () => true },
   { id: 'service', label: 'Operativas', className: 'service', predicate: (loco) => ['servicio', 'operativa'].includes(loco.estado) },
   { id: 'maintenance', label: 'Detenidas', className: 'maintenance', predicate: (loco) => ['preventivo', 'correctivo', 'detenida'].includes(loco.estado) },
+  { id: 'unknown', label: 'Por confirmar', className: 'maintenance', predicate: (loco) => loco.estado === 'sin_confirmar' || loco.estadoConfirmado === false },
   { id: 'wash', label: 'Lavado', className: 'wash', predicate: (loco) => loco.lavadoProgramado },
 ];
 
 function getStatusText(loco) {
+  if (loco.estado === 'sin_confirmar') return 'Sin confirmar';
   if (loco.lavadoProgramado) return 'Lavado';
   if (['servicio', 'operativa'].includes(loco.estado)) return 'Operativa';
   if (loco.estado === 'reserva') return 'Reserva';
-  if (loco.estado === 'uso_excepcional') return 'Uso excepcional';
+  if (loco.estado === 'uso_excepcional') return 'Uso condicional';
   if (loco.estado === 'detenida') return 'Detenida';
   if (loco.estado === 'preventivo') return 'Preventivo';
   return 'Correctivo';
@@ -150,12 +153,13 @@ export default function Patio({ canManage = false, locomotoras, selected, setSel
       [loco.estado]: totals[loco.estado] + 1,
       lavado: totals.lavado + (loco.lavadoProgramado ? 1 : 0),
     }),
-    { servicio: 0, operativa: 0, reserva: 0, uso_excepcional: 0, preventivo: 0, correctivo: 0, detenida: 0, lavado: 0 },
+    { servicio: 0, operativa: 0, reserva: 0, uso_excepcional: 0, preventivo: 0, correctivo: 0, detenida: 0, sin_confirmar: 0, lavado: 0 },
   );
   const filterTotals = {
     all: locomotoras.length,
     service: statusTotals.servicio + statusTotals.operativa,
     maintenance: statusTotals.preventivo + statusTotals.correctivo + statusTotals.detenida,
+    unknown: locomotoras.filter(loco => loco.estado === 'sin_confirmar' || loco.estadoConfirmado === false).length,
     wash: statusTotals.lavado,
   };
 
@@ -239,7 +243,7 @@ export default function Patio({ canManage = false, locomotoras, selected, setSel
       <div className="yard-toolbar">
         <div>
           <p className="eyebrow">Tablero operativo</p>
-          <h2>Patio Ferroviario</h2>
+          <h2>Parque ferroviario</h2>
         </div>
 
         <div className="yard-toolbar-actions">
@@ -301,7 +305,7 @@ export default function Patio({ canManage = false, locomotoras, selected, setSel
                   transform: `translate(-50%, -50%) scale(${scale})`,
                 }}
                 type="button"
-                title={`${loco.codigo} - ${getStatusText(loco)}`}
+                title={`${loco.codigo} - ${getStatusText(loco)} · ${loco.observacion || loco.fuenteEstado}`}
               >
                 <span className="locomotive-shadow" />
                 <img alt={`Locomotora ${loco.codigo}`} src={getLocoImage(loco)} />

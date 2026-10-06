@@ -1,153 +1,90 @@
+import { causes, durations, today } from '../domain/maintenance/types.js';
+import { isLight, validateUpdate } from '../domain/maintenance/adapter.js';
+import { beforeMaintenanceClosure, hasMaintenanceDelay, operationalOutcomes, outcomeLabels } from '../domain/maintenance/view.js';
+import { buildMaintenanceIntake, buildProgress } from '../domain/maintenance/capture.js';
+import { lightShiftSlot, nextWorkDate } from '../domain/maintenance/schedule.js';
+import { nextShiftSelection } from '../domain/maintenance/journal.js';
 import { useState } from 'react';
-
+import VoiceTextarea from './VoiceTextarea.jsx';
+import SystemFields from './SystemFields.jsx';
 import TimeSelect from './TimeSelect.jsx';
-import { isValidTimeValue } from './timeUtils.js';
 
-const updateTypes = [
-  { value: 'avance', label: 'Avance' },
-  { value: 'pausa', label: 'Pausa' },
-  { value: 'observacion', label: 'Observacion' },
-  { value: 'reanudacion', label: 'Reanudacion' },
-  { value: 'cierre', label: 'Cierre' },
-];
-
-const responsibleOptions = ['Turno fijo', 'Turno rotativo'];
-
-function todayInputValue() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function currentTimeValue() {
-  return new Date().toTimeString().slice(0, 5);
-}
-
-function defaultStateForType(type) {
-  if (type === 'pausa') return 'pausado';
-  if (type === 'cierre') return 'finalizado';
-  if (type === 'reanudacion' || type === 'avance') return 'en_curso';
-  return null;
-}
-
-export default function ActualizacionEventoModal({
-  event,
-  mode = 'avance',
-  onClose,
-  onSave,
-}) {
-  const isObservationOnly = mode === 'observacion';
-  const initialType = isObservationOnly ? 'observacion' : 'avance';
-  const [tipo, setTipo] = useState(initialType);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const isPause = tipo === 'pausa';
-  const descriptionLabel = isPause ? 'Motivo de la pausa' : isObservationOnly ? 'Observacion' : 'Descripcion';
-
-  const handleSubmit = async (submitEvent) => {
-    submitEvent.preventDefault();
-    const form = new FormData(submitEvent.currentTarget);
-    const descriptionValue = String(form.get(isPause ? 'motivoPausa' : 'descripcion') || '').trim();
-    const responsable = String(form.get('responsable') || '').trim();
-    const hora = String(form.get('hora') || '').slice(0, 5);
-
-    setErrorMessage('');
-
-    if (!isValidTimeValue(hora)) {
-      setErrorMessage('La hora debe tener formato HH:mm.');
-      return;
-    }
-
-    const payload = {
-      eventoId: event.id,
-      fecha: form.get('fecha'),
-      hora,
-      tipoActualizacion: tipo,
-      descripcion: descriptionValue,
-      responsable,
-      porcentajeAvance: null,
-      estadoResultante: defaultStateForType(tipo),
-      motivoPausa: isPause ? descriptionValue : null,
-      motivoReapertura: null,
-      resultadoPrueba: null,
-      estadoUnidadResultante: null,
-      pendientes: null,
-    };
-    const files = form.getAll('adjuntos').filter((file) => file && file.name);
-
-    setIsSaving(true);
-
+const responsibleOptions = ['Turno fijo', 'Turno rotativo', 'Otro sector', 'Personal externo'];
+export default function ActualizacionEventoModal({ event, mode = 'avance', initialUpdate = null, initialDate = '', advanceNextDay = false, newEntry = false, embedded = false, intakeFields = null, creatingMaintenance = false, onClose, onSave }) {
+  const saved = initialUpdate?.metadata?.seguimiento || {};
+  const light = isLight(event);
+  const closed = event.estadoMantenimiento === 'finalizado';
+  const historicalShift = light && closed && !event.metadata?.dailyStateClosure && initialUpdate?.tipoActualizacion !== 'cierre';
+  const observation = saved.activity === 'sin_dato' || (mode === 'observacion' && !initialUpdate?.id);
+  const nextShift = nextShiftSelection(event);
+  const slot = light ? lightShiftSlot(event, nextShift.number, nextShift.extended ? nextShift.extensionIndex : 0) : null;
+  const [date, setDate] = useState(initialUpdate?.fecha || initialDate || (advanceNextDay && !light ? nextWorkDate(event) : '') || (slot && slot.date <= today() ? slot.date : '') || (closed ? event.fechaCierre : today()));
+  const [staff, setStaff] = useState(initialUpdate?.responsable || (light ? 'Turno rotativo' : ''));
+  const [duration, setDuration] = useState(saved.activity === 'espera' ? '0' : saved.workDurationDays == null ? '' : String(saved.workDurationDays));
+  const [delayed, setDelayed] = useState(hasMaintenanceDelay(saved) ? 'yes' : 'no');
+  const [outcome, setOutcome] = useState(saved.outcome || '');
+  const [shift, setShift] = useState(saved.shiftNumber || nextShift.number);
+  const [shiftResult, setShiftResult] = useState(saved.additionalShiftRequired ? 'extend' : saved.shiftFinished === true ? 'finished' : '');
+  const [error, setError] = useState(''), [saving, setSaving] = useState(false);
+  const needsCause = delayed === 'yes' || (light && shiftResult === 'extend');
+  const finalShift = light && Number(shift) >= durations[event.preventivoCodigo] && shiftResult === 'finished';
+  const showOutcome = !light || (!historicalShift && (finalShift || observation || initialUpdate?.tipoActualizacion === 'cierre'));
+  const implicitDate = !creatingMaintenance && !initialUpdate?.id && Boolean(initialDate);
+  async function submit(e) {
+    e.preventDefault(); setError('');
+    const form = new FormData(e.currentTarget);
     try {
-      await onSave(event, payload, files);
-      onClose();
-    } catch (error) {
-      setErrorMessage(error.message || 'No fue posible guardar el avance.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <form className="intervention-modal maintenance-update-modal" onSubmit={handleSubmit}>
-        <div className="modal-heading">
-          <div>
-            <span className="panel-kicker">{event.titulo || 'Mantenimiento'}</span>
-            <h2>{isObservationOnly ? 'Agregar observacion' : 'Registrar avance'}</h2>
-          </div>
-          <button className="modal-close" onClick={onClose} type="button" aria-label="Cerrar">x</button>
-        </div>
-
-        {!isObservationOnly && (
-          <label>
-            Tipo de actualizacion
-            <select name="tipoActualizacion" onChange={(item) => setTipo(item.target.value)} value={tipo} required>
-              {updateTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-        )}
-
-        <label>
-          Fecha
-          <input name="fecha" type="date" defaultValue={todayInputValue()} required />
-        </label>
-
-        <TimeSelect defaultValue={currentTimeValue()} />
-
-        <label>
-          Responsable
-          <select name="responsable" defaultValue="" required>
-            <option value="" disabled>Seleccionar turno</option>
-            {responsibleOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select>
-        </label>
-
-        <label>
-          {descriptionLabel}
-          <textarea name={isPause ? 'motivoPausa' : 'descripcion'} rows="4" required />
-        </label>
-
-        <div className="history-file-drop">
-          <strong>Adjuntos</strong>
-          <span>Adjunte PDF, fotos, OT o informes asociados al avance.</span>
-          <input name="adjuntos" type="file" accept="application/pdf,image/*" multiple />
-        </div>
-
-        <div className="modal-actions">
-          <button className="secondary-action" onClick={onClose} type="button">Cancelar</button>
-          <button className="primary-action" disabled={isSaving} type="submit">
-            {isSaving ? 'Guardando...' : isObservationOnly ? 'Guardar observacion' : 'Guardar avance'}
-          </button>
-        </div>
-
-        {errorMessage && (
-          <div className="history-modal-note">
-            {errorMessage}
-          </div>
-        )}
-      </form>
-    </div>
-  );
+      const parent = creatingMaintenance && !event.id ? buildMaintenanceIntake({ ...Object.fromEntries(form), staff }) : event;
+      const payload = buildProgress(parent, initialUpdate, {
+        observation, date, description: String(form.get('descripcion') || ''), staff,
+        delayed: delayed === 'yes', noWork: delayed === 'yes' && duration === '0', duration,
+        cause: form.get('cause') || '', delayDescription: String(form.get('delayDescription') || ''),
+        system: form.get('system') || saved.system || '', subsystem: form.get('subsystem') || saved.subsystem || '',
+        outcome: showOutcome ? outcome : saved.outcome || 'continua', outcomeConfirmed: form.get('confirmAvailability') === 'on',
+        shiftNumber: shift, shiftFinished: shiftResult === 'finished', additionalShiftRequired: shiftResult === 'extend',
+        shiftExtended: initialUpdate?.id ? saved.shiftExtended : nextShift.extended && Number(shift) === nextShift.number,
+        extensionIndex: initialUpdate?.id ? saved.extensionIndex : nextShift.extensionIndex,
+        period: form.get('period') || saved.period || 'Día completo',
+        endTime: form.get('endTime') || '',
+      });
+      validateUpdate(parent, payload);
+      setSaving(true);
+      await onSave(parent, payload, []); onClose();
+    } catch (err) { setError(err.message || 'No fue posible guardar el avance.'); }
+    finally { setSaving(false); }
+  }
+  const content = <form className={`maintenance-form ${embedded ? 'maintenance-inline-editor' : 'intervention-modal maintenance-update-modal'}`} aria-label={initialUpdate?.id ? 'Editar avance' : 'Registrar avance'} onSubmit={submit} onInvalidCapture={e => setError(`Falta completar: ${e.target.closest('label')?.firstChild?.textContent?.trim() || 'un dato obligatorio'}.`)}>
+    <div className="modal-heading"><h3>{creatingMaintenance ? 'Nuevo mantenimiento' : newEntry ? 'Completar actividad del registro creado' : initialUpdate?.id ? 'Editar avance' : observation ? 'Agregar novedad' : light ? 'Agregar avance por turno' : 'Agregar bloque de trabajo'}</h3><button type="button" className="modal-close" aria-label="Cerrar" onClick={onClose}>×</button></div>
+    {typeof intakeFields === 'function' ? intakeFields(setDate) : intakeFields}
+    {closed && !observation && <p className="tracking-hint">Podés completar o corregir trabajos históricos hasta la fecha de fin. Agregar un trabajo conserva el cierre y la disponibilidad registrados.</p>}
+    {creatingMaintenance && <h4 className="maintenance-form-step">Trabajo realizado</h4>}
+    {implicitDate ? <p className="tracking-hint">Fecha de trabajo: mismo día del bloque</p> : <label>{light ? 'Fecha del turno' : 'Fecha de trabajo'}<input name="fecha" type="date" value={date} onChange={e => setDate(e.target.value)} min={event.fecha} max={event.estadoMantenimiento === 'finalizado' && !observation ? event.fechaCierre : today()} required /></label>}
+    {!observation && (light ? <>
+      <label>Turno<select name="shiftNumber" value={shift} onChange={e => setShift(e.target.value)} required>{Array.from({ length: durations[event.preventivoCodigo] }, (_, i) => <option key={i + 1} value={i + 1}>Turno {i + 1}</option>)}</select></label>
+      {(initialUpdate?.id ? saved.shiftExtended : nextShift.extended) && <p className="tracking-hint">Turno adicional · extensión {saved.extensionIndex || nextShift.extensionIndex}</p>}
+      <label>¿Se pudo trabajar normalmente?<select value={delayed} onChange={e => setDelayed(e.target.value)} required><option value="">Seleccionar</option><option value="no">Sí</option><option value="yes">No, hubo una demora</option></select></label>
+      <label>¿En qué turno se trabajó?<select name="period" defaultValue={saved.period || slot?.period || ''} required><option value="">Seleccionar</option><option>Mañana</option><option>Tarde</option>{initialUpdate?.id && ['Mañana y tarde','Día completo'].includes(saved.period) && <option>{saved.period}</option>}</select></label>
+    </> : <>
+      <SystemFields compact tracking={{ ...event.metadata?.seguimiento, ...saved }} legacy={Boolean(initialUpdate?.id && !saved.subsystem)} />
+      <label>¿Quién la trabajó?<select name="responsable" value={staff} onChange={e => setStaff(e.target.value)} required><option value="">Seleccionar personal</option>{staff && !responsibleOptions.includes(staff) && <option>{staff}</option>}{responsibleOptions.map(s => <option key={s}>{s}</option>)}</select></label>
+      <label>Jornada<select name="workDurationDays" value={duration} onChange={e => { setDuration(e.target.value); if (e.target.value === '0') setDelayed('yes'); }} required><option value="">Seleccionar</option><option value="1">Jornada completa</option><option value="0.5">Media jornada</option><option value="0">Sin trabajo · día de demora</option></select></label>
+    </>)}
+    <label>{light ? 'Descripción / novedad' : observation ? 'Novedad' : 'Descripción de lo que se hizo'}<VoiceTextarea name="descripcion" defaultValue={initialUpdate?.descripcion || ''} rows={3} required /></label>
+    {!light && <fieldset className="tracking-fields availability-confirm"><legend>¿Cómo quedó la máquina?</legend>
+      <select aria-label="Estado posterior de la máquina" value={outcome} onChange={e => setOutcome(e.target.value)}><option value="">Sin confirmar todavía</option>{Object.entries(outcomeLabels).filter(([key]) => key !== 'disponible' && !(key === 'continua' && event.estadoMantenimiento === 'finalizado' && !beforeMaintenanceClosure(event, { ...initialUpdate, fecha: date }))).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+      {operationalOutcomes.includes(outcome) && <label className="tracking-confirm"><input name="confirmAvailability" type="checkbox" defaultChecked={saved.outcomeConfirmed && saved.outcome === outcome} required />Confirmo que quedó disponible en el estado indicado.</label>}
+      {['prueba','prueba_parque','prueba_linea'].includes(outcome) && <p className="tracking-hint">Queda pendiente de prueba; se conserva detenida hasta confirmar su disponibilidad.</p>}
+    </fieldset>}
+    {!observation && (light ? <label>Resultado del turno<select value={shiftResult} onChange={e => setShiftResult(e.target.value)} required><option value="">Seleccionar</option><option value="finished">Damos el turno por finalizado</option><option value="extend">Se debió agregar otro turno</option></select></label> : <label>¿Tuviste alguna demora?<select value={delayed} onChange={e => { setDelayed(e.target.value); if (e.target.value === 'no' && duration === '0') setDuration(''); }} required><option value="">Seleccionar</option><option value="no">No</option><option value="yes">Sí</option></select></label>)}
+    {!observation && needsCause && <fieldset className="tracking-fields maintenance-delay-fields"><legend>{light && shiftResult === 'extend' ? '¿Por qué se agregó otro turno?' : 'Demora registrada'}</legend>
+      <label>Motivo de la demora<select name="cause" defaultValue={saved.extensionCause || saved.cause || ''} required><option value="">Seleccionar causa</option>{Object.entries(causes).filter(([key]) => key !== 'PENDIENTE').map(([key, label]) => <option key={key} value={key}>{key} · {label}</option>)}</select></label>
+      <label>Descripción de la demora<VoiceTextarea name="delayDescription" defaultValue={saved.delayDescription || saved.extensionReason || saved.allocationNote || (saved.activity === 'espera' ? initialUpdate?.descripcion : '') || ''} rows={2} required /></label>
+    </fieldset>}
+    {light && finalShift && !historicalShift && <p className="tracking-hint">El último turno finalizado cierra el mantenimiento en la fecha indicada: mañana a las 14:00, tarde a las 22:00. Podés indicar otra hora o un estado distinto.</p>}
+    {light && showOutcome && <fieldset className="tracking-fields availability-confirm"><legend>Disponibilidad al terminar el mantenimiento</legend><select aria-label="Estado posterior de la máquina" value={outcome} onChange={e => setOutcome(e.target.value)}><option value="">Sin confirmar todavía</option>{Object.entries(outcomeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>{operationalOutcomes.includes(outcome) && <label className="tracking-confirm"><input type="checkbox" name="confirmAvailability" defaultChecked={saved.outcomeConfirmed && saved.outcome === outcome} required />Confirmo que quedó disponible en el estado indicado.</label>}</fieldset>}
+    {showOutcome && operationalOutcomes.includes(outcome) && <fieldset className="tracking-fields maintenance-end-fact"><legend>Fecha y hora de fin</legend><p>{date.split('-').reverse().join('/')}</p><TimeSelect name="endTime" label="Hora de fin (si se conoce)" defaultValue={initialUpdate?.hora || ''} required={false} /></fieldset>}
+    <div className="modal-actions"><button type="button" onClick={onClose} disabled={saving}>Cancelar</button><button type="submit" className="primary-action" disabled={saving}>{saving ? 'Guardando…' : observation ? 'Guardar novedad' : 'Guardar avance'}</button></div>
+    {error && <p className="history-modal-note" role="alert">{error}</p>}
+  </form>;
+  return embedded ? content : <div className="modal-backdrop">{content}</div>;
 }

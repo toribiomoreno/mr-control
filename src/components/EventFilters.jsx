@@ -1,12 +1,10 @@
 const filterTabs = [
-  { id: 'todo', label: 'Todo' },
-  { id: 'preventivo', label: 'Preventivos' },
-  { id: 'correctivo', label: 'Correctivos' },
-  { id: 'libro', label: 'Libro de novedades' },
+  { id: 'todo', label: 'Todos' },
+  { id: 'correctivo', label: 'Correctivos', color: '#ef4444' },
+  { id: 'preventivo', label: 'Preventivos', color: '#facc15' },
+  { id: 'lavado', label: 'Lavados', color: '#7dd3fc' },
+  { id: 'libro', label: 'Libro de turno', color: '#a78bfa' },
   { id: 'alistamiento', label: 'Alistamientos' },
-  { id: 'campana', label: 'Campanas' },
-  { id: 'lavado', label: 'Lavados' },
-  { id: 'adjuntos', label: 'Adjuntos' },
 ];
 
 export default function EventFilters({
@@ -18,6 +16,7 @@ export default function EventFilters({
   onDateFromChange,
   onDateToChange,
   onFilterChange,
+  onApplyDates,
   onSearchChange,
   search,
 }) {
@@ -56,7 +55,7 @@ export default function EventFilters({
             value={dateTo}
           />
         </label>
-        <button type="button">Filtros</button>
+        <button disabled={Boolean(dateRangeError)} onClick={onApplyDates} type="button">Filtrar</button>
         <button className="history-clear-dates" disabled={!dateFrom && !dateTo} onClick={onClearDateRange} type="button">
           Limpiar fechas
         </button>
@@ -69,7 +68,9 @@ export default function EventFilters({
             key={item.id}
             onClick={() => onFilterChange(item.id)}
             type="button"
+            aria-pressed={activeFilter === item.id}
           >
+            {item.color && <i className="history-filter-dot" style={{ '--filter-color': item.color }} />}
             {item.label}
           </button>
         ))}

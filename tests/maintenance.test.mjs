@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { toRegister, validateEvent, validateUpdate } from '../src/domain/maintenance/adapter.js';
+import { maintenanceEfficiency, timelineLanes } from '../src/domain/maintenance/presentation.js';
+import { csv } from '../src/domain/maintenance/export.js';
+import { normalizeUnit } from '../src/domain/maintenance/types.js';
+import { preparePilotImport } from '../src/domain/maintenance/import.js';
+const now = '2026-09-27';
+const event = (patch={}) => ({ id: 'example', locomotoraCodigo:'E701', fecha:'2026-09-24', tipo:'correctivo', descripcion:'Ejemplo ficticio', responsable:'Turno fijo', estadoMantenimiento:'finalizado', fechaCierre:'2026-09-25', metadata:{seguimiento:{detentionStart:'2026-09-24',location:'Boulogne',system:'Bogie',component:'Componente de prueba'}}, actualizaciones:[], ...patch });
+const update = (date, tracking={}, rest={}) => ({id:date,fecha:date,hora:'06:00',tipoActualizacion:'observacion',descripcion:'Trabajo de prueba',responsable:'Turno fijo',metadata:{seguimiento:{activity:'trabajo',period:'Mañana',...tracking}},...rest});
+function efficiency(e,range) { const s=toRegister([e]); return maintenanceEfficiency(s,s.maintenances[0],range,now); }
+test('medio día CAP y un día útil producen 75%, con explicación',()=>{ const e=event({actualizaciones:[update('2026-09-24',{activity:'mixto',cause:'CAP',usefulFraction:.5,allocationNote:'Demora compartida con trabajo'}),update('2026-09-25')]});const k=efficiency(e);assert.equal(k.percent,75);assert.equal(k.losses.CAP,.5);assert.equal(k.worked,1.5); });
+test('correctivo excluye fin de semana sin trabajo, liviano lo incluye',()=>{const e=event({fecha:'2026-09-25',estadoMantenimiento:'abierto',fechaCierre:null,actualizaciones:[update('2026-09-25')]});const k=efficiency(e);assert.equal(k.excluded,1);assert.equal(k.rows.at(-1).state,'open'); const p=efficiency({...e,tipo:'preventivo',preventivoCodigo:'AB'}); assert.equal(p.excluded,0);assert.equal(p.missing,2);});
+test('no inferir actividad de los avances viejos ni detención de la fecha',()=>{const e=event({metadata:{},actualizaciones:[{id:'old',fecha:'2026-09-24',tipoActualizacion:'avance',descripcion:'Texto antiguo'}]});const k=efficiency(e);assert.equal(k.percent,null);assert.equal(k.unknownStart,true);assert.equal(k.worked,0);});
+test('trabajo y espera sin reparto mantienen eficiencia sin confirmar',()=>{const e=event({actualizaciones:[update('2026-09-24'),update('2026-09-24',{activity:'espera',cause:'CAP'}),update('2026-09-25')]});assert.equal(efficiency(e).percent,null);});
+test('bar continua, pero dos intervenciones son dos barras',()=>{const s=toRegister([event(),event({id:'other',fecha:'2026-09-25'})]);const bars=timelineLanes(s,s.maintenances,'2026-09-21',now);assert.equal(bars.length,2);assert.equal(bars[0].span,2);assert.notEqual(bars[0].lane,bars[1].lane);});
+test('preventivo: máquina completa y personal rotativo',()=>{const e=event({tipo:'preventivo',preventivoCodigo:'AB',responsable:'Turno rotativo'});const m=toRegister([e]).maintenances[0];assert.equal(m.component,'Locomotora completa');assert.equal(m.staff,'Turno rotativo');validateEvent(e,now);assert.throws(()=>validateUpdate(e,update('2026-09-24'),now),/rotativo/);});
+test('contradicciones de día completo y fracciones duplicadas se rechazan',()=>{let e=event({actualizaciones:[update('2026-09-24')]});assert.throws(()=>validateUpdate(e,update('2026-09-24',{activity:'espera',period:'Día completo',cause:'CAP',fullDay:true},{id:'new'}),now),/espera/);e=event({actualizaciones:[update('2026-09-24',{activity:'mixto',cause:'CAP',usefulFraction:.5})]});assert.throws(()=>validateUpdate(e,update('2026-09-24',{activity:'mixto',cause:'CAP',usefulFraction:.5,allocationNote:'Mitad'},{id:'new'}),now),/reparto/);});
+test('observación después del cierre permite anotación, no trabajo',()=>{const e=event();validateUpdate(e,update('2026-09-26',{activity:'sin_dato'}),now);assert.throws(()=>validateUpdate(e,update('2026-09-26'),now),/cierre/);});
+test('fecha futura, detención posterior y falta de sistema se rechazan',()=>{assert.throws(()=>validateEvent(event({fecha:'2026-09-28'}),now),/futura/);assert.throws(()=>validateEvent(event({metadata:{seguimiento:{location:'Boulogne',detentionStart:'2026-09-25'}}}),now),/detenida/);});
+test('aliases y exportación segura para Excel',()=>{assert.equal(normalizeUnit('EMO2'),'EM02');assert.equal(normalizeUnit('701'),'E701');assert.ok(csv([['=1+1','a;b']]).includes("'=1+1"));});
+test('importación repetida omite y potencial duplicado requiere revisión',()=>{const s=toRegister([event({actualizaciones:[update('2026-09-24'),update('2026-09-25')]})]);let rows=preparePilotImport(s,[],now);assert.equal(rows[0].issues.length,0);rows=preparePilotImport(s,[event()],now);assert.match(rows[0].issues.join(' '),/duplicado/);rows=preparePilotImport(s,[event({metadata:{pilotSourceId:'piloto:example'}})],now);assert.equal(rows[0].skipped,true);});
+
+test('jornada confirmada permite 50% hoy sin cerrar el mantenimiento',()=>{
+ const e=event({fecha:now,fechaCierre:null,estadoMantenimiento:'en_curso'});
+ e.metadata.seguimiento.detentionStart=now;
+ const a=update(now,{activity:'mixto',cause:'CAP',usefulFraction:.5,allocationNote:'Mitad de trabajo y mitad de espera'},{tipoActualizacion:'avance'});
+ assert.throws(()=>validateUpdate(e,a,now),/terminar el día/);
+ a.metadata.seguimiento.dayComplete=true;
+ validateUpdate(e,a,now); e.actualizaciones=[a];
+ const result=efficiency(e);assert.equal(result.percent,50);assert.equal(result.rows.length,1);assert.equal(result.closed,false);
+});

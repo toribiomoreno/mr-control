@@ -1,15 +1,12 @@
+import FleetOverview from './FleetOverview.jsx';
+import FleetMetrics from './FleetMetrics.jsx';
 import heroLocomotive from '../assets/home/home-hero-loc.jpeg';
 import frontLocomotive from '../assets/home/locdetrompa.png';
 import motionLocomotive from '../assets/home/home-motion-loc.jpeg';
+import coaches from '../assets/home/remolcado-reference.webp';
+import tractiveLocomotives from '../assets/home/tractivo-e710.webp';
 
-const quickTabs = ['Locomotoras', 'Coches', 'Areas', 'Reportes'];
-
-const navigationTargets = {
-  Areas: 'areas',
-  Reportes: 'reportes',
-};
-
-export default function Home({ onNavigate }) {
+export default function Home(props) {
   return (
     <main className="home-dashboard">
       <section className="home-hero" aria-labelledby="home-title">
@@ -25,88 +22,9 @@ export default function Home({ onNavigate }) {
         </div>
       </section>
 
-      <section className="home-command-bar" aria-label="Accesos principales">
-        <div className="home-quick-tabs">
-          {quickTabs.map((item, index) => (
-            <button
-              className={index === 0 ? 'active' : ''}
-              key={item}
-              onClick={navigationTargets[item] ? () => onNavigate?.(navigationTargets[item]) : undefined}
-              type="button"
-            >
-              <span className="tab-mark" />
-              {item}
-            </button>
-          ))}
-        </div>
-
-        <div className="home-action-row">
-          <div className="home-search" aria-hidden="true" />
-          <button className="home-register-button" type="button">+ Registrar Intervencion</button>
-        </div>
-      </section>
-
-      <section className="home-modules" aria-label="Modulos de material rodante">
-        <div className="home-module-tabs">
-          {quickTabs.map((item, index) => (
-            <button
-              className={index === 0 ? 'active' : ''}
-              key={item}
-              onClick={navigationTargets[item] ? () => onNavigate?.(navigationTargets[item]) : undefined}
-              type="button"
-            >
-              <span className="module-icon" />
-              {item}
-            </button>
-          ))}
-        </div>
-
-        <div className="home-info-grid">
-          <article className="home-info-card">
-            <span className="home-card-icon target" />
-            <h3>Mision</h3>
-            <strong>Maximizar la fiabilidad y disponibilidad del material rodante</strong>
-            <p>
-              Garantizamos el optimo estado y funcionamiento de nuestros trenes,
-              asegurando la seguridad y eficiencia en el transporte ferroviario.
-            </p>
-          </article>
-
-          <article className="home-info-card">
-            <span className="home-card-icon trophy" />
-            <h3>Objetivos</h3>
-            <p>Nuestras metas para el exito</p>
-            <ul>
-              <li>Reducir el tiempo fuera de servicio</li>
-              <li>Optimizar el mantenimiento preventivo</li>
-              <li>Prolongar la vida util de los equipos</li>
-            </ul>
-          </article>
-
-          <article className="home-info-card home-scope-card">
-            <span className="home-card-icon gear" />
-            <h3>Alcance</h3>
-            <strong>Gestion integral del material rodante</strong>
-            <ul>
-              <li>Mantenimiento de locomotoras y coches</li>
-              <li>Gestion de repuestos y recursos</li>
-              <li>Monitorizacion del estado y rendimiento</li>
-              <li>Coordinacion con Infraestructura y Transporte</li>
-            </ul>
-          </article>
-
-          <article className="home-metric-card">
-            <span className="metric-flame" />
-            <strong>+85%</strong>
-            <p>Locomotoras operativas</p>
-          </article>
-
-          <article className="home-metric-card">
-            <span className="metric-team" />
-            <strong>+40</strong>
-            <p>Tecnicos especializados</p>
-          </article>
-        </div>
+      <section className="home-modules" aria-label="Material rodante">
+        <details className="fleet-accordion fleet-accordion-tractive" open><summary><span className="fleet-summary-identity"><img className="fleet-summary-photo" src={tractiveLocomotives} alt="" /><span>Tractivo<small>Parque de locomotoras</small></span></span><FleetMetrics locomotoras={props.locomotoras} loading={props.loading} /></summary><FleetOverview {...props} /></details>
+        <details className="fleet-accordion fleet-accordion-coaches"><summary><img className="fleet-summary-photo" src={coaches} alt="" /><span>Remolcado<small>Parque de coches</small></span></summary><div className="fleet-placeholder">Módulo pendiente de incorporación.</div></details>
       </section>
 
       <section className="home-route">

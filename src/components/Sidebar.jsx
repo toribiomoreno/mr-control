@@ -3,23 +3,20 @@ import { useState } from 'react';
 import { rolLegible } from '../lib/permissions.js';
 
 const locomotiveItems = [
-  { id: 'patio', label: 'Patio', tab: 'patio' },
-  { id: 'inventario', label: 'Inventario', tab: 'locos' },
   { id: 'archivo', label: 'Archivo historico', tab: 'historial' },
+  { id: 'calendario', label: 'Mantenimientos', tab: 'calendario' },
 ];
 
 const sidebarItems = [
   { id: 'inicio', label: 'Inicio', tab: 'inicio' },
-  { id: 'locomotoras', label: 'Locomotoras', children: locomotiveItems },
-  { id: 'coches', label: 'Coches', tab: 'coches' },
-  { id: 'calendario', label: 'Calendario', tab: 'calendario' },
-  { id: 'configuracion', label: 'Configuracion', tab: 'historial' },
+  { id: 'locomotoras', label: 'Tractivo', children: locomotiveItems },
+  { id: 'coches', label: 'Remolcado', tab: 'coches' },
 ];
 
 export default function Sidebar({ active = 'locomotoras', onNavigate, onSignOut, perfil }) {
   const [collapsed, setCollapsed] = useState(false);
   const [locomotivesOpen, setLocomotivesOpen] = useState(true);
-  const isLocomotivesActive = ['locomotoras', 'patio', 'inventario', 'archivo'].includes(active);
+  const isLocomotivesActive = ['locomotoras', 'patio', 'archivo', 'calendario'].includes(active);
   const userName = perfil?.nombre || perfil?.email || 'Usuario';
 
   return (
